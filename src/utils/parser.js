@@ -34,11 +34,17 @@ export function parseTask(name, txt) {
     });
   }
 
+  const tags = Array.isArray(fm.tags) ? fm.tags : fm.tags ? [fm.tags] : [];
+
   return {
     id:name, title, filename:name.replace(/\.md$/,''),
     priority:fm.priority||'normal', status:fm.status||'none', due:fm.due||null,
     contexts:Array.isArray(fm.contexts)?fm.contexts:fm.contexts?[fm.contexts]:[],
     client:wl(fm.client), building:wl(fm.building),
+    projects:Array.isArray(fm.projects)?fm.projects.map(wl):fm.projects?[wl(fm.projects)]:[],
+    waitingfor:wl(fm.waitingfor),
+    tags, archived: tags.includes('archived'),
+    completedDate: fm.completedDate || null,
     checklist:cl, checklistDone:cl.filter(c=>c.done).length, checklistTotal:cl.length,
     logs, raw:txt,
   };
@@ -50,6 +56,17 @@ export async function readMdFiles(dir, acc = []) {
       acc.push({ name, handle:h, text: await (await h.getFile()).text() });
     else if (h.kind==='directory' && !name.startsWith('.'))
       await readMdFiles(h, acc);
+  }
+  return acc;
+}
+
+// Returns just filenames (without .md extension) for autocomplete sources.
+export async function readDirNames(dir, acc = []) {
+  for await (const [name, h] of dir.entries()) {
+    if (h.kind === 'file' && name.endsWith('.md'))
+      acc.push(name.replace(/\.md$/, ''));
+    else if (h.kind === 'directory' && !name.startsWith('.'))
+      await readDirNames(h, acc);
   }
   return acc;
 }

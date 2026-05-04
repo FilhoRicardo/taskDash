@@ -1,4 +1,4 @@
-﻿const DB = 'taskdash_v1', ST = 'handles';
+const DB = 'taskdash_v1', ST = 'handles';
 const openDB = () => new Promise((res, rej) => {
   const r = indexedDB.open(DB, 1);
   r.onupgradeneeded = e => e.target.result.createObjectStore(ST);
@@ -19,6 +19,14 @@ export async function idbGet(k) {
     const tx = db.transaction(ST, 'readonly');
     const r = tx.objectStore(ST).get(k);
     r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+  });
+}
+export async function idbDel(k) {
+  const db = await openDB();
+  return new Promise((res, rej) => {
+    const tx = db.transaction(ST, 'readwrite');
+    tx.objectStore(ST).delete(k);
+    tx.oncomplete = res; tx.onerror = () => rej(tx.error);
   });
 }
 export const lsGet = k => { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : null; } catch { return null; } };
