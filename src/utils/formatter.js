@@ -27,12 +27,22 @@ export function isoLocal(date = new Date()) {
   return `${y}-${mo}-${d}T${h}:${mi}:${s}.${ms}${sign}${tzh}:${tzm}`;
 }
 
+function normalizeLogDate(rawDate) {
+  const iso = rawDate.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (iso) return rawDate;
+  const slash = rawDate.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (!slash) return null;
+  const [, d, m, y] = slash;
+  return `${y}-${String(Number(m)).padStart(2, '0')}-${String(Number(d)).padStart(2, '0')}`;
+}
+
 function dateHeaders(raw) {
   const headers = [];
-  const rx = /(^|\n)### \[\[(\d{4}-\d{2}-\d{2})\]\][ \t]*(?=\n|$)/g;
+  const rx = /(^|\n)### (?:\[\[)?(\d{4}-\d{2}-\d{2}|\d{1,2}\/\d{1,2}\/\d{4})(?:\]\])?[ \t]*(?=\n|$)/g;
   let m;
   while ((m = rx.exec(raw)) !== null) {
-    headers.push({ date: m[2], start: m.index + m[1].length, end: rx.lastIndex });
+    const date = normalizeLogDate(m[2]);
+    if (date) headers.push({ date, start: m.index + m[1].length, end: rx.lastIndex });
   }
   return headers;
 }
@@ -52,7 +62,7 @@ function firstSeparator(raw, start, end = raw.length) {
 function withTrailingSeparator(text) {
   const trimmed = text.trimEnd();
   if (!trimmed) return '';
-  return /(^|\n)---$/.test(trimmed) ? `${trimmed}\n` : `${trimmed}\n---\n`;
+  return /(^|\n)---$/.test(trimmed) ? `${trimmed}\n` : `${trimmed}\n\n---\n`;
 }
 
 // Append note to task .md in chronological date sections.
@@ -68,12 +78,12 @@ export function appendNoteToMd(raw, noteText) {
     const sectionEnd = next?.start ?? raw.length;
     const insertAt = firstSeparator(raw, today.end, sectionEnd);
     if (insertAt !== -1) {
-      return `${raw.slice(0, insertAt).trimEnd()}\n${logLine}\n${raw.slice(insertAt)}`;
+      return `${raw.slice(0, insertAt).trimEnd()}\n${logLine}\n\n${raw.slice(insertAt)}`;
     }
-    return `${raw.slice(0, sectionEnd).trimEnd()}\n${logLine}\n---\n${raw.slice(sectionEnd).replace(/^\n+/, '')}`;
+    return `${raw.slice(0, sectionEnd).trimEnd()}\n${logLine}\n\n---\n${raw.slice(sectionEnd).replace(/^\n+/, '')}`;
   }
 
-  const newEntry = `### [[${dateStr}]]\n${logLine}\n---\n`;
+  const newEntry = `### [[${dateStr}]]\n${logLine}\n\n---\n`;
   const future = headers.find(h => h.date > dateStr);
   if (future) {
     return `${withTrailingSeparator(raw.slice(0, future.start))}${newEntry}${raw.slice(future.start)}`;

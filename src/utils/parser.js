@@ -25,20 +25,35 @@ const ignoredName = name => {
   return base === 'index' || base.startsWith('_');
 };
 const isProjectName = name => /^project\b/i.test(basename(name).trim());
+const normalizeLogDate = rawDate => {
+  const iso = rawDate.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (iso) return rawDate;
+  const slash = rawDate.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (!slash) return null;
+  const [, d, m, y] = slash;
+  return `${y}-${String(Number(m)).padStart(2, '0')}-${String(Number(d)).padStart(2, '0')}`;
+};
 
 export function parseTask(name, txt) {
   const fm = parseFrontmatter(txt), title = fm.title || name.replace(/\.md$/, '');
   const cl = [...txt.matchAll(/- \[([ x])\] (.+)/g)].map(m => ({done:m[1]==='x',text:m[2]}));
 
   const logs = [];
-  const sRx = /### \[\[(\d{4}-\d{2}-\d{2})\]\]\n((?:Log: [^\n]*\n?)*)/g;
-  let sm;
-  while ((sm = sRx.exec(txt)) !== null) {
-    [...sm[2].matchAll(/Log: ([^\n]+)/g)].forEach(lm => {
+  const hRx = /(^|\n)### (?:\[\[)?(\d{4}-\d{2}-\d{2}|\d{1,2}\/\d{1,2}\/\d{4})(?:\]\])?[ \t]*(?=\n|$)/g;
+  const headers = [...txt.matchAll(hRx)].map(m => ({
+    date: normalizeLogDate(m[2]),
+    start: m.index + m[1].length,
+    end: m.index + m[0].length,
+  })).filter(h => h.date);
+  headers.forEach((h, i) => {
+    const section = txt.slice(h.end, headers[i + 1]?.start ?? txt.length);
+    [...section.matchAll(/^Log: ([^\n]+)/gm)].forEach(lm => {
       const text = lm[1].trim();
-      if (text) logs.push({ date: sm[1], text });
+      if (text) logs.push({ date: h.date, text, order: logs.length });
     });
-  }
+  });
+  logs.sort((a, b) => a.date.localeCompare(b.date) || a.order - b.order);
+  logs.forEach(l => { delete l.order; });
 
   const tags = Array.isArray(fm.tags) ? fm.tags : fm.tags ? [fm.tags] : [];
 
