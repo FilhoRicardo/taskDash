@@ -10,6 +10,10 @@ export const isToday = d => d === tod();
 export const isOver  = d => d && d < tod();
 export const minsFromMs = ms => Math.round(ms / 60000) || 1;
 
+export function longDate(date = new Date()) {
+  return date.toLocaleDateString('en-US', { weekday:'long', year:'numeric', month:'long', day:'numeric' });
+}
+
 // ── Local ISO timestamp with timezone offset (matches Obsidian/TaskNotes style) ──
 export function isoLocal(date = new Date()) {
   const pad = (n, len = 2) => String(n).padStart(len, '0');
@@ -103,6 +107,130 @@ export function appendPropertyCommentToMd(raw, commentText) {
 }
 
 // ── Time tracker row ──────────────────────────────────────
+export function buildDailyNoteMd(dateStr = tod()) {
+  const date = new Date(`${dateStr}T12:00:00`);
+  return `---
+date: ${dateStr}
+tags:
+  - daily-note
+---
+
+# ${longDate(date)}
+
+---
+
+## Due Today
+
+\`\`\`base
+filters:
+  and:
+    - status != "done"
+    - file.folder == "TaskNotes/Tasks"
+    - due == "${dateStr}"
+properties:
+  title:
+    displayName: Task
+  priority:
+    displayName: Priority
+  due:
+    displayName: Due
+  status:
+    displayName: Status
+views:
+  - type: table
+    name: Due Today
+    order:
+      - file.name
+      - client
+      - priority
+      - due
+    columnSize:
+      file.name: 279
+      note.client: 145
+      note.priority: 152
+
+\`\`\`
+
+## Overdue
+
+\`\`\`base
+filters:
+  and:
+    - status != "done"
+    - file.folder == "TaskNotes/Tasks"
+    - due < date("${dateStr}")
+properties:
+  title:
+    displayName: Task
+  priority:
+    displayName: Priority
+  due:
+    displayName: Due
+  status:
+    displayName: Status
+views:
+  - type: table
+    name: Overdue
+    order:
+      - file.name
+      - client
+      - priority
+      - due
+    sort:
+      - property: prio
+        direction: ASC
+    columnSize:
+      file.name: 285
+      note.client: 151
+      note.priority: 144
+
+\`\`\`
+
+## Notes
+
+- 
+
+---
+
+## Reflections
+
+- 
+
+---
+
+## Brain dump - issues
+
+- 
+`;
+}
+
+export function appendDailySectionEntry(raw, section, text) {
+  const labels = {
+    notes: 'Notes',
+    reflections: 'Reflections',
+    brainDump: 'Brain dump - issues',
+  };
+  const label = labels[section] || labels.notes;
+  const headingRx = new RegExp(`(^|\\n)##\\s+.*${label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}.*[ \\t]*(?=\\n|$)`, 'i');
+  const match = headingRx.exec(raw);
+  const entry = `- ${text.trim()}`;
+
+  if (!match) return `${raw.trimEnd()}\n\n## ${label}\n\n${entry}\n`;
+
+  const start = match.index + match[0].length;
+  const rest = raw.slice(start);
+  const next = rest.search(/\n##\s+/);
+  const end = next === -1 ? raw.length : start + next;
+  const sectionText = raw.slice(start, end);
+  const placeholderRx = /(^|\n)-\s*([ \t]*)(?=\n|$)/;
+
+  if (placeholderRx.test(sectionText)) {
+    const replaced = sectionText.replace(placeholderRx, `$1${entry}`);
+    return raw.slice(0, start) + replaced + raw.slice(end);
+  }
+  return `${raw.slice(0, end).trimEnd()}\n${entry}\n${raw.slice(end)}`;
+}
+
 const TRACKER_HEADER = '# Time Tracker\n\n| Date | Task | Duration (min) |\n|------|------|----------------|\n';
 
 export function buildTrackerRow(dateStr, taskLabel, isLinked, durationMs) {

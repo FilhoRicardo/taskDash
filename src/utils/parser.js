@@ -101,6 +101,40 @@ export function parseProject(name, txt) {
   };
 }
 
+function sectionBody(txt, headingRx) {
+  const match = headingRx.exec(txt);
+  if (!match) return '';
+  const start = match.index + match[0].length;
+  const next = txt.slice(start).search(/\n##\s+/);
+  return txt.slice(start, next === -1 ? txt.length : start + next).trim();
+}
+
+function bulletLines(txt) {
+  return txt
+    .split('\n')
+    .map(line => line.trim())
+    .filter(line => /^-\s+.+/.test(line))
+    .map(line => line.replace(/^-\s+/, '').trim());
+}
+
+export function parseDailyNote(name, txt) {
+  const fm = parseFrontmatter(txt);
+  const h1 = txt.match(/^#\s+(.+)$/m)?.[1]?.trim();
+  const notes = sectionBody(txt, /(^|\n)##\s+.*Notes[ \t]*(?=\n|$)/i);
+  const reflections = sectionBody(txt, /(^|\n)##\s+.*Reflections[ \t]*(?=\n|$)/i);
+  const brainDump = sectionBody(txt, /(^|\n)##\s+.*Brain dump.*[ \t]*(?=\n|$)/i);
+  return {
+    id: name,
+    filename: basename(name),
+    date: fm.date || basename(name),
+    title: h1 || basename(name),
+    notes: bulletLines(notes),
+    reflections: bulletLines(reflections),
+    brainDump: bulletLines(brainDump),
+    raw: txt,
+  };
+}
+
 export function parseProperty(name, txt) {
   const fm = parseFrontmatter(txt);
   const h1 = txt.match(/^#\s+(.+)$/m)?.[1]?.trim();

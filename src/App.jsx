@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { parseTask, parseProperty, parseProject, readMdFiles, readDirNames, readImageFiles } from './utils/parser.js';
+import { parseTask, parseProperty, parseProject, parseDailyNote, readMdFiles, readDirNames, readImageFiles } from './utils/parser.js';
 import { idbGet, idbSet, idbDel, lsGet, lsSet, lsDel } from './utils/storage.js';
-import { fmt, tod, isToday, isOver, appendNoteToMd, appendPropertyCommentToMd, buildTrackerRow, appendTrackerRow, buildMeetingMd, buildNewTaskMd, buildNewPropertyMd, buildNewProjectMd, markTaskDone, setPropertyCover, touchDateModified } from './utils/formatter.js';
+import { fmt, tod, isToday, isOver, longDate, appendNoteToMd, appendPropertyCommentToMd, appendDailySectionEntry, buildDailyNoteMd, buildTrackerRow, appendTrackerRow, buildMeetingMd, buildNewTaskMd, buildNewPropertyMd, buildNewProjectMd, markTaskDone, setPropertyCover, touchDateModified } from './utils/formatter.js';
 
 const REFRESH_MS  = 5 * 60 * 1000;
 const WARN_MS     = 60 * 60 * 1000;
@@ -14,6 +14,7 @@ const FOLDER_DEFS = [
   { key:'clients',    label:'Clients',    mode:'read',      required:false, desc:'For client autocomplete' },
   { key:'people',     label:'People',     mode:'read',      required:false, desc:'For "waiting for" autocomplete' },
   { key:'attachments', label:'Attachments', mode:'readwrite', required:false, desc:'For property cover images and uploads' },
+  { key:'daily',      label:'Daily Notes', mode:'readwrite', required:false, desc:'Where TaskDash should auto-create YYYY-MM-DD daily notes' },
 ];
 const REF_KEYS = ['projects','properties','clients','people'];
 const FOLDER_SETUP_SEEN = 'folderSetupV2Seen';
@@ -184,6 +185,11 @@ export default function App() {
   const [projectSearch,  setProjectSearch]  = useState('');
   const [projectDraft,   setProjectDraft]   = useState('');
   const [newProjectOpen, setNewProjectOpen] = useState(false);
+
+  // â”€â”€ Daily note state â”€â”€
+  const [dailyNote,   setDailyNote]   = useState(null);
+  const [dailyHandle, setDailyHandle] = useState(null);
+  const [dailyInputs, setDailyInputs] = useState({ notes:'', reflections:'', brainDump:'' });
 
   // ── Tasks / timer / UI state ──
   const [tasks,         setTasks]         = useState([]);
@@ -356,6 +362,28 @@ export default function App() {
     } catch(e) { console.error('projects load failed', e); }
   }, []);
 
+  const ensureDailyNote = useCallback(async (dir) => {
+    if (!dir) return null;
+    const dateStr = tod();
+    const filename = `${dateStr}.md`;
+    try {
+      const fh = await dir.getFileHandle(filename, { create:true });
+      const file = await fh.getFile();
+      let text = await file.text();
+      if (!text.trim()) {
+        text = buildDailyNoteMd(dateStr);
+        await writeFile(fh, text);
+      }
+      const parsed = parseDailyNote(filename, text);
+      setDailyHandle(fh);
+      setDailyNote(parsed);
+      return parsed;
+    } catch(e) {
+      console.error('daily note load failed', e);
+      return null;
+    }
+  }, []);
+
   const loadAttachmentImages = useCallback(async (dir) => {
     try {
       const raw = await readImageFiles(dir);
@@ -388,7 +416,8 @@ export default function App() {
     if (liveDirs.projects) await loadProjects(liveDirs.projects);
     if (liveDirs.properties) await loadProperties(liveDirs.properties);
     if (liveDirs.attachments) await loadAttachmentImages(liveDirs.attachments);
-  }, [loadFiles, loadRefs, loadProjects, loadProperties, loadAttachmentImages]);
+    if (liveDirs.daily) await ensureDailyNote(liveDirs.daily);
+  }, [loadFiles, loadRefs, loadProjects, loadProperties, loadAttachmentImages, ensureDailyNote]);
 
   // ── Setup & permission flow ──
   const pickFolder = async (key) => {
@@ -408,6 +437,7 @@ export default function App() {
         if (key === 'projects') await loadProjects(dir);
         if (key === 'properties') await loadProperties(dir);
         if (key === 'attachments') await loadAttachmentImages(dir);
+        if (key === 'daily') await ensureDailyNote(dir);
         await loadRefs(next);
       }
     } catch(e) { if (e.name!=='AbortError') alert('Error: '+e.message); }
@@ -432,6 +462,7 @@ export default function App() {
           if (key === 'projects') await loadProjects(h);
           if (key === 'properties') await loadProperties(h);
           if (key === 'attachments') await loadAttachmentImages(h);
+          if (key === 'daily') await ensureDailyNote(h);
           await loadRefs(next);
         }
       }
@@ -463,6 +494,7 @@ export default function App() {
     if (key === 'tasks') { setTasks([]); setTaskHandles({}); setTrackerHandle(null); }
     else if (key === 'projects') { setProjects([]); setProjectHandles({}); setProjectSel(null); setProjectDraft(''); }
     else if (key === 'properties') { setProperties([]); setPropertyHandles({}); setPropertySel(null); }
+    else if (key === 'daily') { setDailyNote(null); setDailyHandle(null); setDailyInputs({ notes:'', reflections:'', brainDump:'' }); }
     else if (key === 'attachments') {
       Object.values(imageUrlsRef.current).forEach(URL.revokeObjectURL);
       imageUrlsRef.current = {};
@@ -479,6 +511,7 @@ export default function App() {
     setTasks([]); setTaskHandles({}); setTrackerHandle(null);
     setProjects([]); setProjectHandles({}); setProjectSel(null); setProjectDraft('');
     setProperties([]); setPropertyHandles({}); setPropertySel(null);
+    setDailyNote(null); setDailyHandle(null); setDailyInputs({ notes:'', reflections:'', brainDump:'' });
     Object.values(imageUrlsRef.current).forEach(URL.revokeObjectURL);
     imageUrlsRef.current = {};
     setPropertyImages({});
@@ -740,6 +773,26 @@ export default function App() {
     }
   };
 
+  const addDailyEntry = async (section) => {
+    const text = dailyInputs[section]?.trim();
+    if (!text) return;
+    if (!dirs.daily || !dailyHandle || !dailyNote) {
+      alert('Pick a Daily Notes folder first.');
+      return;
+    }
+
+    try {
+      const updated = appendDailySectionEntry(dailyNote.raw, section, text);
+      await writeFile(dailyHandle, updated);
+      setDailyNote(parseDailyNote(`${tod()}.md`, updated));
+      setDailyInputs(prev => ({ ...prev, [section]: '' }));
+      setToast('Saved to today\'s daily note');
+    } catch(e) {
+      console.error('daily note write failed', e);
+      alert('Failed to update daily note: ' + e.message);
+    }
+  };
+
   const task      = tasks.find(t => t.id===sel);
   const property  = properties.find(p => p.id===propertySel);
   const project   = projects.find(p => p.id===projectSel);
@@ -767,7 +820,7 @@ export default function App() {
   const headerLabel = view === 'mission' ? 'MISSION CONTROL' : view === 'tasks' ? "TODAY'S TOTAL" : view === 'projects' ? 'PROJECT LIBRARY' : 'PROPERTY LIBRARY';
   const headerMetric = view === 'mission' ? missionToday.length + missionOverdue.length : view === 'tasks' ? fmt(totalToday) : view === 'projects' ? projects.length : properties.length;
   const headerDetail = view === 'mission'
-    ? `${missionToday.length} today · ${missionOverdue.length} overdue · ${missionRecurrent.length} recurrent`
+    ? `${missionToday.length} today · ${missionOverdue.length} overdue · ${dirs.daily ? 'daily on' : 'daily off'}`
     : view === 'tasks'
       ? `${tasks.filter(t=>!t.archived).length} tasks · ${Object.values(refs).reduce((a,r)=>a+r.length,0)} refs`
       : view === 'projects'
@@ -1077,6 +1130,12 @@ export default function App() {
           onStart={start}
           onStop={stop}
           onNewTask={()=>{ setView('tasks'); setNewTaskOpen(true); }}
+          dailyNote={dailyNote}
+          dailyInputs={dailyInputs}
+          setDailyInputs={setDailyInputs}
+          onAddDailyEntry={addDailyEntry}
+          hasDailyFolder={!!dirs.daily}
+          onConfigure={()=>setFolderSetupOpen(true)}
         />
       ) : view === 'projects' ? (
         newProjectOpen ? (
@@ -1211,7 +1270,7 @@ export default function App() {
   );
 }
 
-function MissionControlPanel({ today, overdue, recurrent, selectedId, liveId, getTime, onSelectTask, onStart, onStop, onNewTask }) {
+function MissionControlPanel({ today, overdue, recurrent, selectedId, liveId, getTime, onSelectTask, onStart, onStop, onNewTask, dailyNote, dailyInputs, setDailyInputs, onAddDailyEntry, hasDailyFolder, onConfigure }) {
   const renderTask = t => {
     const running = liveId === t.id;
     return (
@@ -1248,11 +1307,41 @@ function MissionControlPanel({ today, overdue, recurrent, selectedId, liveId, ge
       <div style={{ padding:'22px 30px 16px', borderBottom:'1px solid rgba(255,255,255,0.06)', flexShrink:0, display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:20 }}>
         <div>
           <div style={{ fontSize:10, color:'#a78bfa', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:8 }}>Today Mission Control</div>
-          <h2 style={{ margin:0, fontSize:20, fontWeight:750, color:'#f1f5f9' }}>Tackle the oldest work first</h2>
+          <h2 style={{ margin:0, fontSize:20, fontWeight:750, color:'#f1f5f9' }}>{longDate(new Date())}</h2>
+          <div style={{ fontSize:12, color:'#64748b', marginTop:5 }}>{dailyNote ? dailyNote.filename : hasDailyFolder ? 'Creating today daily note...' : 'Daily notes folder not configured'}</div>
         </div>
-        <button onClick={onNewTask} style={{ padding:'9px 16px', borderRadius:10, border:'none', cursor:'pointer', fontWeight:800, fontSize:13, fontFamily:'inherit', background:'linear-gradient(135deg,#7c3aed,#3b82f6)', color:'#fff' }}>+ New Task</button>
+        <div style={{ display:'flex', gap:8 }}>
+          <button onClick={onConfigure} style={{ padding:'9px 13px', borderRadius:10, border:'1px solid rgba(255,255,255,0.08)', cursor:'pointer', fontWeight:800, fontSize:12, fontFamily:'inherit', background:'rgba(255,255,255,0.03)', color:'#94a3b8' }}>{hasDailyFolder ? 'Daily folder set' : 'Set Daily folder'}</button>
+          <button onClick={onNewTask} style={{ padding:'9px 16px', borderRadius:10, border:'none', cursor:'pointer', fontWeight:800, fontSize:13, fontFamily:'inherit', background:'linear-gradient(135deg,#7c3aed,#3b82f6)', color:'#fff' }}>+ New Task</button>
+        </div>
       </div>
       <div style={{ flex:1, overflowY:'auto', padding:'20px 24px' }}>
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(3,minmax(220px,1fr))', gap:12, marginBottom:18 }}>
+          {[
+            ['notes', 'Notes', dailyNote?.notes || []],
+            ['reflections', 'Reflections', dailyNote?.reflections || []],
+            ['brainDump', 'Brain dump - issues', dailyNote?.brainDump || []],
+          ].map(([key, label, items]) => (
+            <section key={key} style={{ borderRadius:8, border:'1px solid rgba(255,255,255,0.06)', background:'rgba(255,255,255,0.025)', padding:'13px' }}>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline', marginBottom:10 }}>
+                <h3 style={{ margin:0, fontSize:14, color:'#f1f5f9' }}>{label}</h3>
+                <span style={{ fontSize:10, color:'#64748b', fontWeight:800 }}>{items.length}</span>
+              </div>
+              <div style={{ minHeight:58, marginBottom:10 }}>
+                {items.length ? items.slice(-3).map((item, i) => (
+                  <div key={i} style={{ fontSize:12, color:'#cbd5e1', lineHeight:1.45, marginBottom:6 }}>- {item}</div>
+                )) : <div style={{ fontSize:12, color:'#334155', paddingTop:10 }}>Nothing written yet</div>}
+              </div>
+              <div style={{ display:'flex', gap:7 }}>
+                <input value={dailyInputs[key] || ''} onChange={e=>setDailyInputs(prev => ({ ...prev, [key]: e.target.value }))} onKeyDown={e=>{ if(e.key==='Enter') onAddDailyEntry(key); }} disabled={!hasDailyFolder}
+                  placeholder={hasDailyFolder ? `Add ${label.toLowerCase()}...` : 'Set daily folder first'}
+                  style={{ flex:1, minWidth:0, padding:'8px 10px', borderRadius:8, background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.08)', color:'#e2e8f0', fontSize:12, outline:'none', fontFamily:'inherit', opacity:hasDailyFolder?1:0.45 }}/>
+                <button onClick={()=>onAddDailyEntry(key)} disabled={!hasDailyFolder || !dailyInputs[key]?.trim()} style={{ padding:'8px 10px', borderRadius:8, border:'none', cursor:hasDailyFolder?'pointer':'not-allowed', fontWeight:800, fontSize:11, fontFamily:'inherit', background:'rgba(124,58,237,0.18)', color:'#c4b5fd', opacity:hasDailyFolder && dailyInputs[key]?.trim()?1:0.4 }}>Add</button>
+              </div>
+            </section>
+          ))}
+        </div>
+
         <div style={{ display:'grid', gridTemplateColumns:'repeat(3,minmax(220px,1fr))', gap:14, alignItems:'start' }}>
           {sections.map(s => (
             <section key={s.title} style={{ minWidth:0 }}>
