@@ -1,4 +1,4 @@
-const DB = 'taskdash_v1', ST = 'handles';
+﻿const DB = 'taskdash_v1', ST = 'handles';
 const openDB = () => new Promise((res, rej) => {
   const r = indexedDB.open(DB, 1);
   r.onupgradeneeded = e => e.target.result.createObjectStore(ST);

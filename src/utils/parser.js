@@ -1,27 +1,27 @@
-export function parseFrontmatter(txt) {
-  const m = txt.match(/---\n([\s\S]*?)\n---/);
+﻿export function parseFrontmatter(txt) {
+  const m = txt.match(/^---\n([\s\S]*?)\n---/);
   if (!m) return {};
   const res = {}; let key = null;
   for (const line of m[1].split('\n')) {
-    if (/  - /.test(line)) {
-      const v = line.replace(/  - /, '').trim().replace(/["']^|["']$/g, '');
+    if (/^  - /.test(line)) {
+      const v = line.replace(/^  - /, '').trim().replace(/^["']|["']$/g, '');
       if (key && Array.isArray(res[key])) res[key].push(v);
     } else {
       const kv = line.match(/^(\w+):\s*(.*)/);
       if (!kv) continue;
       key = kv[1]; const raw = kv[2].trim();
       if (!raw) res[key] = [];
-      else if (raw[0] === '[') res[key] = raw.slice(1,-1).split(',').map(s => s.trim().replace(/["']^|["']$/g,''));
-      else res[key] = raw.replace(/["']^|["']$/g,'');
+      else if (raw[0] === '[') res[key] = raw.slice(1,-1).split(',').map(s => s.trim().replace(/^["']|["']$/g, ''));
+      else res[key] = raw.replace(/^["']|["']$/g, '');
     }
   }
   return res;
 }
-const wl = s => s ? s.replace(/\[\[|\]\]$/g, '') : null;
+const wl = s => s ? s.replace(/^\[\[|\]\]$/g, '') : null;
 export function parseTask(name, txt) {
   const fm = parseFrontmatter(txt), title = fm.title || name.replace(/\.md$/, '');
   const cl = [...txt.matchAll(/- \[([ x])\] (.+)/g)].map(m => ({done:m[1]==='x',text:m[2]}));
-  const logs = [...txt.matchAll(/### \[\[(\d{4}-\d{2}-\d{2})\]\]\nLog: ([\n]+)/g)]
+  const logs = [...txt.matchAll(/### \[\[(\d{4}-\d{2}-\d{2})\]\]\nLog: ([^\n]+)/g)]
     .map(m => ({date:m[1],text:m[2].trim()})).filter(l => l.text);
   return {
     id:name, title, filename:name.replace(/\.md$/,''),
