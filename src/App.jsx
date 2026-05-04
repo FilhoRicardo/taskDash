@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { parseTask, readMdFiles, readDirNames } from './utils/parser.js';
+import { parseTask, parseProperty, readMdFiles, readDirNames, readImageFiles } from './utils/parser.js';
 import { idbGet, idbSet, idbDel, lsGet, lsSet, lsDel } from './utils/storage.js';
-import { fmt, tod, isToday, isOver, appendNoteToMd, buildTrackerRow, appendTrackerRow, buildMeetingMd, buildNewTaskMd, markTaskDone } from './utils/formatter.js';
+import { fmt, tod, isToday, isOver, appendNoteToMd, appendPropertyCommentToMd, buildTrackerRow, appendTrackerRow, buildMeetingMd, buildNewTaskMd, markTaskDone } from './utils/formatter.js';
 
 const REFRESH_MS  = 5 * 60 * 1000;
 const WARN_MS     = 60 * 60 * 1000;
@@ -10,9 +10,10 @@ const WARN_CHK_MS = 30 * 1000;
 const FOLDER_DEFS = [
   { key:'tasks',      label:'Tasks',      mode:'readwrite', required:true,  desc:'Where your task .md files live (e.g. TaskNotes/Tasks)' },
   { key:'projects',   label:'Projects',   mode:'read',      required:false, desc:'For project autocomplete' },
-  { key:'properties', label:'Properties', mode:'read',      required:false, desc:'For building autocomplete' },
+  { key:'properties', label:'Properties', mode:'readwrite', required:false, desc:'For building autocomplete and property comments' },
   { key:'clients',    label:'Clients',    mode:'read',      required:false, desc:'For client autocomplete' },
   { key:'people',     label:'People',     mode:'read',      required:false, desc:'For "waiting for" autocomplete' },
+  { key:'attachments', label:'Attachments', mode:'read',     required:false, desc:'For property cover images' },
 ];
 const REF_KEYS = ['projects','properties','clients','people'];
 const FOLDER_SETUP_SEEN = 'folderSetupV2Seen';
@@ -120,6 +121,15 @@ export default function App() {
 
   // ── Reference autocomplete lists (filenames without .md) ──
   const [refs, setRefs] = useState({ projects:[], properties:[], clients:[], people:[] });
+  const [view, setView] = useState('tasks');
+
+  // ── Property library state ──
+  const [properties,       setProperties]       = useState([]);
+  const [propertyHandles,  setPropertyHandles]  = useState({});
+  const [propertyImages,   setPropertyImages]   = useState({});
+  const [propertySel,      setPropertySel]      = useState(null);
+  const [propertySearch,   setPropertySearch]   = useState('');
+  const [propertyComment,  setPropertyComment]  = useState('');
 
   // ── Tasks / timer / UI state ──
   const [tasks,         setTasks]         = useState([]);
@@ -150,6 +160,7 @@ export default function App() {
   const tickRef         = useRef();
   const syncRef         = useRef();
   const nudgeRef        = useRef();
+  const imageUrlsRef    = useRef({});
 
   // ── Load saved handles on boot, query permissions ──
   useEffect(() => {
@@ -197,6 +208,10 @@ export default function App() {
     else clearInterval(tickRef.current);
     return () => clearInterval(tickRef.current);
   }, [timer]);
+
+  useEffect(() => {
+    return () => Object.values(imageUrlsRef.current).forEach(URL.revokeObjectURL);
+  }, []);
 
   useEffect(() => {
     if (!dirs.tasks) return;
@@ -255,6 +270,33 @@ export default function App() {
     } catch(e) { console.error(e); }
   }, []);
 
+  const loadProperties = useCallback(async (dir) => {
+    try {
+      const raw = await readMdFiles(dir);
+      const parsed = raw.map(f => parseProperty(f.name, f.text))
+        .sort((a,b) => a.title.localeCompare(b.title));
+      setProperties(parsed);
+      const handles = {};
+      raw.forEach(f => { handles[f.name] = f.handle; });
+      setPropertyHandles(handles);
+      setPropertySel(prev => prev && parsed.some(p => p.id === prev) ? prev : (parsed[0]?.id || null));
+    } catch(e) { console.error('properties load failed', e); }
+  }, []);
+
+  const loadAttachmentImages = useCallback(async (dir) => {
+    try {
+      const raw = await readImageFiles(dir);
+      const next = {};
+      for (const item of raw) {
+        const file = await item.handle.getFile();
+        if (file.size > 0) next[item.name.toLowerCase()] = URL.createObjectURL(file);
+      }
+      Object.values(imageUrlsRef.current).forEach(URL.revokeObjectURL);
+      imageUrlsRef.current = next;
+      setPropertyImages(next);
+    } catch(e) { console.error('attachment image load failed', e); }
+  }, []);
+
   const loadRefs = useCallback(async (liveDirs) => {
     const out = { projects:[], properties:[], clients:[], people:[] };
     for (const k of REF_KEYS) {
@@ -270,7 +312,9 @@ export default function App() {
   const loadAll = useCallback(async (liveDirs) => {
     if (liveDirs.tasks) await loadFiles(liveDirs.tasks);
     await loadRefs(liveDirs);
-  }, [loadFiles, loadRefs]);
+    if (liveDirs.properties) await loadProperties(liveDirs.properties);
+    if (liveDirs.attachments) await loadAttachmentImages(liveDirs.attachments);
+  }, [loadFiles, loadRefs, loadProperties, loadAttachmentImages]);
 
   // ── Setup & permission flow ──
   const pickFolder = async (key) => {
@@ -286,7 +330,11 @@ export default function App() {
         setFolderSetupOpen(true);
         await loadFiles(dir);
       }
-      else await loadRefs(next);
+      else {
+        if (key === 'properties') await loadProperties(dir);
+        if (key === 'attachments') await loadAttachmentImages(dir);
+        await loadRefs(next);
+      }
     } catch(e) { if (e.name!=='AbortError') alert('Error: '+e.message); }
     setSetupBusy(false);
   };
@@ -305,7 +353,11 @@ export default function App() {
           setFolderSetupOpen(true);
           await loadFiles(h);
         }
-        else await loadRefs(next);
+        else {
+          if (key === 'properties') await loadProperties(h);
+          if (key === 'attachments') await loadAttachmentImages(h);
+          await loadRefs(next);
+        }
       }
     } catch(e) { console.error(e); }
     setSetupBusy(false);
@@ -333,6 +385,12 @@ export default function App() {
     setDirs(prev => { const c = {...prev}; delete c[key]; return c; });
     setSavedDirs(prev => { const c = {...prev}; delete c[key]; return c; });
     if (key === 'tasks') { setTasks([]); setTaskHandles({}); setTrackerHandle(null); }
+    else if (key === 'properties') { setProperties([]); setPropertyHandles({}); setPropertySel(null); }
+    else if (key === 'attachments') {
+      Object.values(imageUrlsRef.current).forEach(URL.revokeObjectURL);
+      imageUrlsRef.current = {};
+      setPropertyImages({});
+    }
     else setRefs(prev => ({ ...prev, [key]: [] }));
   };
 
@@ -342,6 +400,10 @@ export default function App() {
     lsDel(FOLDER_SETUP_SEEN);
     setDirs({}); setSavedDirs({});
     setTasks([]); setTaskHandles({}); setTrackerHandle(null);
+    setProperties([]); setPropertyHandles({}); setPropertySel(null);
+    Object.values(imageUrlsRef.current).forEach(URL.revokeObjectURL);
+    imageUrlsRef.current = {};
+    setPropertyImages({});
     setRefs({ projects:[], properties:[], clients:[], people:[] });
   };
 
@@ -478,13 +540,37 @@ export default function App() {
     }
   };
 
+  const addPropertyComment = async () => {
+    if (!propertySel || !propertyComment.trim()) return;
+    const handle = propertyHandles[propertySel];
+    const property = properties.find(p => p.id === propertySel);
+    if (!handle || !property) return;
+    try {
+      const updated = appendPropertyCommentToMd(property.raw, propertyComment.trim());
+      await writeFile(handle, updated);
+      const updatedProperty = parseProperty(property.id, updated);
+      setProperties(prev => prev.map(p => p.id === propertySel ? updatedProperty : p));
+      setPropertyComment('');
+      setToast(`Saved property comment for "${property.title}"`);
+    } catch(e) {
+      console.error('property comment write failed', e);
+      alert('Failed to add property comment: ' + e.message);
+    }
+  };
+
   const task      = tasks.find(t => t.id===sel);
+  const property  = properties.find(p => p.id===propertySel);
   const selTime   = sel ? getTime(sel) : 0;
   const live      = timer?.taskId===sel;
   const totalToday = [...tasks.map(t=>t.id),'__email__','__meeting__','__adhoc__'].reduce((a,id)=>a+getTime(id),0);
   const dueColor  = due => isOver(due)?'#ef4444':isToday(due)?'#f59e0b':'#475569';
   const syncLabel = lastSync ? `Synced ${new Date(lastSync).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}` : 'Not synced';
   const filtered  = tasks.filter(t => !t.archived).filter(t => filt==='today'?isToday(t.due):filt==='overdue'?isOver(t.due):filt==='done'?t.status==='done':true);
+  const filteredProperties = properties.filter(p => {
+    const q = propertySearch.trim().toLowerCase();
+    if (!q) return true;
+    return [p.title, p.filename, p.client, p.summary].filter(Boolean).some(v => v.toLowerCase().includes(q));
+  });
 
   const btnPrimary = { padding:'13px 34px', borderRadius:12, border:'none', cursor:'pointer', fontWeight:700, fontSize:14, fontFamily:'inherit', background:'linear-gradient(135deg,#7c3aed,#3b82f6)', color:'#fff', boxShadow:'0 4px 24px rgba(124,58,237,0.45)' };
 
@@ -597,94 +683,145 @@ export default function App() {
             <span style={{ fontSize:10, color:'#10b981' }}>{syncLabel} · auto every 5 min</span>
           </div>
           <div style={{ padding:'11px 13px', borderRadius:10, background:'rgba(124,58,237,0.08)', border:'1px solid rgba(124,58,237,0.18)' }}>
-            <div style={{ fontSize:9, color:'#7c3aed', fontWeight:800, letterSpacing:'0.1em', marginBottom:3 }}>TODAY'S TOTAL</div>
-            <div style={{ fontWeight:800, fontSize:23, letterSpacing:'-0.03em', fontVariantNumeric:'tabular-nums' }}>{fmt(totalToday)}</div>
-            <div style={{ fontSize:10, color:'#475569', marginTop:2 }}>{tasks.filter(t=>!t.archived).length} tasks · {Object.values(refs).reduce((a,r)=>a+r.length,0)} refs</div>
+            <div style={{ fontSize:9, color:'#7c3aed', fontWeight:800, letterSpacing:'0.1em', marginBottom:3 }}>{view==='tasks' ? "TODAY'S TOTAL" : 'PROPERTY LIBRARY'}</div>
+            <div style={{ fontWeight:800, fontSize:23, letterSpacing:'-0.03em', fontVariantNumeric:'tabular-nums' }}>{view==='tasks' ? fmt(totalToday) : properties.length}</div>
+            <div style={{ fontSize:10, color:'#475569', marginTop:2 }}>{view==='tasks' ? `${tasks.filter(t=>!t.archived).length} tasks · ${Object.values(refs).reduce((a,r)=>a+r.length,0)} refs` : `${dirs.properties ? dirs.properties.name : 'No folder'} · ${dirs.attachments ? 'covers on' : 'covers off'}`}</div>
+          </div>
+          <div style={{ display:'flex', gap:4, marginTop:10, padding:3, borderRadius:10, background:'rgba(255,255,255,0.03)', border:'1px solid rgba(255,255,255,0.06)' }}>
+            {['tasks','properties'].map(v => (
+              <button key={v} onClick={()=>{ setView(v); setNewTaskOpen(false); }} style={{ flex:1, padding:'6px 8px', borderRadius:8, border:'none', cursor:'pointer', fontWeight:700, fontSize:11, fontFamily:'inherit', textTransform:'capitalize', background:view===v?'rgba(124,58,237,0.2)':'transparent', color:view===v?'#c4b5fd':'#64748b' }}>
+                {v}
+              </button>
+            ))}
           </div>
         </div>
 
-        <div style={{ padding:'8px 10px', borderBottom:'1px solid rgba(255,255,255,0.06)' }}>
-          <div style={{ fontSize:9, color:'#475569', fontWeight:700, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:6 }}>Quick Track</div>
-          <QuickItem id="__email__"   label="📧 Email"   onStart={()=>start('__email__')} onStop={stop}/>
-          <QuickItem id="__meeting__" label="📅 Meeting" onStart={startMeeting}            onStop={stopMeeting}/>
+        {view === 'tasks' ? (
+          <>
+            <div style={{ padding:'8px 10px', borderBottom:'1px solid rgba(255,255,255,0.06)' }}>
+              <div style={{ fontSize:9, color:'#475569', fontWeight:700, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:6 }}>Quick Track</div>
+              <QuickItem id="__email__"   label="📧 Email"   onStart={()=>start('__email__')} onStop={stop}/>
+              <QuickItem id="__meeting__" label="📅 Meeting" onStart={startMeeting}            onStop={stopMeeting}/>
 
-          {timer?.taskId==='__adhoc__' ? (
-            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'7px 10px', borderRadius:9, background:'rgba(16,185,129,0.08)', border:'1px solid rgba(16,185,129,0.25)', boxShadow:'0 0 12px rgba(16,185,129,0.15)' }}>
-              <div style={{ display:'flex', alignItems:'center', gap:7 }}>
-                <span style={{ fontSize:12, fontWeight:600, color:'#10b981', maxWidth:100, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>🎯 {adHocName||'Ad-hoc'}</span>
-                <span style={{ fontSize:11, fontWeight:700, fontVariantNumeric:'tabular-nums', color:'#10b981' }}>{fmt(getTime('__adhoc__'))}</span>
-                <span style={{ fontSize:9, padding:'1px 5px', borderRadius:20, background:'rgba(16,185,129,0.12)', color:'#10b981', fontWeight:700 }}>● LIVE</span>
-              </div>
-              <button onClick={stop} style={{ padding:'4px 12px', borderRadius:6, border:'none', cursor:'pointer', fontWeight:700, fontSize:11, fontFamily:'inherit', background:'rgba(239,68,68,0.1)', color:'#f87171', outline:'1px solid rgba(239,68,68,0.25)' }}>⏹ Stop</button>
-            </div>
-          ) : showAdHoc ? (
-            <div style={{ padding:'8px 10px', borderRadius:9, background:'rgba(255,255,255,0.03)', border:'1px solid rgba(255,255,255,0.08)' }}>
-              <div style={{ fontSize:11, color:'#64748b', marginBottom:6 }}>🎯 What are you working on?</div>
-              <div style={{ display:'flex', gap:6 }}>
-                <input value={adHocInput} onChange={e=>setAdHocInput(e.target.value)} onKeyDown={e=>e.key==='Enter'&&startAdHoc()} autoFocus placeholder="e.g. Proposal draft…"
-                  style={{ flex:1, padding:'6px 10px', borderRadius:7, background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.1)', color:'#e2e8f0', fontSize:12, outline:'none', fontFamily:'inherit' }}/>
-                <button onClick={startAdHoc} disabled={!adHocInput.trim()} style={{ padding:'6px 10px', borderRadius:7, border:'none', cursor:'pointer', fontWeight:700, fontSize:11, fontFamily:'inherit', background:'linear-gradient(135deg,#7c3aed,#3b82f6)', color:'#fff', opacity:adHocInput.trim()?1:0.4 }}>▶</button>
-                <button onClick={()=>{setShowAdHoc(false);setAdHocInput('');}} style={{ padding:'6px 8px', borderRadius:7, border:'none', cursor:'pointer', background:'rgba(255,255,255,0.05)', color:'#64748b', fontSize:12 }}>✕</button>
-              </div>
-            </div>
-          ) : (
-            <button onClick={()=>setShowAdHoc(true)} style={{ width:'100%', padding:'7px 10px', borderRadius:9, border:'1px dashed rgba(255,255,255,0.1)', background:'transparent', color:'#475569', fontSize:12, fontWeight:600, cursor:'pointer', textAlign:'left', fontFamily:'inherit' }}>
-              🎯 + Ad-hoc task…
-            </button>
-          )}
-        </div>
-
-        <div style={{ padding:'8px 10px 4px', display:'flex', gap:6, alignItems:'center' }}>
-          <button onClick={()=>{ setMeetingOpen(false); setNewTaskOpen(true); }} style={{ flex:1, padding:'8px 10px', borderRadius:9, border:'none', cursor:'pointer', fontWeight:700, fontSize:12, fontFamily:'inherit', background:'linear-gradient(135deg,#7c3aed,#3b82f6)', color:'#fff', boxShadow:'0 2px 12px rgba(124,58,237,0.35)' }}>
-            +  New Task
-          </button>
-        </div>
-
-        <div style={{ display:'flex', gap:3, padding:'4px 10px 8px', borderBottom:'1px solid rgba(255,255,255,0.06)' }}>
-          {['all','today','overdue','done'].map(f => (
-            <button key={f} onClick={()=>setFilt(f)} style={{ flex:1, padding:'5px 0', borderRadius:7, border:'none', cursor:'pointer', fontSize:10, fontWeight:600, textTransform:'capitalize', fontFamily:'inherit', background:filt===f?'rgba(124,58,237,0.15)':'transparent', color:filt===f?'#a78bfa':'#475569' }}>{f}</button>
-          ))}
-        </div>
-
-        <div style={{ flex:1, overflowY:'auto', padding:'6px 8px' }}>
-          {!filtered.length && <div style={{ color:'#475569', textAlign:'center', paddingTop:40, fontSize:12 }}>No tasks</div>}
-          {filtered.map(t => {
-            const running=timer?.taskId===t.id, active=sel===t.id, time=getTime(t.id);
-            return (
-              <div key={t.id} onClick={()=>setSel(t.id)} style={{ padding:'10px', marginBottom:4, borderRadius:10, cursor:'pointer', background:active?'rgba(124,58,237,0.1)':'rgba(255,255,255,0.02)', border:`1px solid ${active?'rgba(124,58,237,0.28)':'rgba(255,255,255,0.04)'}`, boxShadow:running?'0 0 14px rgba(16,185,129,0.18)':'none', transition:'all 0.15s' }}>
-                <div style={{ display:'flex', justifyContent:'space-between', gap:6, marginBottom:5 }}>
-                  <span style={{ fontSize:12, fontWeight:500, lineHeight:1.35, flex:1 }}>{t.title}</span>
-                  {running && <span style={{ fontSize:9, padding:'2px 6px', borderRadius:20, background:'rgba(16,185,129,0.12)', color:'#10b981', fontWeight:700, flexShrink:0 }}>● LIVE</span>}
-                </div>
-                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', flexWrap:'wrap', gap:4 }}>
-                  <div style={{ display:'flex', gap:4, alignItems:'center', flexWrap:'wrap' }}>
-                    <PBadge p={t.priority}/><SBadge s={t.status}/>
-                    {t.due && <span style={{ fontSize:10, fontWeight:500, color:dueColor(t.due) }}>{isToday(t.due)?'Today':isOver(t.due)?'Overdue':t.due}</span>}
+              {timer?.taskId==='__adhoc__' ? (
+                <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'7px 10px', borderRadius:9, background:'rgba(16,185,129,0.08)', border:'1px solid rgba(16,185,129,0.25)', boxShadow:'0 0 12px rgba(16,185,129,0.15)' }}>
+                  <div style={{ display:'flex', alignItems:'center', gap:7 }}>
+                    <span style={{ fontSize:12, fontWeight:600, color:'#10b981', maxWidth:100, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>🎯 {adHocName||'Ad-hoc'}</span>
+                    <span style={{ fontSize:11, fontWeight:700, fontVariantNumeric:'tabular-nums', color:'#10b981' }}>{fmt(getTime('__adhoc__'))}</span>
+                    <span style={{ fontSize:9, padding:'1px 5px', borderRadius:20, background:'rgba(16,185,129,0.12)', color:'#10b981', fontWeight:700 }}>● LIVE</span>
                   </div>
-                  {time>0 && <span style={{ fontSize:11, color:'#6366f1', fontWeight:700, fontVariantNumeric:'tabular-nums' }}>{fmt(time)}</span>}
+                  <button onClick={stop} style={{ padding:'4px 12px', borderRadius:6, border:'none', cursor:'pointer', fontWeight:700, fontSize:11, fontFamily:'inherit', background:'rgba(239,68,68,0.1)', color:'#f87171', outline:'1px solid rgba(239,68,68,0.25)' }}>⏹ Stop</button>
                 </div>
-                {t.checklistTotal>0 && (
-                  <div style={{ marginTop:7 }}>
-                    <div style={{ height:2, borderRadius:2, background:'rgba(255,255,255,0.05)' }}>
-                      <div style={{ height:'100%', borderRadius:2, background:'linear-gradient(90deg,#7c3aed,#3b82f6)', width:`${Math.round(t.checklistDone/t.checklistTotal*100)}%`, transition:'width 0.4s' }}/>
+              ) : showAdHoc ? (
+                <div style={{ padding:'8px 10px', borderRadius:9, background:'rgba(255,255,255,0.03)', border:'1px solid rgba(255,255,255,0.08)' }}>
+                  <div style={{ fontSize:11, color:'#64748b', marginBottom:6 }}>🎯 What are you working on?</div>
+                  <div style={{ display:'flex', gap:6 }}>
+                    <input value={adHocInput} onChange={e=>setAdHocInput(e.target.value)} onKeyDown={e=>e.key==='Enter'&&startAdHoc()} autoFocus placeholder="e.g. Proposal draft…"
+                      style={{ flex:1, padding:'6px 10px', borderRadius:7, background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.1)', color:'#e2e8f0', fontSize:12, outline:'none', fontFamily:'inherit' }}/>
+                    <button onClick={startAdHoc} disabled={!adHocInput.trim()} style={{ padding:'6px 10px', borderRadius:7, border:'none', cursor:'pointer', fontWeight:700, fontSize:11, fontFamily:'inherit', background:'linear-gradient(135deg,#7c3aed,#3b82f6)', color:'#fff', opacity:adHocInput.trim()?1:0.4 }}>▶</button>
+                    <button onClick={()=>{setShowAdHoc(false);setAdHocInput('');}} style={{ padding:'6px 8px', borderRadius:7, border:'none', cursor:'pointer', background:'rgba(255,255,255,0.05)', color:'#64748b', fontSize:12 }}>✕</button>
+                  </div>
+                </div>
+              ) : (
+                <button onClick={()=>setShowAdHoc(true)} style={{ width:'100%', padding:'7px 10px', borderRadius:9, border:'1px dashed rgba(255,255,255,0.1)', background:'transparent', color:'#475569', fontSize:12, fontWeight:600, cursor:'pointer', textAlign:'left', fontFamily:'inherit' }}>
+                  🎯 + Ad-hoc task…
+                </button>
+              )}
+            </div>
+
+            <div style={{ padding:'8px 10px 4px', display:'flex', gap:6, alignItems:'center' }}>
+              <button onClick={()=>{ setMeetingOpen(false); setNewTaskOpen(true); }} style={{ flex:1, padding:'8px 10px', borderRadius:9, border:'none', cursor:'pointer', fontWeight:700, fontSize:12, fontFamily:'inherit', background:'linear-gradient(135deg,#7c3aed,#3b82f6)', color:'#fff', boxShadow:'0 2px 12px rgba(124,58,237,0.35)' }}>
+                +  New Task
+              </button>
+            </div>
+
+            <div style={{ display:'flex', gap:3, padding:'4px 10px 8px', borderBottom:'1px solid rgba(255,255,255,0.06)' }}>
+              {['all','today','overdue','done'].map(f => (
+                <button key={f} onClick={()=>setFilt(f)} style={{ flex:1, padding:'5px 0', borderRadius:7, border:'none', cursor:'pointer', fontSize:10, fontWeight:600, textTransform:'capitalize', fontFamily:'inherit', background:filt===f?'rgba(124,58,237,0.15)':'transparent', color:filt===f?'#a78bfa':'#475569' }}>{f}</button>
+              ))}
+            </div>
+
+            <div style={{ flex:1, overflowY:'auto', padding:'6px 8px' }}>
+              {!filtered.length && <div style={{ color:'#475569', textAlign:'center', paddingTop:40, fontSize:12 }}>No tasks</div>}
+              {filtered.map(t => {
+                const running=timer?.taskId===t.id, active=sel===t.id, time=getTime(t.id);
+                return (
+                  <div key={t.id} onClick={()=>setSel(t.id)} style={{ padding:'10px', marginBottom:4, borderRadius:10, cursor:'pointer', background:active?'rgba(124,58,237,0.1)':'rgba(255,255,255,0.02)', border:`1px solid ${active?'rgba(124,58,237,0.28)':'rgba(255,255,255,0.04)'}`, boxShadow:running?'0 0 14px rgba(16,185,129,0.18)':'none', transition:'all 0.15s' }}>
+                    <div style={{ display:'flex', justifyContent:'space-between', gap:6, marginBottom:5 }}>
+                      <span style={{ fontSize:12, fontWeight:500, lineHeight:1.35, flex:1 }}>{t.title}</span>
+                      {running && <span style={{ fontSize:9, padding:'2px 6px', borderRadius:20, background:'rgba(16,185,129,0.12)', color:'#10b981', fontWeight:700, flexShrink:0 }}>● LIVE</span>}
                     </div>
-                    <div style={{ fontSize:10, color:'#475569', marginTop:2 }}>{t.checklistDone}/{t.checklistTotal} done</div>
+                    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', flexWrap:'wrap', gap:4 }}>
+                      <div style={{ display:'flex', gap:4, alignItems:'center', flexWrap:'wrap' }}>
+                        <PBadge p={t.priority}/><SBadge s={t.status}/>
+                        {t.due && <span style={{ fontSize:10, fontWeight:500, color:dueColor(t.due) }}>{isToday(t.due)?'Today':isOver(t.due)?'Overdue':t.due}</span>}
+                      </div>
+                      {time>0 && <span style={{ fontSize:11, color:'#6366f1', fontWeight:700, fontVariantNumeric:'tabular-nums' }}>{fmt(time)}</span>}
+                    </div>
+                    {t.checklistTotal>0 && (
+                      <div style={{ marginTop:7 }}>
+                        <div style={{ height:2, borderRadius:2, background:'rgba(255,255,255,0.05)' }}>
+                          <div style={{ height:'100%', borderRadius:2, background:'linear-gradient(90deg,#7c3aed,#3b82f6)', width:`${Math.round(t.checklistDone/t.checklistTotal*100)}%`, transition:'width 0.4s' }}/>
+                        </div>
+                        <div style={{ fontSize:10, color:'#475569', marginTop:2 }}>{t.checklistDone}/{t.checklistTotal} done</div>
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
+                );
+              })}
+            </div>
+          </>
+        ) : (
+          <>
+            <div style={{ padding:'10px', borderBottom:'1px solid rgba(255,255,255,0.06)' }}>
+              <input value={propertySearch} onChange={e=>setPropertySearch(e.target.value)} placeholder="Search properties…" style={{ ...inputBase, padding:'8px 10px', fontSize:12 }}/>
+            </div>
+            <div style={{ flex:1, overflowY:'auto', padding:'6px 8px' }}>
+              {!dirs.properties && <div style={{ color:'#475569', textAlign:'center', paddingTop:40, fontSize:12 }}>Pick your Properties folder in Configure folders</div>}
+              {filteredProperties.map(p => {
+                const active = propertySel === p.id;
+                return (
+                  <div key={p.id} onClick={()=>setPropertySel(p.id)} style={{ padding:'10px', marginBottom:4, borderRadius:10, cursor:'pointer', background:active?'rgba(124,58,237,0.1)':'rgba(255,255,255,0.02)', border:`1px solid ${active?'rgba(124,58,237,0.28)':'rgba(255,255,255,0.04)'}` }}>
+                    <div style={{ fontSize:12, fontWeight:700, lineHeight:1.35, color:'#e2e8f0' }}>{p.title}</div>
+                    <div style={{ fontSize:10, color:'#475569', marginTop:3 }}>{p.client || p.filename}</div>
+                    {p.comments.length > 0 && <div style={{ fontSize:10, color:'#818cf8', marginTop:4 }}>{p.comments.length} comment{p.comments.length===1?'':'s'}</div>}
+                  </div>
+                );
+              })}
+            </div>
+            <div style={{ padding:'8px 10px', borderTop:'1px solid rgba(255,255,255,0.04)' }}>
+              <button onClick={()=>setFolderSetupOpen(true)} style={{ width:'100%', padding:'7px 10px', borderRadius:8, border:'1px solid rgba(255,255,255,0.06)', background:'rgba(255,255,255,0.02)', color:'#64748b', fontSize:11, cursor:'pointer', fontFamily:'inherit' }}>
+                Configure property folders
+              </button>
+            </div>
+          </>
+        )}
 
-        <div style={{ padding:'6px 10px 9px', borderTop:'1px solid rgba(255,255,255,0.04)' }}>
-          <button onClick={()=>setFolderSetupOpen(true)} style={{ width:'100%', padding:'5px 10px', background:'transparent', border:'none', color:'#334155', fontSize:10, cursor:'pointer', fontFamily:'inherit', textAlign:'center' }}>
-            ⚙  Configure folders
-          </button>
-        </div>
+        {view === 'tasks' && (
+          <div style={{ padding:'6px 10px 9px', borderTop:'1px solid rgba(255,255,255,0.04)' }}>
+            <button onClick={()=>setFolderSetupOpen(true)} style={{ width:'100%', padding:'5px 10px', background:'transparent', border:'none', color:'#334155', fontSize:10, cursor:'pointer', fontFamily:'inherit', textAlign:'center' }}>
+              ⚙  Configure folders
+            </button>
+          </div>
+        )}
       </div>
 
       {/* ─── Main panel ─── */}
-      {newTaskOpen ? (
+      {view === 'properties' ? (
+        <PropertyPanel
+          properties={filteredProperties}
+          selected={property}
+          selectedId={propertySel}
+          images={propertyImages}
+          onSelect={setPropertySel}
+          comment={propertyComment}
+          setComment={setPropertyComment}
+          onAddComment={addPropertyComment}
+          hasPropertiesFolder={!!dirs.properties}
+          hasAttachmentsFolder={!!dirs.attachments}
+          onConfigure={()=>setFolderSetupOpen(true)}
+        />
+      ) : newTaskOpen ? (
         <NewTaskPanel onCancel={()=>setNewTaskOpen(false)} onCreate={createTask} refs={refs}/>
       ) : meetingOpen ? (
         <div style={{ flex:1, display:'flex', flexDirection:'column', overflow:'hidden' }}>
@@ -770,6 +907,98 @@ export default function App() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function PropertyPanel({ properties, selected, selectedId, images, onSelect, comment, setComment, onAddComment, hasPropertiesFolder, hasAttachmentsFolder, onConfigure }) {
+  const imageFor = p => p?.coverName ? images[p.coverName.toLowerCase()] : null;
+  if (!hasPropertiesFolder) {
+    return (
+      <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', color:'#475569', fontSize:13 }}>
+        <div style={{ textAlign:'center' }}>
+          <div style={{ fontSize:32, marginBottom:10 }}>🏢</div>
+          <button onClick={onConfigure} style={{ padding:'10px 18px', borderRadius:10, border:'none', cursor:'pointer', fontWeight:700, fontSize:13, fontFamily:'inherit', background:'linear-gradient(135deg,#7c3aed,#3b82f6)', color:'#fff' }}>Configure Properties folder</button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ flex:1, display:'flex', flexDirection:'column', overflow:'hidden' }}>
+      <div style={{ padding:'20px 28px 16px', borderBottom:'1px solid rgba(255,255,255,0.06)', flexShrink:0, display:'flex', justifyContent:'space-between', alignItems:'center', gap:18 }}>
+        <div>
+          <div style={{ fontSize:10, color:'#a78bfa', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:7 }}>Properties</div>
+          <h2 style={{ margin:0, fontSize:19, fontWeight:700, color:'#f1f5f9' }}>Property management</h2>
+        </div>
+        <button onClick={onConfigure} style={{ padding:'8px 13px', borderRadius:9, border:'1px solid rgba(255,255,255,0.08)', background:'rgba(255,255,255,0.03)', color:'#94a3b8', cursor:'pointer', fontWeight:700, fontSize:12, fontFamily:'inherit' }}>
+          {hasAttachmentsFolder ? 'Folders configured' : 'Add Attachments folder'}
+        </button>
+      </div>
+
+      <div style={{ flex:1, minHeight:0, display:'grid', gridTemplateColumns:'minmax(340px, 1.1fr) minmax(320px, 0.9fr)', gap:0 }}>
+        <div style={{ overflowY:'auto', padding:'18px 20px', borderRight:'1px solid rgba(255,255,255,0.06)' }}>
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(170px,1fr))', gap:12 }}>
+            {properties.map(p => {
+              const img = imageFor(p);
+              const active = selectedId === p.id;
+              return (
+                <button key={p.id} onClick={()=>onSelect(p.id)}
+                  style={{ textAlign:'left', borderRadius:8, overflow:'hidden', border:`1px solid ${active?'rgba(124,58,237,0.55)':'rgba(255,255,255,0.07)'}`, background:active?'rgba(124,58,237,0.12)':'rgba(255,255,255,0.025)', cursor:'pointer', padding:0, fontFamily:'inherit', color:'#e2e8f0' }}>
+                  <div style={{ aspectRatio:'1 / 0.9', background:'rgba(255,255,255,0.035)', display:'flex', alignItems:'center', justifyContent:'center', overflow:'hidden' }}>
+                    {img ? <img src={img} alt="" style={{ width:'100%', height:'100%', objectFit:'contain' }}/> : <span style={{ fontSize:30, color:'#334155' }}>🏢</span>}
+                  </div>
+                  <div style={{ padding:'9px 10px 10px' }}>
+                    <div style={{ fontSize:12, fontWeight:800, lineHeight:1.25, color:'#f1f5f9' }}>{p.title}</div>
+                    <div style={{ fontSize:10, color:'#64748b', marginTop:4, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{p.client || p.filename}</div>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div style={{ overflowY:'auto', padding:'20px 26px' }}>
+          {!selected ? (
+            <div style={{ color:'#334155', textAlign:'center', paddingTop:90, fontSize:13 }}>Select a property</div>
+          ) : (
+            <div>
+              {imageFor(selected) && (
+                <div style={{ height:190, borderRadius:8, overflow:'hidden', marginBottom:16, background:'rgba(255,255,255,0.035)', border:'1px solid rgba(255,255,255,0.07)', display:'flex', alignItems:'center', justifyContent:'center' }}>
+                  <img src={imageFor(selected)} alt="" style={{ width:'100%', height:'100%', objectFit:'contain' }}/>
+                </div>
+              )}
+              <div style={{ display:'flex', justifyContent:'space-between', gap:16, alignItems:'flex-start', marginBottom:16 }}>
+                <div>
+                  <div style={{ fontSize:10, color:'#64748b', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:6 }}>{selected.filename}</div>
+                  <h2 style={{ margin:0, fontSize:22, lineHeight:1.25, color:'#f1f5f9' }}>{selected.title}</h2>
+                  {selected.client && <div style={{ fontSize:12, color:'#94a3b8', marginTop:7 }}>Client: {selected.client}</div>}
+                </div>
+                <span style={{ fontSize:10, fontWeight:800, padding:'4px 8px', borderRadius:20, background:'rgba(99,102,241,0.13)', color:'#818cf8', flexShrink:0 }}>{selected.comments.length} notes</span>
+              </div>
+
+              {selected.summary && <p style={{ margin:'0 0 18px', color:'#64748b', fontSize:13, lineHeight:1.55 }}>{selected.summary}</p>}
+
+              <div style={{ display:'flex', gap:8, marginBottom:18 }}>
+                <textarea value={comment} onChange={e=>setComment(e.target.value)} placeholder="Add a property comment…" rows={3}
+                  style={{ flex:1, padding:'10px 12px', borderRadius:10, resize:'vertical', background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.09)', color:'#e2e8f0', fontSize:13, lineHeight:1.5, outline:'none', fontFamily:'inherit' }}/>
+                <button onClick={onAddComment} disabled={!comment.trim()} style={{ alignSelf:'stretch', padding:'0 18px', borderRadius:10, border:'none', cursor:'pointer', fontWeight:700, fontSize:13, fontFamily:'inherit', background:'linear-gradient(135deg,#7c3aed,#3b82f6)', color:'#fff', opacity:comment.trim()?1:0.35 }}>Add</button>
+              </div>
+
+              {!selected.comments.length && <div style={{ color:'#334155', textAlign:'center', padding:'40px 0', fontSize:13 }}>No property comments yet</div>}
+              {selected.comments.map((l, i) => {
+                const { time, body } = parseLogText(l.text);
+                return (
+                  <div key={`${l.date}-${i}`} style={{ marginBottom:8, padding:'11px 14px', borderRadius:10, background:'rgba(124,58,237,0.07)', border:'1px solid rgba(124,58,237,0.15)' }}>
+                    <div style={{ fontSize:10, color:'#7c3aed', marginBottom:5, fontWeight:700 }}>{l.date}{time?` · ${time}`:''}</div>
+                    <div style={{ fontSize:13, lineHeight:1.55 }}>{body}</div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

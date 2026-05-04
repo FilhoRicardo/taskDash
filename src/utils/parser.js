@@ -25,6 +25,12 @@ const ignoredName = name => {
   return base === 'index' || base.startsWith('_');
 };
 const isProjectName = name => /^project\b/i.test(basename(name).trim());
+const titleFromName = name => basename(name)
+  .split('-')
+  .filter(Boolean)
+  .map(w => w.charAt(0).toUpperCase() + w.slice(1))
+  .join(' ');
+const attachmentName = path => path ? path.replace(/\\/g, '/').split('/').pop() : null;
 const normalizeLogDate = rawDate => {
   const iso = rawDate.match(/^(\d{4})-(\d{2})-(\d{2})$/);
   if (iso) return rawDate;
@@ -34,10 +40,7 @@ const normalizeLogDate = rawDate => {
   return `${y}-${String(Number(m)).padStart(2, '0')}-${String(Number(d)).padStart(2, '0')}`;
 };
 
-export function parseTask(name, txt) {
-  const fm = parseFrontmatter(txt), title = fm.title || name.replace(/\.md$/, '');
-  const cl = [...txt.matchAll(/- \[([ x])\] (.+)/g)].map(m => ({done:m[1]==='x',text:m[2]}));
-
+function parseDatedLogs(txt) {
   const logs = [];
   const hRx = /(^|\n)### (?:\[\[)?(\d{4}-\d{2}-\d{2}|\d{1,2}\/\d{1,2}\/\d{4})(?:\]\])?[ \t]*(?=\n|$)/g;
   const headers = [...txt.matchAll(hRx)].map(m => ({
@@ -54,6 +57,13 @@ export function parseTask(name, txt) {
   });
   logs.sort((a, b) => a.date.localeCompare(b.date) || a.order - b.order);
   logs.forEach(l => { delete l.order; });
+  return logs;
+}
+
+export function parseTask(name, txt) {
+  const fm = parseFrontmatter(txt), title = fm.title || name.replace(/\.md$/, '');
+  const cl = [...txt.matchAll(/- \[([ x])\] (.+)/g)].map(m => ({done:m[1]==='x',text:m[2]}));
+  const logs = parseDatedLogs(txt);
 
   const tags = Array.isArray(fm.tags) ? fm.tags : fm.tags ? [fm.tags] : [];
 
@@ -68,6 +78,27 @@ export function parseTask(name, txt) {
     completedDate: fm.completedDate || null,
     checklist:cl, checklistDone:cl.filter(c=>c.done).length, checklistTotal:cl.length,
     logs, raw:txt,
+  };
+}
+
+export function parseProperty(name, txt) {
+  const fm = parseFrontmatter(txt);
+  const h1 = txt.match(/^#\s+(.+)$/m)?.[1]?.trim();
+  const commentsStart = txt.search(/(^|\n)## Property Comments[ \t]*(?=\n|$)/i);
+  const commentText = commentsStart === -1 ? '' : txt.slice(commentsStart);
+  const tags = Array.isArray(fm.tags) ? fm.tags : fm.tags ? [fm.tags] : [];
+  const cover = fm.cover || fm.image || null;
+  return {
+    id: name,
+    filename: basename(name),
+    title: fm.building || fm.title || h1 || titleFromName(name),
+    client: wl(fm.client),
+    summary: fm.summary || '',
+    cover,
+    coverName: attachmentName(cover),
+    tags,
+    comments: parseDatedLogs(commentText),
+    raw: txt,
   };
 }
 
@@ -91,6 +122,19 @@ export async function readDirNames(dir, options = {}, acc = []) {
     }
     else if (h.kind === 'directory' && !name.startsWith('.'))
       await readDirNames(h, options, acc);
+  }
+  return acc;
+}
+
+const IMAGE_RX = /\.(png|jpe?g|gif|webp|avif)$/i;
+
+export async function readImageFiles(dir, acc = []) {
+  for await (const [name, h] of dir.entries()) {
+    if (ignoredName(name)) continue;
+    if (h.kind === 'file' && IMAGE_RX.test(name))
+      acc.push({ name, handle: h });
+    else if (h.kind === 'directory' && !name.startsWith('.'))
+      await readImageFiles(h, acc);
   }
   return acc;
 }

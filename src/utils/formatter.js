@@ -91,6 +91,17 @@ export function appendNoteToMd(raw, noteText) {
   return `${withTrailingSeparator(raw)}${newEntry}`;
 }
 
+export function appendPropertyCommentToMd(raw, commentText) {
+  const headingRx = /(^|\n)## Property Comments[ \t]*(?=\n|$)/i;
+  const match = headingRx.exec(raw);
+  if (!match) {
+    const seed = '## Property Comments\n\n---\n';
+    return `${raw.trimEnd()}\n\n${appendNoteToMd(seed, commentText)}`;
+  }
+  const sectionStart = match.index + match[1].length;
+  return raw.slice(0, sectionStart) + appendNoteToMd(raw.slice(sectionStart), commentText);
+}
+
 // ── Time tracker row ──────────────────────────────────────
 const TRACKER_HEADER = '# Time Tracker\n\n| Date | Task | Duration (min) |\n|------|------|----------------|\n';
 
