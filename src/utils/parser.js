@@ -19,6 +19,12 @@ export function parseFrontmatter(txt) {
 }
 
 const wl = s => s ? s.replace(/^\[\[|\]\]$/g, '') : null;
+const basename = name => name.replace(/\.md$/i, '');
+const ignoredName = name => {
+  const base = basename(name).trim().toLowerCase();
+  return base === 'index' || base.startsWith('_');
+};
+const isProjectName = name => /^project\b/i.test(basename(name).trim());
 
 export function parseTask(name, txt) {
   const fm = parseFrontmatter(txt), title = fm.title || name.replace(/\.md$/, '');
@@ -52,6 +58,7 @@ export function parseTask(name, txt) {
 
 export async function readMdFiles(dir, acc = []) {
   for await (const [name, h] of dir.entries()) {
+    if (ignoredName(name)) continue;
     if (h.kind==='file' && name.endsWith('.md') && name !== 'timetracker.md')
       acc.push({ name, handle:h, text: await (await h.getFile()).text() });
     else if (h.kind==='directory' && !name.startsWith('.'))
@@ -61,12 +68,14 @@ export async function readMdFiles(dir, acc = []) {
 }
 
 // Returns just filenames (without .md extension) for autocomplete sources.
-export async function readDirNames(dir, acc = []) {
+export async function readDirNames(dir, options = {}, acc = []) {
   for await (const [name, h] of dir.entries()) {
-    if (h.kind === 'file' && name.endsWith('.md'))
-      acc.push(name.replace(/\.md$/, ''));
+    if (ignoredName(name)) continue;
+    if (h.kind === 'file' && name.endsWith('.md')) {
+      if (!options.projectOnly || isProjectName(name)) acc.push(basename(name));
+    }
     else if (h.kind === 'directory' && !name.startsWith('.'))
-      await readDirNames(h, acc);
+      await readDirNames(h, options, acc);
   }
   return acc;
 }

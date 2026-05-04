@@ -261,7 +261,7 @@ export default function App() {
     for (const k of REF_KEYS) {
       if (!liveDirs[k]) continue;
       try {
-        const names = await readDirNames(liveDirs[k]);
+        const names = await readDirNames(liveDirs[k], { projectOnly: k === 'projects' });
         out[k] = [...new Set(names)].sort();
       } catch(e) { console.error(`failed to read ${k}`, e); }
     }
