@@ -27,38 +27,58 @@ export function isoLocal(date = new Date()) {
   return `${y}-${mo}-${d}T${h}:${mi}:${s}.${ms}${sign}${tzh}:${tzm}`;
 }
 
-// ── Append note to task .md — chronological, timestamped ──
+function dateHeaders(raw) {
+  const headers = [];
+  const rx = /(^|\n)### \[\[(\d{4}-\d{2}-\d{2})\]\][ \t]*(?=\n|$)/g;
+  let m;
+  while ((m = rx.exec(raw)) !== null) {
+    headers.push({ date: m[2], start: m.index + m[1].length, end: rx.lastIndex });
+  }
+  return headers;
+}
+
+function firstSeparator(raw, start, end = raw.length) {
+  const rx = /(^|\n)---[ \t]*(?=\n|$)/g;
+  rx.lastIndex = start;
+  let m;
+  while ((m = rx.exec(raw)) !== null) {
+    const sepStart = m.index + m[1].length;
+    if (sepStart >= end) return -1;
+    if (sepStart >= start) return sepStart;
+  }
+  return -1;
+}
+
+function withTrailingSeparator(text) {
+  const trimmed = text.trimEnd();
+  if (!trimmed) return '';
+  return /(^|\n)---$/.test(trimmed) ? `${trimmed}\n` : `${trimmed}\n---\n`;
+}
+
+// Append note to task .md in chronological date sections.
 export function appendNoteToMd(raw, noteText) {
   const dateStr = tod();
   const timeStr = new Date().toLocaleTimeString([], { hour:'2-digit', minute:'2-digit', hour12:false });
   const logLine = `Log: [${timeStr}] ${noteText}`;
-  const todayHeader = `### [[${dateStr}]]`;
-  const frontmatter = raw.match(/^---\n[\s\S]*?\n---/);
-  const bodyStart = frontmatter ? frontmatter[0].length : 0;
+  const headers = dateHeaders(raw);
+  const today = headers.find(h => h.date === dateStr);
 
-  if (raw.includes(todayHeader)) {
-    const headerIdx    = raw.indexOf(todayHeader);
-    const headerEnd    = raw.indexOf('\n', headerIdx) + 1;
-    let sectionEnd     = raw.length;
-    for (const d of ['\n### [[', '\n---\n', '\n## ', '\n# ']) {
-      const idx = raw.indexOf(d, headerEnd);
-      if (idx !== -1 && idx < sectionEnd) sectionEnd = idx;
+  if (today) {
+    const next = headers.find(h => h.start > today.start);
+    const sectionEnd = next?.start ?? raw.length;
+    const insertAt = firstSeparator(raw, today.end, sectionEnd);
+    if (insertAt !== -1) {
+      return `${raw.slice(0, insertAt).trimEnd()}\n${logLine}\n${raw.slice(insertAt)}`;
     }
-    const before = raw.slice(0, sectionEnd).trimEnd();
-    const after  = raw.slice(sectionEnd);
-    return before + '\n' + logLine + '\n' + after;
+    return `${raw.slice(0, sectionEnd).trimEnd()}\n${logLine}\n---\n${raw.slice(sectionEnd).replace(/^\n+/, '')}`;
   }
 
-  const newEntry  = `\n### [[${dateStr}]]\n${logLine}\n`;
-  const sectionRx = /\n### \[\[(\d{4}-\d{2}-\d{2})\]\]/g;
-  let m, insertAt = -1;
-  while ((m = sectionRx.exec(raw)) !== null) {
-    if (m[1] > dateStr) { insertAt = m.index; break; }
+  const newEntry = `### [[${dateStr}]]\n${logLine}\n---\n`;
+  const future = headers.find(h => h.date > dateStr);
+  if (future) {
+    return `${withTrailingSeparator(raw.slice(0, future.start))}${newEntry}${raw.slice(future.start)}`;
   }
-  if (insertAt !== -1) return raw.slice(0, insertAt) + newEntry + raw.slice(insertAt);
-  const lastSep = raw.lastIndexOf('\n---');
-  if (lastSep > bodyStart) return raw.slice(0, lastSep) + newEntry + raw.slice(lastSep);
-  return raw.trimEnd() + '\n' + newEntry;
+  return `${withTrailingSeparator(raw)}${newEntry}`;
 }
 
 // ── Time tracker row ──────────────────────────────────────

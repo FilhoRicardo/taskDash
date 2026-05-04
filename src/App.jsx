@@ -133,7 +133,6 @@ export default function App() {
   const [sel,           setSel]           = useState(null);
   const [note,          setNote]          = useState('');
   const [filt,          setFilt]          = useState('all');
-  const [tab,           setTab]           = useState('log');
   const [toast,         setToast]         = useState(null);
   const [showAdHoc,     setShowAdHoc]     = useState(false);
   const [adHocInput,    setAdHocInput]    = useState('');
@@ -745,50 +744,29 @@ export default function App() {
             </div>
           </div>
 
-          <div style={{ display:'flex', padding:'0 30px', borderBottom:'1px solid rgba(255,255,255,0.06)', flexShrink:0 }}>
-            {['log','checklist'].map(t => (
-              <button key={t} onClick={()=>setTab(t)} style={{ padding:'10px 16px', border:'none', background:'transparent', cursor:'pointer', fontSize:13, fontWeight:600, textTransform:'capitalize', marginBottom:-1, fontFamily:'inherit', color:tab===t?'#a78bfa':'#475569', borderBottom:`2px solid ${tab===t?'#7c3aed':'transparent'}` }}>
-                {t}{t==='checklist'&&task.checklistTotal>0?` · ${task.checklistDone}/${task.checklistTotal}`:''}
-              </button>
-            ))}
-          </div>
-
           <div style={{ flex:1, overflowY:'auto', padding:'18px 30px' }}>
-            {tab==='log' && (
-              <div>
-                <div style={{ display:'flex', gap:8, marginBottom:18 }}>
-                  <input value={note} onChange={e=>setNote(e.target.value)} onKeyDown={e=>e.key==='Enter'&&!e.shiftKey&&addNote()}
-                    placeholder="Add a note… Enter to save · writes directly to your .md file"
-                    style={{ flex:1, padding:'10px 14px', borderRadius:10, background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.09)', color:'#e2e8f0', fontSize:13, outline:'none', fontFamily:'inherit' }}/>
-                  <button onClick={addNote} disabled={!note.trim()} style={{ padding:'10px 20px', borderRadius:10, border:'none', cursor:'pointer', fontWeight:600, fontSize:13, fontFamily:'inherit', background:'linear-gradient(135deg,#7c3aed,#3b82f6)', color:'#fff', opacity:note.trim()?1:0.35 }}>Add</button>
+            <div>
+              <div style={{ display:'flex', gap:8, marginBottom:18 }}>
+                <input value={note} onChange={e=>setNote(e.target.value)} onKeyDown={e=>e.key==='Enter'&&!e.shiftKey&&addNote()}
+                  placeholder="Add a note… Enter to save · writes directly to your .md file"
+                  style={{ flex:1, padding:'10px 14px', borderRadius:10, background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.09)', color:'#e2e8f0', fontSize:13, outline:'none', fontFamily:'inherit' }}/>
+                <button onClick={addNote} disabled={!note.trim()} style={{ padding:'10px 20px', borderRadius:10, border:'none', cursor:'pointer', fontWeight:600, fontSize:13, fontFamily:'inherit', background:'linear-gradient(135deg,#7c3aed,#3b82f6)', color:'#fff', opacity:note.trim()?1:0.35 }}>Add</button>
+              </div>
+              {!task.logs.length && (
+                <div style={{ color:'#334155', textAlign:'center', padding:'60px 0', fontSize:13 }}>
+                  <div style={{ fontSize:28, marginBottom:10 }}>📝</div>Notes you add here write directly to your .md file
                 </div>
-                {!task.logs.length && (
-                  <div style={{ color:'#334155', textAlign:'center', padding:'60px 0', fontSize:13 }}>
-                    <div style={{ fontSize:28, marginBottom:10 }}>📝</div>Notes you add here write directly to your .md file
+              )}
+              {task.logs.map((l, i) => {
+                const { time, body } = parseLogText(l.text);
+                return (
+                  <div key={i} style={{ marginBottom:8, padding:'11px 14px', borderRadius:10, background:'rgba(124,58,237,0.07)', border:'1px solid rgba(124,58,237,0.15)' }}>
+                    <div style={{ fontSize:10, color:'#7c3aed', marginBottom:5, fontWeight:700 }}>{l.date}{time?` · ${time}`:''}</div>
+                    <div style={{ fontSize:13, lineHeight:1.55 }}>{body}</div>
                   </div>
-                )}
-                {task.logs.map((l, i) => {
-                  const { time, body } = parseLogText(l.text);
-                  return (
-                    <div key={i} style={{ marginBottom:8, padding:'11px 14px', borderRadius:10, background:'rgba(124,58,237,0.07)', border:'1px solid rgba(124,58,237,0.15)' }}>
-                      <div style={{ fontSize:10, color:'#7c3aed', marginBottom:5, fontWeight:700 }}>{l.date}{time?` · ${time}`:''}</div>
-                      <div style={{ fontSize:13, lineHeight:1.55 }}>{body}</div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-            {tab==='checklist' && (
-              <div>
-                {!task.checklist.length && <div style={{ color:'#334155', textAlign:'center', padding:'60px 0', fontSize:13 }}><div style={{ fontSize:28, marginBottom:10 }}>✅</div>No checklist items</div>}
-                {task.checklist.map((c, i) => (
-                  <div key={i} style={{ display:'flex', gap:11, alignItems:'flex-start', padding:'9px 0', borderBottom:'1px solid rgba(255,255,255,0.04)' }}>
-                    <span style={{ flexShrink:0, marginTop:1, fontSize:14 }}>{c.done?'✅':'⬜'}</span>
-                    <span style={{ fontSize:13, lineHeight:1.5, color:c.done?'#334155':'#e2e8f0', textDecoration:c.done?'line-through':'none' }}>{c.text}</span>
-                  </div>
-                ))}
-              </div>
-            )}
+                );
+              })}
+            </div>
           </div>
         </div>
       )}
