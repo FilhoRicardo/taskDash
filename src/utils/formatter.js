@@ -200,6 +200,59 @@ export function buildNewTaskMd({
   return lines.join('\n') + '\n';
 }
 
+function yamlQuote(value = '') {
+  return `"${String(value).replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
+}
+
+function splitTags(raw) {
+  return (raw || '')
+    .split(',')
+    .map(s => s.trim())
+    .filter(Boolean);
+}
+
+export function buildNewPropertyMd({ title, client, summary, tags, coverPath, body }) {
+  const today = tod();
+  const tagArr = ['properties'];
+  splitTags(tags).forEach(t => {
+    if (!tagArr.includes(t)) tagArr.push(t);
+  });
+
+  const lines = ['---'];
+  lines.push(`dateCreated: ${today}`);
+  lines.push(`dateModified: ${today}`);
+  lines.push(`tags: [${tagArr.join(', ')}]`);
+  lines.push('sources: []');
+  lines.push(`summary: ${yamlQuote(summary || '')}`);
+  lines.push('type: entity');
+  lines.push(`building: ${yamlQuote(title)}`);
+  if (client) lines.push(`client: ${yamlQuote(`[[${client}]]`)}`);
+  if (coverPath) lines.push(`cover: ${coverPath}`);
+  lines.push('---');
+  lines.push(`# ${title}`);
+  if (body && body.trim()) lines.push('', body.trim());
+  lines.push('', '## Property Comments', '', '---');
+  return lines.join('\n') + '\n';
+}
+
+export function setPropertyCover(raw, coverPath) {
+  const fmMatch = raw.match(/^---\n([\s\S]*?)\n---/);
+  const frontmatter = fmMatch?.[1] || '';
+  let fm = frontmatter;
+
+  const upsert = (key, value) => {
+    const re = new RegExp(`^${key}:[ \\t]*.*$`, 'm');
+    if (re.test(fm)) fm = fm.replace(re, `${key}: ${value}`);
+    else fm = fm + (fm.endsWith('\n') || !fm ? '' : '\n') + `${key}: ${value}`;
+  };
+
+  upsert('cover', coverPath);
+  upsert('dateModified', tod());
+
+  if (!fmMatch) return `---\n${fm}\n---\n\n${raw.trimStart()}`;
+  return raw.replace(/^---\n[\s\S]*?\n---/, `---\n${fm}\n---`);
+}
+
 // ── Mark task done + archived (in-place frontmatter update) ──
 export function markTaskDone(raw) {
   const today = tod();

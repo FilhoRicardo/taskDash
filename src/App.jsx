@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { parseTask, parseProperty, readMdFiles, readDirNames, readImageFiles } from './utils/parser.js';
 import { idbGet, idbSet, idbDel, lsGet, lsSet, lsDel } from './utils/storage.js';
-import { fmt, tod, isToday, isOver, appendNoteToMd, appendPropertyCommentToMd, buildTrackerRow, appendTrackerRow, buildMeetingMd, buildNewTaskMd, markTaskDone } from './utils/formatter.js';
+import { fmt, tod, isToday, isOver, appendNoteToMd, appendPropertyCommentToMd, buildTrackerRow, appendTrackerRow, buildMeetingMd, buildNewTaskMd, buildNewPropertyMd, markTaskDone, setPropertyCover } from './utils/formatter.js';
 
 const REFRESH_MS  = 5 * 60 * 1000;
 const WARN_MS     = 60 * 60 * 1000;
@@ -13,7 +13,7 @@ const FOLDER_DEFS = [
   { key:'properties', label:'Properties', mode:'readwrite', required:false, desc:'For building autocomplete and property comments' },
   { key:'clients',    label:'Clients',    mode:'read',      required:false, desc:'For client autocomplete' },
   { key:'people',     label:'People',     mode:'read',      required:false, desc:'For "waiting for" autocomplete' },
-  { key:'attachments', label:'Attachments', mode:'read',     required:false, desc:'For property cover images' },
+  { key:'attachments', label:'Attachments', mode:'readwrite', required:false, desc:'For property cover images and uploads' },
 ];
 const REF_KEYS = ['projects','properties','clients','people'];
 const FOLDER_SETUP_SEEN = 'folderSetupV2Seen';
@@ -64,6 +64,47 @@ function safeFilename(title) {
     .replace(/\s+/g, ' ')
     .replace(/[. ]+$/g, '')
     .slice(0, 180) || 'Untitled task';
+}
+
+function propertySlug(title) {
+  return title.trim()
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/&/g, ' and ')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 180) || 'new-property';
+}
+
+function coverExtension(file) {
+  const fromName = file?.name?.match(/\.(png|jpe?g|gif|webp|avif)$/i)?.[1]?.toLowerCase();
+  if (fromName) return fromName === 'jpeg' ? 'jpg' : fromName;
+  const byType = {
+    'image/jpeg': 'jpg',
+    'image/png': 'png',
+    'image/gif': 'gif',
+    'image/webp': 'webp',
+    'image/avif': 'avif',
+  };
+  return byType[file?.type] || 'png';
+}
+
+async function uniqueFileNameInDir(dir, preferredName) {
+  const dot = preferredName.lastIndexOf('.');
+  const stem = dot === -1 ? preferredName : preferredName.slice(0, dot);
+  const ext = dot === -1 ? '' : preferredName.slice(dot);
+  let name = preferredName;
+  let suffix = 2;
+  while (true) {
+    try {
+      await dir.getFileHandle(name);
+      name = `${stem}-${suffix++}${ext}`;
+    } catch (e) {
+      if (e.name === 'NotFoundError') return name;
+      throw e;
+    }
+  }
 }
 
 const inputBase = {
@@ -151,6 +192,7 @@ export default function App() {
   const [meetingTitle,  setMeetingTitle]  = useState('');
   const [meetingNotes,  setMeetingNotes]  = useState('');
   const [newTaskOpen,   setNewTaskOpen]   = useState(false);
+  const [newPropertyOpen, setNewPropertyOpen] = useState(false);
 
   const adHocRef        = useRef('');
   const meetingTitleRef = useRef('');
@@ -558,6 +600,74 @@ export default function App() {
     }
   };
 
+  const saveCoverFile = async (file, label) => {
+    if (!dirs.attachments) throw new Error('Pick an Attachments folder first.');
+    const ext = coverExtension(file);
+    const preferred = `${propertySlug(label)}-cover.${ext}`;
+    const filename = await uniqueFileNameInDir(dirs.attachments, preferred);
+    const fh = await dirs.attachments.getFileHandle(filename, { create:true });
+    await writeFile(fh, file);
+    return filename;
+  };
+
+  const createProperty = async (form) => {
+    if (!dirs.properties || !form.title.trim()) return;
+    if (form.coverFile && !dirs.attachments) {
+      alert('Pick an Attachments folder before uploading a cover.');
+      return;
+    }
+
+    try {
+      const slug = propertySlug(form.title);
+      const filename = await uniqueFileNameInDir(dirs.properties, `${slug}.md`);
+      let coverPath = '';
+      if (form.coverFile) {
+        const coverName = await saveCoverFile(form.coverFile, form.title);
+        coverPath = `${dirs.attachments.name}/${coverName}`;
+        await loadAttachmentImages(dirs.attachments);
+      }
+
+      const content = buildNewPropertyMd({ ...form, coverPath });
+      const fh = await dirs.properties.getFileHandle(filename, { create:true });
+      await writeFile(fh, content);
+      await loadProperties(dirs.properties);
+      await loadRefs(dirs);
+      setPropertySearch('');
+      setPropertySel(filename);
+      setNewPropertyOpen(false);
+      setToast(`Created property "${form.title.trim()}"`);
+    } catch(e) {
+      console.error('create property failed', e);
+      alert('Failed to create property: ' + e.message);
+    }
+  };
+
+  const uploadPropertyCover = async (id, file) => {
+    if (!file) return;
+    if (!dirs.attachments) {
+      alert('Pick an Attachments folder before uploading a cover.');
+      return;
+    }
+
+    const handle = propertyHandles[id];
+    const property = properties.find(p => p.id === id);
+    if (!handle || !property) return;
+
+    try {
+      const coverName = await saveCoverFile(file, property.title);
+      const coverPath = `${dirs.attachments.name}/${coverName}`;
+      const updated = setPropertyCover(property.raw, coverPath);
+      await writeFile(handle, updated);
+      await loadAttachmentImages(dirs.attachments);
+      const updatedProperty = parseProperty(property.id, updated);
+      setProperties(prev => prev.map(p => p.id === id ? updatedProperty : p));
+      setToast(`Updated cover for "${property.title}"`);
+    } catch(e) {
+      console.error('property cover upload failed', e);
+      alert('Failed to upload cover: ' + e.message);
+    }
+  };
+
   const task      = tasks.find(t => t.id===sel);
   const property  = properties.find(p => p.id===propertySel);
   const selTime   = sel ? getTime(sel) : 0;
@@ -689,7 +799,7 @@ export default function App() {
           </div>
           <div style={{ display:'flex', gap:4, marginTop:10, padding:3, borderRadius:10, background:'rgba(255,255,255,0.03)', border:'1px solid rgba(255,255,255,0.06)' }}>
             {['tasks','properties'].map(v => (
-              <button key={v} onClick={()=>{ setView(v); setNewTaskOpen(false); }} style={{ flex:1, padding:'6px 8px', borderRadius:8, border:'none', cursor:'pointer', fontWeight:700, fontSize:11, fontFamily:'inherit', textTransform:'capitalize', background:view===v?'rgba(124,58,237,0.2)':'transparent', color:view===v?'#c4b5fd':'#64748b' }}>
+              <button key={v} onClick={()=>{ setView(v); setNewTaskOpen(false); setNewPropertyOpen(false); }} style={{ flex:1, padding:'6px 8px', borderRadius:8, border:'none', cursor:'pointer', fontWeight:700, fontSize:11, fontFamily:'inherit', textTransform:'capitalize', background:view===v?'rgba(124,58,237,0.2)':'transparent', color:view===v?'#c4b5fd':'#64748b' }}>
                 {v}
               </button>
             ))}
@@ -773,6 +883,11 @@ export default function App() {
           </>
         ) : (
           <>
+            <div style={{ padding:'8px 10px 4px', display:'flex', gap:6, alignItems:'center' }}>
+              <button onClick={()=>setNewPropertyOpen(true)} disabled={!dirs.properties} style={{ flex:1, padding:'8px 10px', borderRadius:9, border:'none', cursor:dirs.properties?'pointer':'not-allowed', fontWeight:700, fontSize:12, fontFamily:'inherit', background:'linear-gradient(135deg,#7c3aed,#3b82f6)', color:'#fff', boxShadow:'0 2px 12px rgba(124,58,237,0.35)', opacity:dirs.properties?1:0.35 }}>
+                +  New Property
+              </button>
+            </div>
             <div style={{ padding:'10px', borderBottom:'1px solid rgba(255,255,255,0.06)' }}>
               <input value={propertySearch} onChange={e=>setPropertySearch(e.target.value)} placeholder="Search properties…" style={{ ...inputBase, padding:'8px 10px', fontSize:12 }}/>
             </div>
@@ -808,6 +923,15 @@ export default function App() {
 
       {/* ─── Main panel ─── */}
       {view === 'properties' ? (
+        newPropertyOpen ? (
+          <NewPropertyPanel
+            onCancel={()=>setNewPropertyOpen(false)}
+            onCreate={createProperty}
+            refs={refs}
+            hasAttachmentsFolder={!!dirs.attachments}
+            onConfigure={()=>setFolderSetupOpen(true)}
+          />
+        ) : (
         <PropertyPanel
           properties={filteredProperties}
           selected={property}
@@ -817,10 +941,13 @@ export default function App() {
           comment={propertyComment}
           setComment={setPropertyComment}
           onAddComment={addPropertyComment}
+          onNewProperty={()=>setNewPropertyOpen(true)}
+          onUploadCover={uploadPropertyCover}
           hasPropertiesFolder={!!dirs.properties}
           hasAttachmentsFolder={!!dirs.attachments}
           onConfigure={()=>setFolderSetupOpen(true)}
         />
+        )
       ) : newTaskOpen ? (
         <NewTaskPanel onCancel={()=>setNewTaskOpen(false)} onCreate={createTask} refs={refs}/>
       ) : meetingOpen ? (
@@ -911,7 +1038,8 @@ export default function App() {
   );
 }
 
-function PropertyPanel({ properties, selected, selectedId, images, onSelect, comment, setComment, onAddComment, hasPropertiesFolder, hasAttachmentsFolder, onConfigure }) {
+function PropertyPanel({ properties, selected, selectedId, images, onSelect, comment, setComment, onAddComment, onNewProperty, onUploadCover, hasPropertiesFolder, hasAttachmentsFolder, onConfigure }) {
+  const coverInputRef = useRef(null);
   const imageFor = p => p?.coverName ? images[p.coverName.toLowerCase()] : null;
   if (!hasPropertiesFolder) {
     return (
@@ -931,9 +1059,14 @@ function PropertyPanel({ properties, selected, selectedId, images, onSelect, com
           <div style={{ fontSize:10, color:'#a78bfa', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:7 }}>Properties</div>
           <h2 style={{ margin:0, fontSize:19, fontWeight:700, color:'#f1f5f9' }}>Property management</h2>
         </div>
-        <button onClick={onConfigure} style={{ padding:'8px 13px', borderRadius:9, border:'1px solid rgba(255,255,255,0.08)', background:'rgba(255,255,255,0.03)', color:'#94a3b8', cursor:'pointer', fontWeight:700, fontSize:12, fontFamily:'inherit' }}>
-          {hasAttachmentsFolder ? 'Folders configured' : 'Add Attachments folder'}
-        </button>
+        <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+          <button onClick={onNewProperty} style={{ padding:'8px 13px', borderRadius:9, border:'none', background:'linear-gradient(135deg,#7c3aed,#3b82f6)', color:'#fff', cursor:'pointer', fontWeight:700, fontSize:12, fontFamily:'inherit' }}>
+            + New Property
+          </button>
+          <button onClick={onConfigure} style={{ padding:'8px 13px', borderRadius:9, border:'1px solid rgba(255,255,255,0.08)', background:'rgba(255,255,255,0.03)', color:'#94a3b8', cursor:'pointer', fontWeight:700, fontSize:12, fontFamily:'inherit' }}>
+            {hasAttachmentsFolder ? 'Folders configured' : 'Add Attachments folder'}
+          </button>
+        </div>
       </div>
 
       <div style={{ flex:1, minHeight:0, display:'grid', gridTemplateColumns:'minmax(340px, 1.1fr) minmax(320px, 0.9fr)', gap:0 }}>
@@ -963,18 +1096,24 @@ function PropertyPanel({ properties, selected, selectedId, images, onSelect, com
             <div style={{ color:'#334155', textAlign:'center', paddingTop:90, fontSize:13 }}>Select a property</div>
           ) : (
             <div>
-              {imageFor(selected) && (
-                <div style={{ height:190, borderRadius:8, overflow:'hidden', marginBottom:16, background:'rgba(255,255,255,0.035)', border:'1px solid rgba(255,255,255,0.07)', display:'flex', alignItems:'center', justifyContent:'center' }}>
-                  <img src={imageFor(selected)} alt="" style={{ width:'100%', height:'100%', objectFit:'contain' }}/>
-                </div>
-              )}
+              <div style={{ height:190, borderRadius:8, overflow:'hidden', marginBottom:16, background:'rgba(255,255,255,0.035)', border:'1px solid rgba(255,255,255,0.07)', display:'flex', alignItems:'center', justifyContent:'center' }}>
+                {imageFor(selected)
+                  ? <img src={imageFor(selected)} alt="" style={{ width:'100%', height:'100%', objectFit:'contain' }}/>
+                  : <span style={{ fontSize:12, color:'#475569', fontWeight:700 }}>No cover</span>}
+              </div>
               <div style={{ display:'flex', justifyContent:'space-between', gap:16, alignItems:'flex-start', marginBottom:16 }}>
                 <div>
                   <div style={{ fontSize:10, color:'#64748b', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:6 }}>{selected.filename}</div>
                   <h2 style={{ margin:0, fontSize:22, lineHeight:1.25, color:'#f1f5f9' }}>{selected.title}</h2>
                   {selected.client && <div style={{ fontSize:12, color:'#94a3b8', marginTop:7 }}>Client: {selected.client}</div>}
                 </div>
-                <span style={{ fontSize:10, fontWeight:800, padding:'4px 8px', borderRadius:20, background:'rgba(99,102,241,0.13)', color:'#818cf8', flexShrink:0 }}>{selected.comments.length} notes</span>
+                <div style={{ display:'flex', flexDirection:'column', alignItems:'flex-end', gap:8, flexShrink:0 }}>
+                  <span style={{ fontSize:10, fontWeight:800, padding:'4px 8px', borderRadius:20, background:'rgba(99,102,241,0.13)', color:'#818cf8' }}>{selected.comments.length} notes</span>
+                  <button onClick={()=>hasAttachmentsFolder ? coverInputRef.current?.click() : onConfigure()} style={{ padding:'7px 10px', borderRadius:8, border:'1px solid rgba(255,255,255,0.08)', background:'rgba(255,255,255,0.03)', color:'#c4b5fd', cursor:'pointer', fontWeight:700, fontSize:11, fontFamily:'inherit' }}>
+                    Upload cover
+                  </button>
+                  <input ref={coverInputRef} type="file" accept="image/*" style={{ display:'none' }} onChange={e=>{ const file = e.target.files?.[0]; if (file) onUploadCover(selected.id, file); e.target.value = ''; }}/>
+                </div>
               </div>
 
               {selected.summary && <p style={{ margin:'0 0 18px', color:'#64748b', fontSize:13, lineHeight:1.55 }}>{selected.summary}</p>}
@@ -998,6 +1137,92 @@ function PropertyPanel({ properties, selected, selectedId, images, onSelect, com
             </div>
           )}
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── New Property Panel ───────────────────────────────────
+function NewPropertyPanel({ onCancel, onCreate, refs, hasAttachmentsFolder, onConfigure }) {
+  const [form, setForm] = useState({
+    title:'',
+    client:'',
+    summary:'',
+    tags:'properties',
+    body:'',
+    coverFile:null,
+  });
+  const [busy, setBusy] = useState(false);
+  const set = (k, v) => setForm(prev => ({ ...prev, [k]: v }));
+  const dlClients = `dl_property_clients_${Math.random().toString(36).slice(2,8)}`;
+
+  const submit = async (e) => {
+    e?.preventDefault?.();
+    if (!form.title.trim()) return;
+    setBusy(true);
+    await onCreate(form);
+    setBusy(false);
+  };
+
+  const slug = form.title.trim() ? propertySlug(form.title) : '<property-name>';
+
+  return (
+    <div style={{ flex:1, display:'flex', flexDirection:'column', overflow:'hidden' }}>
+      <div style={{ padding:'22px 30px 16px', borderBottom:'1px solid rgba(255,255,255,0.06)', flexShrink:0, display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:24 }}>
+        <div>
+          <div style={{ fontSize:10, color:'#a78bfa', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:8 }}>+ New Property</div>
+          <h2 style={{ margin:0, fontSize:19, fontWeight:700, color:'#f1f5f9' }}>Create a property note</h2>
+        </div>
+        <div style={{ display:'flex', gap:8 }}>
+          <button onClick={onCancel} style={{ padding:'9px 16px', borderRadius:10, border:'1px solid rgba(255,255,255,0.1)', cursor:'pointer', fontWeight:700, fontSize:13, fontFamily:'inherit', background:'transparent', color:'#94a3b8' }}>Cancel</button>
+          <button onClick={submit} disabled={busy || !form.title.trim()} style={{ padding:'9px 22px', borderRadius:10, border:'none', cursor:'pointer', fontWeight:700, fontSize:13, fontFamily:'inherit', background:'linear-gradient(135deg,#7c3aed,#3b82f6)', color:'#fff', opacity:(busy||!form.title.trim())?0.4:1, boxShadow:'0 4px 16px rgba(124,58,237,0.4)' }}>
+            {busy ? 'Creating...' : 'Create Property'}
+          </button>
+        </div>
+      </div>
+
+      <div style={{ flex:1, overflowY:'auto', padding:'20px 30px' }}>
+        <form onSubmit={submit} style={{ maxWidth:720 }}>
+          <Field label="Property name">
+            <input autoFocus value={form.title} onChange={e=>set('title', e.target.value)} placeholder="e.g. 20 Kildare Street" style={{ ...inputBase, fontSize:16, fontWeight:600, padding:'10px 14px' }}/>
+            <div style={{ fontSize:10, color:'#475569', marginTop:4 }}>Filename will be <code style={{ color:'#94a3b8' }}>{slug}.md</code></div>
+          </Field>
+
+          <Field label={`Client${refs.clients.length?` · ${refs.clients.length} available`:''}`}>
+            <input list={dlClients} value={form.client} onChange={e=>set('client', e.target.value)} placeholder="Pick or type..." style={inputBase}/>
+            <datalist id={dlClients}>
+              {refs.clients.map(c => <option key={c} value={c}/>)}
+            </datalist>
+          </Field>
+
+          <Field label="Summary">
+            <textarea value={form.summary} onChange={e=>set('summary', e.target.value)} placeholder="Short property summary for the card/library view" rows={3} style={{ ...inputBase, resize:'vertical', lineHeight:1.55 }}/>
+          </Field>
+
+          <Field label="Tags (comma-separated)">
+            <input value={form.tags} onChange={e=>set('tags', e.target.value)} placeholder="properties, dublin" style={inputBase}/>
+          </Field>
+
+          <Field label="Cover image">
+            {hasAttachmentsFolder ? (
+              <label style={{ ...inputBase, display:'flex', alignItems:'center', justifyContent:'space-between', gap:10, cursor:'pointer' }}>
+                <span style={{ color:form.coverFile?'#e2e8f0':'#64748b', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                  {form.coverFile ? form.coverFile.name : 'Choose an image...'}
+                </span>
+                <span style={{ color:'#c4b5fd', fontWeight:800, fontSize:11, flexShrink:0 }}>Browse</span>
+                <input type="file" accept="image/*" onChange={e=>set('coverFile', e.target.files?.[0] || null)} style={{ display:'none' }}/>
+              </label>
+            ) : (
+              <button type="button" onClick={onConfigure} style={{ ...inputBase, cursor:'pointer', textAlign:'left', color:'#c4b5fd', fontWeight:700 }}>
+                Add Attachments folder to upload covers
+              </button>
+            )}
+          </Field>
+
+          <Field label="Initial notes (optional)">
+            <textarea value={form.body} onChange={e=>set('body', e.target.value)} placeholder="Optional property details..." rows={7} style={{ ...inputBase, resize:'vertical', lineHeight:1.55 }}/>
+          </Field>
+        </form>
       </div>
     </div>
   );
