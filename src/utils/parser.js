@@ -1,4 +1,4 @@
-﻿export function parseFrontmatter(txt) {
+export function parseFrontmatter(txt) {
   const m = txt.match(/^---\n([\s\S]*?)\n---/);
   if (!m) return {};
   const res = {}; let key = null;
@@ -17,12 +17,23 @@
   }
   return res;
 }
+
 const wl = s => s ? s.replace(/^\[\[|\]\]$/g, '') : null;
+
 export function parseTask(name, txt) {
   const fm = parseFrontmatter(txt), title = fm.title || name.replace(/\.md$/, '');
   const cl = [...txt.matchAll(/- \[([ x])\] (.+)/g)].map(m => ({done:m[1]==='x',text:m[2]}));
-  const logs = [...txt.matchAll(/### \[\[(\d{4}-\d{2}-\d{2})\]\]\nLog: ([^\n]+)/g)]
-    .map(m => ({date:m[1],text:m[2].trim()})).filter(l => l.text);
+
+  const logs = [];
+  const sRx = /### \[\[(\d{4}-\d{2}-\d{2})\]\]\n((?:Log: [^\n]*\n?)*)/g;
+  let sm;
+  while ((sm = sRx.exec(txt)) !== null) {
+    [...sm[2].matchAll(/Log: ([^\n]+)/g)].forEach(lm => {
+      const text = lm[1].trim();
+      if (text) logs.push({ date: sm[1], text });
+    });
+  }
+
   return {
     id:name, title, filename:name.replace(/\.md$/,''),
     priority:fm.priority||'normal', status:fm.status||'none', due:fm.due||null,
@@ -32,6 +43,7 @@ export function parseTask(name, txt) {
     logs, raw:txt,
   };
 }
+
 export async function readMdFiles(dir, acc = []) {
   for await (const [name, h] of dir.entries()) {
     if (h.kind==='file' && name.endsWith('.md') && name !== 'timetracker.md')
