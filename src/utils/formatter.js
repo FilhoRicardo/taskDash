@@ -235,6 +235,37 @@ export function buildNewPropertyMd({ title, client, summary, tags, coverPath, bo
   return lines.join('\n') + '\n';
 }
 
+export function buildNewProjectMd({ title, client, summary, status = 'active', tags, body }) {
+  const today = tod();
+  const tagArr = ['project'];
+  splitTags(tags).forEach(t => {
+    if (!tagArr.includes(t)) tagArr.push(t);
+  });
+
+  const lines = ['---'];
+  lines.push(`dateCreated: ${today}`);
+  lines.push(`dateModified: ${today}`);
+  lines.push(`status: ${status || 'active'}`);
+  lines.push(`tags: [${tagArr.join(', ')}]`);
+  lines.push(`title: ${yamlQuote(title)}`);
+  if (client) lines.push(`client: ${yamlQuote(`[[${client}]]`)}`);
+  if (summary) lines.push(`summary: ${yamlQuote(summary)}`);
+  lines.push('---');
+  lines.push(`# ${title}`);
+  lines.push('', body && body.trim() ? body.trim() : '## Notes\n');
+  return lines.join('\n') + '\n';
+}
+
+export function touchDateModified(raw) {
+  const fmMatch = raw.match(/^---\n([\s\S]*?)\n---/);
+  if (!fmMatch) return raw;
+  let fm = fmMatch[1];
+  const re = /^dateModified:[ \t]*.*$/m;
+  if (re.test(fm)) fm = fm.replace(re, `dateModified: ${tod()}`);
+  else fm = fm + (fm.endsWith('\n') ? '' : '\n') + `dateModified: ${tod()}`;
+  return raw.replace(/^---\n[\s\S]*?\n---/, `---\n${fm}\n---`);
+}
+
 export function setPropertyCover(raw, coverPath) {
   const fmMatch = raw.match(/^---\n([\s\S]*?)\n---/);
   const frontmatter = fmMatch?.[1] || '';

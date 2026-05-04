@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { parseTask, parseProperty, readMdFiles, readDirNames, readImageFiles } from './utils/parser.js';
+import { parseTask, parseProperty, parseProject, readMdFiles, readDirNames, readImageFiles } from './utils/parser.js';
 import { idbGet, idbSet, idbDel, lsGet, lsSet, lsDel } from './utils/storage.js';
-import { fmt, tod, isToday, isOver, appendNoteToMd, appendPropertyCommentToMd, buildTrackerRow, appendTrackerRow, buildMeetingMd, buildNewTaskMd, buildNewPropertyMd, markTaskDone, setPropertyCover } from './utils/formatter.js';
+import { fmt, tod, isToday, isOver, appendNoteToMd, appendPropertyCommentToMd, buildTrackerRow, appendTrackerRow, buildMeetingMd, buildNewTaskMd, buildNewPropertyMd, buildNewProjectMd, markTaskDone, setPropertyCover, touchDateModified } from './utils/formatter.js';
 
 const REFRESH_MS  = 5 * 60 * 1000;
 const WARN_MS     = 60 * 60 * 1000;
@@ -9,7 +9,7 @@ const WARN_CHK_MS = 30 * 1000;
 
 const FOLDER_DEFS = [
   { key:'tasks',      label:'Tasks',      mode:'readwrite', required:true,  desc:'Where your task .md files live (e.g. TaskNotes/Tasks)' },
-  { key:'projects',   label:'Projects',   mode:'read',      required:false, desc:'For project autocomplete' },
+  { key:'projects',   label:'Projects',   mode:'readwrite', required:false, desc:'For project autocomplete and project editing' },
   { key:'properties', label:'Properties', mode:'readwrite', required:false, desc:'For building autocomplete and property comments' },
   { key:'clients',    label:'Clients',    mode:'read',      required:false, desc:'For client autocomplete' },
   { key:'people',     label:'People',     mode:'read',      required:false, desc:'For "waiting for" autocomplete' },
@@ -75,6 +75,11 @@ function propertySlug(title) {
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '')
     .slice(0, 180) || 'new-property';
+}
+
+function projectFilename(title) {
+  const name = safeFilename(title).replace(/^project\s*-\s*/i, '');
+  return `Project - ${name || 'Untitled project'}.md`;
 }
 
 function coverExtension(file) {
@@ -162,7 +167,7 @@ export default function App() {
 
   // ── Reference autocomplete lists (filenames without .md) ──
   const [refs, setRefs] = useState({ projects:[], properties:[], clients:[], people:[] });
-  const [view, setView] = useState('tasks');
+  const [view, setView] = useState('mission');
 
   // ── Property library state ──
   const [properties,       setProperties]       = useState([]);
@@ -171,6 +176,14 @@ export default function App() {
   const [propertySel,      setPropertySel]      = useState(null);
   const [propertySearch,   setPropertySearch]   = useState('');
   const [propertyComment,  setPropertyComment]  = useState('');
+
+  // â”€â”€ Project library state â”€â”€
+  const [projects,       setProjects]       = useState([]);
+  const [projectHandles, setProjectHandles] = useState({});
+  const [projectSel,     setProjectSel]     = useState(null);
+  const [projectSearch,  setProjectSearch]  = useState('');
+  const [projectDraft,   setProjectDraft]   = useState('');
+  const [newProjectOpen, setNewProjectOpen] = useState(false);
 
   // ── Tasks / timer / UI state ──
   const [tasks,         setTasks]         = useState([]);
@@ -290,6 +303,11 @@ export default function App() {
     return () => clearTimeout(t);
   }, [toast]);
 
+  useEffect(() => {
+    const project = projects.find(p => p.id === projectSel);
+    setProjectDraft(project?.raw || '');
+  }, [projectSel, projects]);
+
   const loadFiles = useCallback(async (dir) => {
     try {
       const raw = await readMdFiles(dir);
@@ -325,6 +343,19 @@ export default function App() {
     } catch(e) { console.error('properties load failed', e); }
   }, []);
 
+  const loadProjects = useCallback(async (dir) => {
+    try {
+      const raw = (await readMdFiles(dir)).filter(f => /^project\b/i.test(f.name.replace(/\.md$/i, '').trim()));
+      const parsed = raw.map(f => parseProject(f.name, f.text))
+        .sort((a,b) => a.title.localeCompare(b.title));
+      setProjects(parsed);
+      const handles = {};
+      raw.forEach(f => { handles[f.name] = f.handle; });
+      setProjectHandles(handles);
+      setProjectSel(prev => prev && parsed.some(p => p.id === prev) ? prev : (parsed[0]?.id || null));
+    } catch(e) { console.error('projects load failed', e); }
+  }, []);
+
   const loadAttachmentImages = useCallback(async (dir) => {
     try {
       const raw = await readImageFiles(dir);
@@ -354,9 +385,10 @@ export default function App() {
   const loadAll = useCallback(async (liveDirs) => {
     if (liveDirs.tasks) await loadFiles(liveDirs.tasks);
     await loadRefs(liveDirs);
+    if (liveDirs.projects) await loadProjects(liveDirs.projects);
     if (liveDirs.properties) await loadProperties(liveDirs.properties);
     if (liveDirs.attachments) await loadAttachmentImages(liveDirs.attachments);
-  }, [loadFiles, loadRefs, loadProperties, loadAttachmentImages]);
+  }, [loadFiles, loadRefs, loadProjects, loadProperties, loadAttachmentImages]);
 
   // ── Setup & permission flow ──
   const pickFolder = async (key) => {
@@ -373,6 +405,7 @@ export default function App() {
         await loadFiles(dir);
       }
       else {
+        if (key === 'projects') await loadProjects(dir);
         if (key === 'properties') await loadProperties(dir);
         if (key === 'attachments') await loadAttachmentImages(dir);
         await loadRefs(next);
@@ -396,6 +429,7 @@ export default function App() {
           await loadFiles(h);
         }
         else {
+          if (key === 'projects') await loadProjects(h);
           if (key === 'properties') await loadProperties(h);
           if (key === 'attachments') await loadAttachmentImages(h);
           await loadRefs(next);
@@ -427,6 +461,7 @@ export default function App() {
     setDirs(prev => { const c = {...prev}; delete c[key]; return c; });
     setSavedDirs(prev => { const c = {...prev}; delete c[key]; return c; });
     if (key === 'tasks') { setTasks([]); setTaskHandles({}); setTrackerHandle(null); }
+    else if (key === 'projects') { setProjects([]); setProjectHandles({}); setProjectSel(null); setProjectDraft(''); }
     else if (key === 'properties') { setProperties([]); setPropertyHandles({}); setPropertySel(null); }
     else if (key === 'attachments') {
       Object.values(imageUrlsRef.current).forEach(URL.revokeObjectURL);
@@ -442,6 +477,7 @@ export default function App() {
     lsDel(FOLDER_SETUP_SEEN);
     setDirs({}); setSavedDirs({});
     setTasks([]); setTaskHandles({}); setTrackerHandle(null);
+    setProjects([]); setProjectHandles({}); setProjectSel(null); setProjectDraft('');
     setProperties([]); setPropertyHandles({}); setPropertySel(null);
     Object.values(imageUrlsRef.current).forEach(URL.revokeObjectURL);
     imageUrlsRef.current = {};
@@ -668,19 +704,75 @@ export default function App() {
     }
   };
 
+  const createProject = async (form) => {
+    if (!dirs.projects || !form.title.trim()) return;
+    try {
+      const filename = await uniqueFileNameInDir(dirs.projects, projectFilename(form.title));
+      const content = buildNewProjectMd(form);
+      const fh = await dirs.projects.getFileHandle(filename, { create:true });
+      await writeFile(fh, content);
+      await loadProjects(dirs.projects);
+      await loadRefs(dirs);
+      setProjectSearch('');
+      setProjectSel(filename);
+      setNewProjectOpen(false);
+      setToast(`Created project "${form.title.trim()}"`);
+    } catch(e) {
+      console.error('create project failed', e);
+      alert('Failed to create project: ' + e.message);
+    }
+  };
+
+  const saveProject = async () => {
+    if (!projectSel) return;
+    const handle = projectHandles[projectSel];
+    if (!handle) return;
+    try {
+      const updated = touchDateModified(projectDraft);
+      await writeFile(handle, updated);
+      const updatedProject = parseProject(projectSel, updated);
+      setProjects(prev => prev.map(p => p.id === projectSel ? updatedProject : p));
+      setProjectDraft(updated);
+      setToast(`Saved "${updatedProject.title}"`);
+    } catch(e) {
+      console.error('save project failed', e);
+      alert('Failed to save project: ' + e.message);
+    }
+  };
+
   const task      = tasks.find(t => t.id===sel);
   const property  = properties.find(p => p.id===propertySel);
+  const project   = projects.find(p => p.id===projectSel);
   const selTime   = sel ? getTime(sel) : 0;
   const live      = timer?.taskId===sel;
   const totalToday = [...tasks.map(t=>t.id),'__email__','__meeting__','__adhoc__'].reduce((a,id)=>a+getTime(id),0);
   const dueColor  = due => isOver(due)?'#ef4444':isToday(due)?'#f59e0b':'#475569';
   const syncLabel = lastSync ? `Synced ${new Date(lastSync).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}` : 'Not synced';
   const filtered  = tasks.filter(t => !t.archived).filter(t => filt==='today'?isToday(t.due):filt==='overdue'?isOver(t.due):filt==='done'?t.status==='done':true);
+  const openTasks = tasks.filter(t => !t.archived && t.status !== 'done');
+  const byOldestCreated = (a, b) => (a.dateCreated || '9999').localeCompare(b.dateCreated || '9999') || a.title.localeCompare(b.title);
+  const missionToday = openTasks.filter(t => !t.recurrent && (isToday(t.due) || isToday(t.scheduled))).sort(byOldestCreated);
+  const missionOverdue = openTasks.filter(t => !t.recurrent && isOver(t.due)).sort(byOldestCreated);
+  const missionRecurrent = openTasks.filter(t => t.recurrent).sort(byOldestCreated);
   const filteredProperties = properties.filter(p => {
     const q = propertySearch.trim().toLowerCase();
     if (!q) return true;
     return [p.title, p.filename, p.client, p.summary].filter(Boolean).some(v => v.toLowerCase().includes(q));
   });
+  const filteredProjects = projects.filter(p => {
+    const q = projectSearch.trim().toLowerCase();
+    if (!q) return true;
+    return [p.title, p.filename, p.client, p.summary, p.status].filter(Boolean).some(v => v.toLowerCase().includes(q));
+  });
+  const headerLabel = view === 'mission' ? 'MISSION CONTROL' : view === 'tasks' ? "TODAY'S TOTAL" : view === 'projects' ? 'PROJECT LIBRARY' : 'PROPERTY LIBRARY';
+  const headerMetric = view === 'mission' ? missionToday.length + missionOverdue.length : view === 'tasks' ? fmt(totalToday) : view === 'projects' ? projects.length : properties.length;
+  const headerDetail = view === 'mission'
+    ? `${missionToday.length} today · ${missionOverdue.length} overdue · ${missionRecurrent.length} recurrent`
+    : view === 'tasks'
+      ? `${tasks.filter(t=>!t.archived).length} tasks · ${Object.values(refs).reduce((a,r)=>a+r.length,0)} refs`
+      : view === 'projects'
+        ? `${dirs.projects ? dirs.projects.name : 'No folder'} · editable`
+        : `${dirs.properties ? dirs.properties.name : 'No folder'} · ${dirs.attachments ? 'covers on' : 'covers off'}`;
 
   const btnPrimary = { padding:'13px 34px', borderRadius:12, border:'none', cursor:'pointer', fontWeight:700, fontSize:14, fontFamily:'inherit', background:'linear-gradient(135deg,#7c3aed,#3b82f6)', color:'#fff', boxShadow:'0 4px 24px rgba(124,58,237,0.45)' };
 
@@ -793,14 +885,14 @@ export default function App() {
             <span style={{ fontSize:10, color:'#10b981' }}>{syncLabel} · auto every 5 min</span>
           </div>
           <div style={{ padding:'11px 13px', borderRadius:10, background:'rgba(124,58,237,0.08)', border:'1px solid rgba(124,58,237,0.18)' }}>
-            <div style={{ fontSize:9, color:'#7c3aed', fontWeight:800, letterSpacing:'0.1em', marginBottom:3 }}>{view==='tasks' ? "TODAY'S TOTAL" : 'PROPERTY LIBRARY'}</div>
-            <div style={{ fontWeight:800, fontSize:23, letterSpacing:'-0.03em', fontVariantNumeric:'tabular-nums' }}>{view==='tasks' ? fmt(totalToday) : properties.length}</div>
-            <div style={{ fontSize:10, color:'#475569', marginTop:2 }}>{view==='tasks' ? `${tasks.filter(t=>!t.archived).length} tasks · ${Object.values(refs).reduce((a,r)=>a+r.length,0)} refs` : `${dirs.properties ? dirs.properties.name : 'No folder'} · ${dirs.attachments ? 'covers on' : 'covers off'}`}</div>
+            <div style={{ fontSize:9, color:'#7c3aed', fontWeight:800, letterSpacing:'0.1em', marginBottom:3 }}>{headerLabel}</div>
+            <div style={{ fontWeight:800, fontSize:23, letterSpacing:'-0.03em', fontVariantNumeric:'tabular-nums' }}>{headerMetric}</div>
+            <div style={{ fontSize:10, color:'#475569', marginTop:2 }}>{headerDetail}</div>
           </div>
           <div style={{ display:'flex', gap:4, marginTop:10, padding:3, borderRadius:10, background:'rgba(255,255,255,0.03)', border:'1px solid rgba(255,255,255,0.06)' }}>
-            {['tasks','properties'].map(v => (
-              <button key={v} onClick={()=>{ setView(v); setNewTaskOpen(false); setNewPropertyOpen(false); }} style={{ flex:1, padding:'6px 8px', borderRadius:8, border:'none', cursor:'pointer', fontWeight:700, fontSize:11, fontFamily:'inherit', textTransform:'capitalize', background:view===v?'rgba(124,58,237,0.2)':'transparent', color:view===v?'#c4b5fd':'#64748b' }}>
-                {v}
+            {['mission','tasks','projects','properties'].map(v => (
+              <button key={v} onClick={()=>{ setView(v); setNewTaskOpen(false); setNewPropertyOpen(false); setNewProjectOpen(false); }} style={{ flex:1, padding:'6px 5px', borderRadius:8, border:'none', cursor:'pointer', fontWeight:700, fontSize:10, fontFamily:'inherit', textTransform:'capitalize', background:view===v?'rgba(124,58,237,0.2)':'transparent', color:view===v?'#c4b5fd':'#64748b' }}>
+                {v === 'mission' ? 'Today' : v}
               </button>
             ))}
           </div>
@@ -881,7 +973,35 @@ export default function App() {
               })}
             </div>
           </>
-        ) : (
+        ) : view === 'projects' ? (
+          <>
+            <div style={{ padding:'8px 10px 4px', display:'flex', gap:6, alignItems:'center' }}>
+              <button onClick={()=>setNewProjectOpen(true)} disabled={!dirs.projects} style={{ flex:1, padding:'8px 10px', borderRadius:9, border:'none', cursor:dirs.projects?'pointer':'not-allowed', fontWeight:700, fontSize:12, fontFamily:'inherit', background:'linear-gradient(135deg,#7c3aed,#3b82f6)', color:'#fff', boxShadow:'0 2px 12px rgba(124,58,237,0.35)', opacity:dirs.projects?1:0.35 }}>
+                +  New Project
+              </button>
+            </div>
+            <div style={{ padding:'10px', borderBottom:'1px solid rgba(255,255,255,0.06)' }}>
+              <input value={projectSearch} onChange={e=>setProjectSearch(e.target.value)} placeholder="Search projects..." style={{ ...inputBase, padding:'8px 10px', fontSize:12 }}/>
+            </div>
+            <div style={{ flex:1, overflowY:'auto', padding:'6px 8px' }}>
+              {!dirs.projects && <div style={{ color:'#475569', textAlign:'center', paddingTop:40, fontSize:12 }}>Pick your Projects folder in Configure folders</div>}
+              {filteredProjects.map(p => {
+                const active = projectSel === p.id;
+                return (
+                  <div key={p.id} onClick={()=>setProjectSel(p.id)} style={{ padding:'10px', marginBottom:4, borderRadius:10, cursor:'pointer', background:active?'rgba(124,58,237,0.1)':'rgba(255,255,255,0.02)', border:`1px solid ${active?'rgba(124,58,237,0.28)':'rgba(255,255,255,0.04)'}` }}>
+                    <div style={{ fontSize:12, fontWeight:700, lineHeight:1.35, color:'#e2e8f0' }}>{p.title}</div>
+                    <div style={{ fontSize:10, color:'#475569', marginTop:3 }}>{p.status || p.filename}</div>
+                  </div>
+                );
+              })}
+            </div>
+            <div style={{ padding:'8px 10px', borderTop:'1px solid rgba(255,255,255,0.04)' }}>
+              <button onClick={()=>setFolderSetupOpen(true)} style={{ width:'100%', padding:'7px 10px', borderRadius:8, border:'1px solid rgba(255,255,255,0.06)', background:'rgba(255,255,255,0.02)', color:'#64748b', fontSize:11, cursor:'pointer', fontFamily:'inherit' }}>
+                Configure project folders
+              </button>
+            </div>
+          </>
+        ) : view === 'properties' ? (
           <>
             <div style={{ padding:'8px 10px 4px', display:'flex', gap:6, alignItems:'center' }}>
               <button onClick={()=>setNewPropertyOpen(true)} disabled={!dirs.properties} style={{ flex:1, padding:'8px 10px', borderRadius:9, border:'none', cursor:dirs.properties?'pointer':'not-allowed', fontWeight:700, fontSize:12, fontFamily:'inherit', background:'linear-gradient(135deg,#7c3aed,#3b82f6)', color:'#fff', boxShadow:'0 2px 12px rgba(124,58,237,0.35)', opacity:dirs.properties?1:0.35 }}>
@@ -910,9 +1030,32 @@ export default function App() {
               </button>
             </div>
           </>
+        ) : (
+          <div style={{ flex:1, overflowY:'auto', padding:'10px' }}>
+            <div style={{ fontSize:9, color:'#475569', fontWeight:700, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:8 }}>Mission queues</div>
+            {[
+              ['Overdue', missionOverdue, '#f87171'],
+              ['Today', missionToday, '#fbbf24'],
+              ['Recurrent', missionRecurrent, '#818cf8'],
+            ].map(([label, list, color]) => (
+              <div key={label} style={{ marginBottom:12 }}>
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:5 }}>
+                  <span style={{ fontSize:11, color, fontWeight:800 }}>{label}</span>
+                  <span style={{ fontSize:10, color:'#475569', fontWeight:700 }}>{list.length}</span>
+                </div>
+                {list.slice(0, 4).map(t => (
+                  <div key={t.id} onClick={()=>{ setView('tasks'); setSel(t.id); }} style={{ padding:'8px 9px', marginBottom:4, borderRadius:9, cursor:'pointer', background:'rgba(255,255,255,0.02)', border:'1px solid rgba(255,255,255,0.04)' }}>
+                    <div style={{ fontSize:12, fontWeight:650, lineHeight:1.3 }}>{t.title}</div>
+                    <div style={{ fontSize:10, color:'#475569', marginTop:3 }}>{t.dateCreated ? `created ${t.dateCreated.slice(0,10)}` : 'created date unknown'}</div>
+                  </div>
+                ))}
+              </div>
+            ))}
+            <button onClick={()=>{ setView('tasks'); setNewTaskOpen(true); }} style={{ width:'100%', padding:'8px 10px', borderRadius:9, border:'none', cursor:'pointer', fontWeight:700, fontSize:12, fontFamily:'inherit', background:'linear-gradient(135deg,#7c3aed,#3b82f6)', color:'#fff' }}>+ New Task</button>
+          </div>
         )}
 
-        {view === 'tasks' && (
+        {(view === 'tasks' || view === 'mission') && (
           <div style={{ padding:'6px 10px 9px', borderTop:'1px solid rgba(255,255,255,0.04)' }}>
             <button onClick={()=>setFolderSetupOpen(true)} style={{ width:'100%', padding:'5px 10px', background:'transparent', border:'none', color:'#334155', fontSize:10, cursor:'pointer', fontFamily:'inherit', textAlign:'center' }}>
               ⚙  Configure folders
@@ -922,7 +1065,37 @@ export default function App() {
       </div>
 
       {/* ─── Main panel ─── */}
-      {view === 'properties' ? (
+      {view === 'mission' ? (
+        <MissionControlPanel
+          today={missionToday}
+          overdue={missionOverdue}
+          recurrent={missionRecurrent}
+          selectedId={sel}
+          liveId={timer?.taskId}
+          getTime={getTime}
+          onSelectTask={(id)=>{ setSel(id); setView('tasks'); }}
+          onStart={start}
+          onStop={stop}
+          onNewTask={()=>{ setView('tasks'); setNewTaskOpen(true); }}
+        />
+      ) : view === 'projects' ? (
+        newProjectOpen ? (
+          <NewProjectPanel onCancel={()=>setNewProjectOpen(false)} onCreate={createProject} refs={refs}/>
+        ) : (
+          <ProjectPanel
+            projects={filteredProjects}
+            selected={project}
+            selectedId={projectSel}
+            draft={projectDraft}
+            setDraft={setProjectDraft}
+            onSelect={setProjectSel}
+            onSave={saveProject}
+            onNewProject={()=>setNewProjectOpen(true)}
+            hasProjectsFolder={!!dirs.projects}
+            onConfigure={()=>setFolderSetupOpen(true)}
+          />
+        )
+      ) : view === 'properties' ? (
         newPropertyOpen ? (
           <NewPropertyPanel
             onCancel={()=>setNewPropertyOpen(false)}
@@ -1038,6 +1211,108 @@ export default function App() {
   );
 }
 
+function MissionControlPanel({ today, overdue, recurrent, selectedId, liveId, getTime, onSelectTask, onStart, onStop, onNewTask }) {
+  const renderTask = t => {
+    const running = liveId === t.id;
+    return (
+      <div key={t.id} style={{ padding:'12px 14px', borderRadius:8, background:running?'rgba(16,185,129,0.08)':'rgba(255,255,255,0.025)', border:`1px solid ${selectedId===t.id?'rgba(124,58,237,0.45)':running?'rgba(16,185,129,0.25)':'rgba(255,255,255,0.06)'}`, marginBottom:8 }}>
+        <div onClick={()=>onSelectTask(t.id)} style={{ cursor:'pointer' }}>
+          <div style={{ display:'flex', justifyContent:'space-between', gap:12, marginBottom:7 }}>
+            <div style={{ fontSize:13, fontWeight:750, lineHeight:1.35, color:'#f1f5f9' }}>{t.title}</div>
+            {running && <span style={{ fontSize:10, fontWeight:800, color:'#10b981', flexShrink:0 }}>{fmt(getTime(t.id))}</span>}
+          </div>
+          <div style={{ display:'flex', gap:6, alignItems:'center', flexWrap:'wrap' }}>
+            <PBadge p={t.priority}/><SBadge s={t.status}/>
+            {t.due && <span style={{ fontSize:10, color:isOver(t.due)?'#f87171':isToday(t.due)?'#fbbf24':'#64748b', fontWeight:700 }}>due {t.due}</span>}
+            {t.scheduled && <span style={{ fontSize:10, color:'#818cf8', fontWeight:700 }}>scheduled {t.scheduled}</span>}
+            <span style={{ fontSize:10, color:'#475569' }}>{t.dateCreated ? `created ${t.dateCreated.slice(0,10)}` : 'created date unknown'}</span>
+          </div>
+        </div>
+        <div style={{ display:'flex', justifyContent:'flex-end', marginTop:10 }}>
+          <button onClick={()=>running ? onStop() : onStart(t.id)} style={{ padding:'6px 12px', borderRadius:8, border:'none', cursor:'pointer', fontWeight:800, fontSize:11, fontFamily:'inherit', background:running?'rgba(239,68,68,0.1)':'linear-gradient(135deg,#7c3aed,#3b82f6)', color:running?'#f87171':'#fff' }}>
+            {running ? 'Stop' : 'Start'}
+          </button>
+        </div>
+      </div>
+    );
+  };
+
+  const sections = [
+    { title:'Overdue', subtitle:'Oldest created first', items:overdue, color:'#f87171' },
+    { title:'Today', subtitle:'Due or scheduled today, oldest created first', items:today, color:'#fbbf24' },
+    { title:'Recurrent', subtitle:'Separated from dated work', items:recurrent, color:'#818cf8' },
+  ];
+
+  return (
+    <div style={{ flex:1, display:'flex', flexDirection:'column', overflow:'hidden' }}>
+      <div style={{ padding:'22px 30px 16px', borderBottom:'1px solid rgba(255,255,255,0.06)', flexShrink:0, display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:20 }}>
+        <div>
+          <div style={{ fontSize:10, color:'#a78bfa', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:8 }}>Today Mission Control</div>
+          <h2 style={{ margin:0, fontSize:20, fontWeight:750, color:'#f1f5f9' }}>Tackle the oldest work first</h2>
+        </div>
+        <button onClick={onNewTask} style={{ padding:'9px 16px', borderRadius:10, border:'none', cursor:'pointer', fontWeight:800, fontSize:13, fontFamily:'inherit', background:'linear-gradient(135deg,#7c3aed,#3b82f6)', color:'#fff' }}>+ New Task</button>
+      </div>
+      <div style={{ flex:1, overflowY:'auto', padding:'20px 24px' }}>
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(3,minmax(220px,1fr))', gap:14, alignItems:'start' }}>
+          {sections.map(s => (
+            <section key={s.title} style={{ minWidth:0 }}>
+              <div style={{ padding:'0 2px 10px', borderBottom:`2px solid ${s.color}`, marginBottom:10 }}>
+                <div style={{ display:'flex', justifyContent:'space-between', gap:10, alignItems:'baseline' }}>
+                  <h3 style={{ margin:0, fontSize:16, color:'#f1f5f9' }}>{s.title}</h3>
+                  <span style={{ fontSize:20, fontWeight:850, color:s.color }}>{s.items.length}</span>
+                </div>
+                <div style={{ fontSize:11, color:'#64748b', marginTop:3 }}>{s.subtitle}</div>
+              </div>
+              {!s.items.length && <div style={{ color:'#334155', fontSize:13, padding:'32px 8px', textAlign:'center' }}>Clear</div>}
+              {s.items.map(renderTask)}
+            </section>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ProjectPanel({ projects, selected, selectedId, draft, setDraft, onSelect, onSave, onNewProject, hasProjectsFolder, onConfigure }) {
+  if (!hasProjectsFolder) {
+    return (
+      <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', color:'#475569', fontSize:13 }}>
+        <button onClick={onConfigure} style={{ padding:'10px 18px', borderRadius:10, border:'none', cursor:'pointer', fontWeight:700, fontSize:13, fontFamily:'inherit', background:'linear-gradient(135deg,#7c3aed,#3b82f6)', color:'#fff' }}>Configure Projects folder</button>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ flex:1, display:'grid', gridTemplateColumns:'minmax(260px, 0.38fr) minmax(420px, 1fr)', minHeight:0, overflow:'hidden' }}>
+      <div style={{ borderRight:'1px solid rgba(255,255,255,0.06)', overflowY:'auto', padding:'18px 16px' }}>
+        <button onClick={onNewProject} style={{ width:'100%', padding:'9px 12px', borderRadius:9, border:'none', cursor:'pointer', fontWeight:800, fontSize:12, fontFamily:'inherit', background:'linear-gradient(135deg,#7c3aed,#3b82f6)', color:'#fff', marginBottom:12 }}>+ New Project</button>
+        {!projects.length && <div style={{ color:'#475569', textAlign:'center', paddingTop:35, fontSize:12 }}>No project files</div>}
+        {projects.map(p => (
+          <button key={p.id} onClick={()=>onSelect(p.id)} style={{ width:'100%', textAlign:'left', padding:'11px 12px', marginBottom:6, borderRadius:9, border:`1px solid ${selectedId===p.id?'rgba(124,58,237,0.45)':'rgba(255,255,255,0.05)'}`, background:selectedId===p.id?'rgba(124,58,237,0.1)':'rgba(255,255,255,0.02)', color:'#e2e8f0', cursor:'pointer', fontFamily:'inherit' }}>
+            <div style={{ fontSize:13, fontWeight:800, lineHeight:1.3 }}>{p.title}</div>
+            <div style={{ fontSize:10, color:'#64748b', marginTop:4 }}>{p.status || p.filename}</div>
+          </button>
+        ))}
+      </div>
+      <div style={{ display:'flex', flexDirection:'column', minWidth:0, minHeight:0 }}>
+        <div style={{ padding:'20px 28px 14px', borderBottom:'1px solid rgba(255,255,255,0.06)', display:'flex', justifyContent:'space-between', gap:18, alignItems:'flex-start' }}>
+          <div style={{ minWidth:0 }}>
+            <div style={{ fontSize:10, color:'#a78bfa', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:7 }}>Projects</div>
+            <h2 style={{ margin:0, fontSize:20, color:'#f1f5f9' }}>{selected ? selected.title : 'Select a project'}</h2>
+            {selected && <div style={{ fontSize:11, color:'#64748b', marginTop:5 }}>{selected.filename}</div>}
+          </div>
+          <button onClick={onSave} disabled={!selected} style={{ padding:'9px 18px', borderRadius:10, border:'none', cursor:selected?'pointer':'not-allowed', fontWeight:800, fontSize:13, fontFamily:'inherit', background:'linear-gradient(135deg,#7c3aed,#3b82f6)', color:'#fff', opacity:selected?1:0.35 }}>Save</button>
+        </div>
+        {selected ? (
+          <textarea value={draft} onChange={e=>setDraft(e.target.value)} spellCheck={false} style={{ flex:1, width:'100%', resize:'none', padding:'18px 22px', background:'rgba(255,255,255,0.025)', border:'none', color:'#e2e8f0', outline:'none', fontFamily:'ui-monospace, SFMono-Regular, Consolas, monospace', fontSize:13, lineHeight:1.65 }}/>
+        ) : (
+          <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', color:'#334155', fontSize:13 }}>Select or create a project</div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function PropertyPanel({ properties, selected, selectedId, images, onSelect, comment, setComment, onAddComment, onNewProperty, onUploadCover, hasPropertiesFolder, hasAttachmentsFolder, onConfigure }) {
   const coverInputRef = useRef(null);
   const imageFor = p => p?.coverName ? images[p.coverName.toLowerCase()] : null;
@@ -1143,6 +1418,79 @@ function PropertyPanel({ properties, selected, selectedId, images, onSelect, com
 }
 
 // ─── New Property Panel ───────────────────────────────────
+function NewProjectPanel({ onCancel, onCreate, refs }) {
+  const [form, setForm] = useState({
+    title:'',
+    status:'active',
+    client:'',
+    summary:'',
+    tags:'project',
+    body:'',
+  });
+  const [busy, setBusy] = useState(false);
+  const set = (k, v) => setForm(prev => ({ ...prev, [k]: v }));
+  const dlClients = `dl_project_clients_${Math.random().toString(36).slice(2,8)}`;
+
+  const submit = async (e) => {
+    e?.preventDefault?.();
+    if (!form.title.trim()) return;
+    setBusy(true);
+    await onCreate(form);
+    setBusy(false);
+  };
+
+  return (
+    <div style={{ flex:1, display:'flex', flexDirection:'column', overflow:'hidden' }}>
+      <div style={{ padding:'22px 30px 16px', borderBottom:'1px solid rgba(255,255,255,0.06)', flexShrink:0, display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:24 }}>
+        <div>
+          <div style={{ fontSize:10, color:'#a78bfa', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:8 }}>+ New Project</div>
+          <h2 style={{ margin:0, fontSize:19, fontWeight:700, color:'#f1f5f9' }}>Create a project note</h2>
+        </div>
+        <div style={{ display:'flex', gap:8 }}>
+          <button onClick={onCancel} style={{ padding:'9px 16px', borderRadius:10, border:'1px solid rgba(255,255,255,0.1)', cursor:'pointer', fontWeight:700, fontSize:13, fontFamily:'inherit', background:'transparent', color:'#94a3b8' }}>Cancel</button>
+          <button onClick={submit} disabled={busy || !form.title.trim()} style={{ padding:'9px 22px', borderRadius:10, border:'none', cursor:'pointer', fontWeight:700, fontSize:13, fontFamily:'inherit', background:'linear-gradient(135deg,#7c3aed,#3b82f6)', color:'#fff', opacity:(busy||!form.title.trim())?0.4:1 }}>
+            {busy ? 'Creating...' : 'Create Project'}
+          </button>
+        </div>
+      </div>
+
+      <div style={{ flex:1, overflowY:'auto', padding:'20px 30px' }}>
+        <form onSubmit={submit} style={{ maxWidth:720 }}>
+          <Field label="Project name">
+            <input autoFocus value={form.title} onChange={e=>set('title', e.target.value)} placeholder="e.g. Union Module 4" style={{ ...inputBase, fontSize:16, fontWeight:600, padding:'10px 14px' }}/>
+            <div style={{ fontSize:10, color:'#475569', marginTop:4 }}>Filename will be <code style={{ color:'#94a3b8' }}>{form.title.trim() ? projectFilename(form.title) : 'Project - <title>.md'}</code></div>
+          </Field>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:11 }}>
+            <Field label="Status">
+              <select value={form.status} onChange={e=>set('status', e.target.value)} style={inputBase}>
+                <option value="active">Active</option>
+                <option value="paused">Paused</option>
+                <option value="done">Done</option>
+                <option value="archived">Archived</option>
+              </select>
+            </Field>
+            <Field label={`Client${refs.clients.length?` · ${refs.clients.length} available`:''}`}>
+              <input list={dlClients} value={form.client} onChange={e=>set('client', e.target.value)} placeholder="Pick or type..." style={inputBase}/>
+              <datalist id={dlClients}>
+                {refs.clients.map(c => <option key={c} value={c}/>)}
+              </datalist>
+            </Field>
+          </div>
+          <Field label="Summary">
+            <textarea value={form.summary} onChange={e=>set('summary', e.target.value)} placeholder="Short project summary" rows={3} style={{ ...inputBase, resize:'vertical', lineHeight:1.55 }}/>
+          </Field>
+          <Field label="Tags (comma-separated)">
+            <input value={form.tags} onChange={e=>set('tags', e.target.value)} placeholder="project, union" style={inputBase}/>
+          </Field>
+          <Field label="Initial notes">
+            <textarea value={form.body} onChange={e=>set('body', e.target.value)} placeholder="Project notes, scope, next actions..." rows={8} style={{ ...inputBase, resize:'vertical', lineHeight:1.55 }}/>
+          </Field>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 function NewPropertyPanel({ onCancel, onCreate, refs, hasAttachmentsFolder, onConfigure }) {
   const [form, setForm] = useState({
     title:'',

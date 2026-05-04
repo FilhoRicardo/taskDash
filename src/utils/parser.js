@@ -69,15 +69,35 @@ export function parseTask(name, txt) {
 
   return {
     id:name, title, filename:name.replace(/\.md$/,''),
-    priority:fm.priority||'normal', status:fm.status||'none', due:fm.due||null,
+    priority:fm.priority||'normal', status:fm.status||'none', due:fm.due||null, scheduled:fm.scheduled||null,
+    dateCreated:fm.dateCreated||null, dateModified:fm.dateModified||null,
     contexts:Array.isArray(fm.contexts)?fm.contexts:fm.contexts?[fm.contexts]:[],
     client:wl(fm.client), building:wl(fm.building),
     projects:Array.isArray(fm.projects)?fm.projects.map(wl):fm.projects?[wl(fm.projects)]:[],
     waitingfor:wl(fm.waitingfor),
     tags, archived: tags.includes('archived'),
+    recurrent: fm.recurrent === 'true' || fm.Recurrent === 'true' || tags.includes('recurrent') || tags.includes('recurring'),
     completedDate: fm.completedDate || null,
     checklist:cl, checklistDone:cl.filter(c=>c.done).length, checklistTotal:cl.length,
     logs, raw:txt,
+  };
+}
+
+export function parseProject(name, txt) {
+  const fm = parseFrontmatter(txt);
+  const h1 = txt.match(/^#\s+(.+)$/m)?.[1]?.trim();
+  const tags = Array.isArray(fm.tags) ? fm.tags : fm.tags ? [fm.tags] : [];
+  return {
+    id: name,
+    filename: basename(name),
+    title: fm.title || h1 || titleFromName(name),
+    status: fm.status || fm.projectStatus || 'active',
+    client: wl(fm.client),
+    summary: fm.summary || '',
+    tags,
+    dateCreated: fm.dateCreated || null,
+    dateModified: fm.dateModified || null,
+    raw: txt,
   };
 }
 
