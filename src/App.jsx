@@ -192,6 +192,13 @@ function formatMinutes(minutes) {
   return `${Math.max(0, Math.round(minutes || 0))} min`;
 }
 
+function formatHoursMinutes(minutes) {
+  const mins = Math.max(0, Math.round(minutes || 0));
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  return `${h}h ${String(m).padStart(2, '0')}m`;
+}
+
 function timeDraftFromRows(rows = []) {
   const draft = { 'Clock in':'', 'Break start':'', 'Break finish':'', 'Clock out':'' };
   for (const row of rows) {
@@ -1780,8 +1787,8 @@ function WorkHoursPanel({ selectedDate, selectedNote, notes, onSaveRows, onStatu
           <div style={{ fontSize:11, color:'#64748b', marginTop:3 }}>{selectedDate} · {stats.label}</div>
         </div>
         <div style={{ textAlign:'right' }}>
-          <div style={{ fontSize:22, fontWeight:850, color:weekTotalMinutes >= WEEK_TARGET_MINUTES ? '#10b981' : '#fbbf24' }}>{formatMinutes(weekTotalMinutes)}</div>
-          <div style={{ fontSize:10, color:'#64748b' }}>week target {formatMinutes(WEEK_TARGET_MINUTES)}</div>
+          <div style={{ fontSize:22, fontWeight:850, color:weekTotalMinutes >= WEEK_TARGET_MINUTES ? '#10b981' : '#fbbf24' }}>{formatHoursMinutes(weekTotalMinutes)}</div>
+          <div style={{ fontSize:10, color:'#64748b' }}>week target {formatHoursMinutes(WEEK_TARGET_MINUTES)}</div>
         </div>
       </div>
 
