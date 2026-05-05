@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { parseTask, parseProperty, parseProject, parseDailyNote, readMdFiles, readDirNames, readImageFiles } from './utils/parser.js';
 import { idbGet, idbSet, idbDel, lsGet, lsSet, lsDel } from './utils/storage.js';
-import { fmt, tod, isToday, isOver, longDate, appendNoteToMd, appendPropertyCommentToMd, appendDailySectionEntry, buildDailyNoteMd, buildTrackerRow, appendTrackerRow, buildMeetingMd, buildNewTaskMd, buildNewPropertyMd, buildNewProjectMd, markTaskDone, postponeTaskDates, setPropertyCover, touchDateModified, updateTaskDates } from './utils/formatter.js';
+import { fmt, tod, isToday, isOver, longDate, appendNoteToMd, appendPropertyCommentToMd, appendDailySectionEntry, buildDailyNoteMd, buildTrackerRow, appendTrackerRow, buildMeetingMd, buildNewTaskMd, buildNewPropertyMd, buildNewProjectMd, finishRecurrentTaskInstance, markTaskDone, postponeTaskDates, setPropertyCover, touchDateModified, updateTaskDates } from './utils/formatter.js';
 
 const REFRESH_MS  = 5 * 60 * 1000;
 const WARN_MS     = 60 * 60 * 1000;
@@ -634,7 +634,10 @@ export default function App() {
     const handle = taskHandles[sel];
     const task = tasks.find(t => t.id===sel);
     if (!handle || !task) return;
-    if (!confirm(`Mark "${task.title}" as done and archived?`)) return;
+    const confirmText = task.recurrent
+      ? `Archive the whole recurring series "${task.title}"? Use "Finish instance" if you only completed this run.`
+      : `Mark "${task.title}" as done and archived?`;
+    if (!confirm(confirmText)) return;
     try {
       if (timer?.taskId === sel) await stop();
       const updated = markTaskDone(task.raw);
@@ -648,6 +651,20 @@ export default function App() {
     } catch(e) {
       console.error('close task failed', e);
       alert('Failed to close task: ' + e.message);
+    }
+  };
+
+  const finishRecurrentInstance = async (taskId) => {
+    const task = tasks.find(t => t.id === taskId);
+    if (!task) return;
+    try {
+      if (timer?.taskId === taskId) await stop();
+      const instanceDate = task.due || task.scheduled || tod();
+      const updated = finishRecurrentTaskInstance(task.raw, task.due, task.scheduled);
+      await writeTaskUpdate(taskId, updated, `Finished ${instanceDate}; next run scheduled`);
+    } catch(e) {
+      console.error('finish recurrent instance failed', e);
+      alert('Failed to finish this instance: ' + e.message);
     }
   };
 
@@ -1280,10 +1297,23 @@ export default function App() {
                 <div style={{ display:'flex', gap:7 }}>
                   <button onClick={live?stop:()=>start(task.id)} style={{ padding:'9px 22px', borderRadius:10, border:'none', cursor:'pointer', fontWeight:700, fontSize:13, fontFamily:'inherit', background:live?'rgba(239,68,68,0.1)':'linear-gradient(135deg,#7c3aed,#3b82f6)', color:live?'#f87171':'#fff', boxShadow:live?'inset 0 0 0 1px rgba(239,68,68,0.3)':'0 4px 16px rgba(124,58,237,0.4)', transition:'all 0.2s' }}>{live?'⏹  Stop':'▶  Start'}</button>
                   {!task.archived && (
+                    task.recurrent ? (
+                      <>
+                        <button onClick={()=>finishRecurrentInstance(task.id)} title="Complete this recurrence only and move to the next run"
+                          style={{ padding:'9px 14px', borderRadius:10, border:'1px solid rgba(16,185,129,0.3)', cursor:'pointer', fontWeight:700, fontSize:13, fontFamily:'inherit', background:'rgba(16,185,129,0.08)', color:'#10b981' }}>
+                          Finish instance
+                        </button>
+                        <button onClick={closeTask} title="Archive the whole recurring series"
+                          style={{ padding:'9px 12px', borderRadius:10, border:'1px solid rgba(239,68,68,0.26)', cursor:'pointer', fontWeight:700, fontSize:12, fontFamily:'inherit', background:'rgba(239,68,68,0.08)', color:'#f87171' }}>
+                          Archive series
+                        </button>
+                      </>
+                    ) : (
                     <button onClick={closeTask} title="Mark done & archived"
                       style={{ padding:'9px 14px', borderRadius:10, border:'1px solid rgba(16,185,129,0.3)', cursor:'pointer', fontWeight:700, fontSize:13, fontFamily:'inherit', background:'rgba(16,185,129,0.08)', color:'#10b981' }}>
                       {task.status==='done' ? '✓  Archive' : '✓  Close'}
                     </button>
+                    )
                   )}
                 </div>
               </div>

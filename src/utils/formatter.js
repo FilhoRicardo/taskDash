@@ -448,6 +448,108 @@ export function postponeTaskDates(raw, currentDue, currentScheduled, days = 7) {
   return updateTaskDates(raw, { due, scheduled });
 }
 
+function parseLocalDate(dateStr) {
+  return new Date(`${dateStr}T12:00:00`);
+}
+
+function daysBetween(a, b) {
+  return Math.floor((parseLocalDate(b) - parseLocalDate(a)) / 86400000);
+}
+
+function compactDateToIso(value) {
+  const m = value?.match?.(/^(\d{4})(\d{2})(\d{2})$/);
+  return m ? `${m[1]}-${m[2]}-${m[3]}` : null;
+}
+
+function parseRecurrenceRule(rule = '') {
+  const out = {};
+  rule.split(';').forEach(part => {
+    const sep = part.includes(':') ? ':' : '=';
+    const [key, ...rest] = part.split(sep);
+    if (key) out[key.trim().toUpperCase()] = rest.join(sep).trim();
+  });
+  return out;
+}
+
+function nextRecurrenceDate(rule, afterDate, completed = []) {
+  const parts = parseRecurrenceRule(rule);
+  const freq = (parts.FREQ || 'WEEKLY').toUpperCase();
+  const interval = Number(parts.INTERVAL || 1);
+  const dtstart = compactDateToIso(parts.DTSTART) || afterDate;
+  const completedSet = new Set(completed);
+  const weekDays = { SU:0, MO:1, TU:2, WE:3, TH:4, FR:5, SA:6 };
+  const byDay = (parts.BYDAY || '')
+    .split(',')
+    .map(d => weekDays[d.trim().slice(-2).toUpperCase()])
+    .filter(d => Number.isInteger(d));
+  const startDate = parseLocalDate(dtstart);
+  const startDay = startDate.getDay();
+
+  for (let i = 1; i <= 3700; i++) {
+    const candidate = addDays(afterDate, i);
+    if (candidate < dtstart || completedSet.has(candidate)) continue;
+    const candDate = parseLocalDate(candidate);
+    const diffDays = daysBetween(dtstart, candidate);
+
+    if (freq === 'DAILY' && diffDays % interval === 0) return candidate;
+
+    if (freq === 'WEEKLY') {
+      const allowedDays = byDay.length ? byDay : [startDay];
+      const weekIndex = Math.floor(diffDays / 7);
+      if (allowedDays.includes(candDate.getDay()) && weekIndex % interval === 0) return candidate;
+    }
+
+    if (freq === 'MONTHLY') {
+      const monthDiff = (candDate.getFullYear() - startDate.getFullYear()) * 12 + candDate.getMonth() - startDate.getMonth();
+      if (candDate.getDate() === startDate.getDate() && monthDiff % interval === 0) return candidate;
+    }
+  }
+
+  return addDays(afterDate, 7);
+}
+
+function frontmatterUpsert(fm, key, value) {
+  const re = new RegExp(`^${key}:[ \\t]*.*$`, 'm');
+  if (re.test(fm)) return fm.replace(re, `${key}: ${value}`);
+  return fm + (fm.endsWith('\n') ? '' : '\n') + `${key}: ${value}`;
+}
+
+function frontmatterArray(fm, key) {
+  const block = fm.match(new RegExp(`^${key}:\\s*\\n((?:[ \\t]+- [^\\n]+\\n?)+)`, 'm'));
+  if (!block) return [];
+  return block[1].split('\n')
+    .map(line => line.trim().replace(/^- /, '').trim())
+    .filter(Boolean);
+}
+
+function upsertFrontmatterArray(fm, key, values) {
+  const clean = [...new Set(values.filter(Boolean))].sort();
+  const block = `${key}:\n${clean.map(v => `  - ${v}`).join('\n')}\n`;
+  const rx = new RegExp(`^${key}:\\s*\\n((?:[ \\t]+- [^\\n]+\\n?)+)`, 'm');
+  if (rx.test(fm)) return fm.replace(rx, block);
+  const recurrenceRx = /^recurrence:[ \t]*.*$/m;
+  if (key === 'complete_instances' && recurrenceRx.test(fm)) return fm.replace(recurrenceRx, match => `${match}\n${block}`);
+  return fm + (fm.endsWith('\n') ? '' : '\n') + block;
+}
+
+export function finishRecurrentTaskInstance(raw, currentDue, currentScheduled) {
+  const fmMatch = raw.match(/^---\n([\s\S]*?)\n---/);
+  if (!fmMatch) return raw;
+  let fm = fmMatch[1];
+  const recurrence = fm.match(/^recurrence:[ \t]*(.*)$/m)?.[1]?.trim() || '';
+  const instanceDate = currentDue || currentScheduled || tod();
+  const completed = frontmatterArray(fm, 'complete_instances');
+  const completedNext = completed.includes(instanceDate) ? completed : [...completed, instanceDate];
+  const nextDate = recurrence ? nextRecurrenceDate(recurrence, instanceDate, completedNext) : addDays(instanceDate, 7);
+
+  fm = upsertFrontmatterArray(fm, 'complete_instances', completedNext);
+  fm = frontmatterUpsert(fm, 'due', nextDate);
+  fm = frontmatterUpsert(fm, 'scheduled', nextDate);
+  fm = frontmatterUpsert(fm, 'dateModified', isoLocal());
+
+  return raw.replace(/^---\n[\s\S]*?\n---/, `---\n${fm.trimEnd()}\n---`);
+}
+
 // ── Mark task done + archived (in-place frontmatter update) ──
 export function markTaskDone(raw) {
   const today = tod();
