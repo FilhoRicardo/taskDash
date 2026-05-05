@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { parseTask, parseProperty, parseProject, parseDailyNote, readMdFiles, readDirNames, readImageFiles } from './utils/parser.js';
 import { idbGet, idbSet, idbDel, lsGet, lsSet, lsDel } from './utils/storage.js';
-import { fmt, tod, isToday, isOver, longDate, appendNoteToMd, appendPropertyCommentToMd, appendDailySectionEntry, buildDailyNoteMd, buildTrackerRow, appendTrackerRow, buildMeetingMd, buildNewTaskMd, buildNewPropertyMd, buildNewProjectMd, finishRecurrentTaskInstance, markTaskDone, postponeTaskDates, setPropertyCover, touchDateModified, updateTaskDates } from './utils/formatter.js';
+import { fmt, tod, isToday, isOver, longDate, appendNoteToMd, appendPropertyCommentToMd, appendDailySectionEntry, appendDailyTimeClockEvent, buildDailyNoteMd, buildTrackerRow, appendTrackerRow, buildMeetingMd, buildNewTaskMd, buildNewPropertyMd, buildNewProjectMd, finishRecurrentTaskInstance, markTaskDone, postponeTaskDates, setPropertyCover, touchDateModified, updateTaskDates } from './utils/formatter.js';
 
 const REFRESH_MS  = 5 * 60 * 1000;
 const WARN_MS     = 60 * 60 * 1000;
@@ -846,6 +846,23 @@ export default function App() {
     }
   };
 
+  const addTimeClockEvent = async (event) => {
+    if (!dirs.daily || !dailyHandle || !dailyNote) {
+      alert('Pick a Daily Notes folder first.');
+      return;
+    }
+
+    try {
+      const updated = appendDailyTimeClockEvent(dailyNote.raw, event);
+      await writeFile(dailyHandle, updated);
+      setDailyNote(parseDailyNote(`${tod()}.md`, updated));
+      setToast(`${event} saved to today's daily note`);
+    } catch(e) {
+      console.error('time clock write failed', e);
+      alert('Failed to update time clock: ' + e.message);
+    }
+  };
+
   const task      = tasks.find(t => t.id===sel);
   const property  = properties.find(p => p.id===propertySel);
   const project   = projects.find(p => p.id===projectSel);
@@ -858,8 +875,8 @@ export default function App() {
   const openTasks = tasks.filter(t => !t.archived && t.status !== 'done');
   const byOldestCreated = (a, b) => (a.dateCreated || '9999').localeCompare(b.dateCreated || '9999') || a.title.localeCompare(b.title);
   const missionToday = openTasks.filter(t => !t.recurrent && (isToday(t.due) || isToday(t.scheduled))).sort(byOldestCreated);
-  const missionOverdue = openTasks.filter(t => !t.recurrent && isOver(t.due)).sort(byOldestCreated);
-  const missionRecurrent = openTasks.filter(t => t.recurrent).sort(byOldestCreated);
+  const missionOverdue = openTasks.filter(t => isOver(t.due)).sort(byOldestCreated);
+  const missionRecurrent = openTasks.filter(t => t.recurrent && !isOver(t.due) && (isToday(t.due) || isToday(t.scheduled))).sort(byOldestCreated);
   const filteredProperties = properties.filter(p => {
     const q = propertySearch.trim().toLowerCase();
     if (!q) return true;
@@ -871,9 +888,9 @@ export default function App() {
     return [p.title, p.filename, p.client, p.summary, p.status].filter(Boolean).some(v => v.toLowerCase().includes(q));
   });
   const headerLabel = view === 'mission' ? 'MISSION CONTROL' : view === 'tasks' ? "TODAY'S TOTAL" : view === 'projects' ? 'PROJECT LIBRARY' : 'PROPERTY LIBRARY';
-  const headerMetric = view === 'mission' ? missionToday.length + missionOverdue.length : view === 'tasks' ? fmt(totalToday) : view === 'projects' ? projects.length : properties.length;
+  const headerMetric = view === 'mission' ? missionToday.length + missionOverdue.length + missionRecurrent.length : view === 'tasks' ? fmt(totalToday) : view === 'projects' ? projects.length : properties.length;
   const headerDetail = view === 'mission'
-    ? `${missionToday.length} today · ${missionOverdue.length} overdue · ${dirs.daily ? 'daily on' : 'daily off'}`
+    ? `${missionToday.length} today · ${missionOverdue.length} overdue · ${missionRecurrent.length} recurrent · ${dirs.daily ? 'daily on' : 'daily off'}`
     : view === 'tasks'
       ? `${tasks.filter(t=>!t.archived).length} tasks · ${Object.values(refs).reduce((a,r)=>a+r.length,0)} refs`
       : view === 'projects'
@@ -1187,6 +1204,7 @@ export default function App() {
           dailyInputs={dailyInputs}
           setDailyInputs={setDailyInputs}
           onAddDailyEntry={addDailyEntry}
+          onTimeClockEvent={addTimeClockEvent}
           hasDailyFolder={!!dirs.daily}
           onConfigure={()=>setFolderSetupOpen(true)}
         />
@@ -1350,7 +1368,7 @@ export default function App() {
   );
 }
 
-function MissionControlPanel({ today, overdue, recurrent, selectedId, liveId, getTime, onSelectTask, onStart, onStop, onNewTask, dailyNote, dailyInputs, setDailyInputs, onAddDailyEntry, hasDailyFolder, onConfigure }) {
+function MissionControlPanel({ today, overdue, recurrent, selectedId, liveId, getTime, onSelectTask, onStart, onStop, onNewTask, dailyNote, dailyInputs, setDailyInputs, onAddDailyEntry, onTimeClockEvent, hasDailyFolder, onConfigure }) {
   const renderTask = t => {
     const running = liveId === t.id;
     return (
@@ -1379,7 +1397,7 @@ function MissionControlPanel({ today, overdue, recurrent, selectedId, liveId, ge
   const sections = [
     { title:'Overdue', subtitle:'Oldest created first', items:overdue, color:'#f87171' },
     { title:'Today', subtitle:'Due or scheduled today, oldest created first', items:today, color:'#fbbf24' },
-    { title:'Recurrent', subtitle:'Separated from dated work', items:recurrent, color:'#818cf8' },
+    { title:'Recurrent', subtitle:'Due or scheduled today only', items:recurrent, color:'#818cf8' },
   ];
 
   return (
@@ -1396,6 +1414,36 @@ function MissionControlPanel({ today, overdue, recurrent, selectedId, liveId, ge
         </div>
       </div>
       <div style={{ flex:1, overflowY:'auto', padding:'20px 24px' }}>
+        <section style={{ borderRadius:8, border:'1px solid rgba(255,255,255,0.06)', background:'rgba(255,255,255,0.025)', padding:'13px', marginBottom:12 }}>
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:14, marginBottom:10 }}>
+            <div>
+              <h3 style={{ margin:0, fontSize:14, color:'#f1f5f9' }}>Time Clock</h3>
+              <div style={{ fontSize:11, color:'#64748b', marginTop:3 }}>Stored in today's daily note</div>
+            </div>
+            <div style={{ display:'flex', gap:8, flexWrap:'wrap', justifyContent:'flex-end' }}>
+              {[
+                ['Clock in', '◴', '#10b981'],
+                ['Clock out', '◷', '#f87171'],
+                ['Break start', '☕', '#fbbf24'],
+                ['Break finish', '↻', '#818cf8'],
+              ].map(([event, icon, color]) => (
+                <button key={event} onClick={()=>onTimeClockEvent(event)} disabled={!hasDailyFolder}
+                  style={{ padding:'8px 11px', borderRadius:9, border:`1px solid ${hasDailyFolder ? color : 'rgba(255,255,255,0.08)'}`, cursor:hasDailyFolder?'pointer':'not-allowed', fontWeight:800, fontSize:12, fontFamily:'inherit', background:'rgba(255,255,255,0.025)', color:hasDailyFolder?color:'#475569', opacity:hasDailyFolder?1:0.45 }}>
+                  <span style={{ marginRight:6 }}>{icon}</span>{event}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div style={{ display:'flex', gap:7, flexWrap:'wrap' }}>
+            {(dailyNote?.timeClock || []).slice(-5).map((row, i) => (
+              <span key={`${row.time}-${row.event}-${i}`} style={{ fontSize:11, color:'#94a3b8', padding:'4px 8px', borderRadius:14, background:'rgba(255,255,255,0.035)', border:'1px solid rgba(255,255,255,0.05)' }}>
+                {row.time} · {row.event}
+              </span>
+            ))}
+            {!dailyNote?.timeClock?.length && <span style={{ fontSize:12, color:'#334155' }}>No clock events yet today</span>}
+          </div>
+        </section>
+
         <div style={{ display:'grid', gridTemplateColumns:'repeat(3,minmax(220px,1fr))', gap:12, marginBottom:18 }}>
           {[
             ['notes', 'Notes', dailyNote?.notes || []],

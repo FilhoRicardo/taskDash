@@ -120,9 +120,20 @@ function bulletLines(txt) {
     .map(line => line.replace(/^-\s+/, '').trim());
 }
 
+function tableRows(txt) {
+  return txt
+    .split('\n')
+    .map(line => line.trim())
+    .filter(line => /^\|.*\|$/.test(line))
+    .map(line => line.slice(1, -1).split('|').map(cell => cell.trim()))
+    .filter(cells => cells.length >= 2 && !/^:?-+:?$/.test(cells[0]) && cells[0].toLowerCase() !== 'time')
+    .map(cells => ({ time: cells[0], event: cells[1] }));
+}
+
 export function parseDailyNote(name, txt) {
   const fm = parseFrontmatter(txt);
   const h1 = txt.match(/^#\s+(.+)$/m)?.[1]?.trim();
+  const timeClock = sectionBody(txt, /(^|\n)##\s+.*Time Clock[ \t]*(?=\n|$)/i);
   const notes = sectionBody(txt, /(^|\n)##\s+.*Notes[ \t]*(?=\n|$)/i);
   const reflections = sectionBody(txt, /(^|\n)##\s+.*Reflections[ \t]*(?=\n|$)/i);
   const brainDump = sectionBody(txt, /(^|\n)##\s+.*Brain dump.*[ \t]*(?=\n|$)/i);
@@ -131,6 +142,7 @@ export function parseDailyNote(name, txt) {
     filename: basename(name),
     date: fm.date || basename(name),
     title: h1 || basename(name),
+    timeClock: tableRows(timeClock),
     notes: bulletLines(notes),
     reflections: bulletLines(reflections),
     brainDump: bulletLines(brainDump),

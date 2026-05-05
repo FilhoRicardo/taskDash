@@ -186,6 +186,13 @@ views:
 
 \`\`\`
 
+## Time Clock
+
+| Time | Event |
+| --- | --- |
+
+---
+
 ## Notes
 
 - 
@@ -202,6 +209,40 @@ views:
 
 - 
 `;
+}
+
+function timeLabel(date = new Date()) {
+  return date.toLocaleTimeString([], { hour:'2-digit', minute:'2-digit', hour12:false });
+}
+
+export function appendDailyTimeClockEvent(raw, event, date = new Date()) {
+  const row = `| ${timeLabel(date)} | ${event} |`;
+  const headingRx = /(^|\n)##\s+.*Time Clock[ \t]*(?=\n|$)/i;
+  const match = headingRx.exec(raw);
+
+  if (!match) {
+    const notesRx = /(^|\n)##\s+.*Notes[ \t]*(?=\n|$)/i;
+    const section = `## Time Clock\n\n| Time | Event |\n| --- | --- |\n${row}\n\n---\n\n`;
+    const notesMatch = notesRx.exec(raw);
+    if (notesMatch) {
+      const insertAt = notesMatch.index + notesMatch[1].length;
+      return raw.slice(0, insertAt) + section + raw.slice(insertAt);
+    }
+    return `${raw.trimEnd()}\n\n${section}`;
+  }
+
+  const start = match.index + match[0].length;
+  const rest = raw.slice(start);
+  const next = rest.search(/\n##\s+/);
+  const end = next === -1 ? raw.length : start + next;
+  const sectionText = raw.slice(start, end);
+
+  if (!/\|\s*Time\s*\|\s*Event\s*\|/i.test(sectionText)) {
+    const table = `\n\n| Time | Event |\n| --- | --- |\n${row}\n`;
+    return raw.slice(0, start) + table + raw.slice(end);
+  }
+
+  return `${raw.slice(0, end).trimEnd()}\n${row}\n${raw.slice(end)}`;
 }
 
 export function appendDailySectionEntry(raw, section, text) {
