@@ -1662,35 +1662,34 @@ function MissionControlPanel({ today, overdue, recurrent, selectedId, liveId, ge
           />
         </div>
 
-        <div style={{ display:'grid', gridTemplateColumns:'1fr', gap:10, marginBottom:4 }}>
-          {[
-            ['notes', 'Notes', dailyNote?.notes || []],
-            ['reflections', 'Reflections', dailyNote?.reflections || []],
-            ['brainDump', 'Brain dump - issues', dailyNote?.brainDump || []],
-          ].map(([key, label, items]) => (
-            <section key={key} style={{ borderRadius:8, border:'1px solid rgba(255,255,255,0.06)', background:'rgba(255,255,255,0.025)', padding:'13px' }}>
-              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline', marginBottom:10 }}>
-                <h3 style={{ margin:0, fontSize:14, color:'#f1f5f9' }}>{label}</h3>
-                <span style={{ fontSize:10, color:'#64748b', fontWeight:800 }}>{items.length}</span>
-              </div>
-              <div style={{ minHeight:58, marginBottom:10 }}>
-                {items.length ? items.slice(-3).map((item, i) => (
-                  <div key={i} style={{ fontSize:12, color:'#cbd5e1', lineHeight:1.45, marginBottom:6 }}>- {item}</div>
-                )) : <div style={{ fontSize:12, color:'#334155', paddingTop:10 }}>Nothing written yet</div>}
-              </div>
-              <div style={{ display:'flex', gap:7 }}>
-                <input value={dailyInputs[key] || ''} onChange={e=>setDailyInputs(prev => ({ ...prev, [key]: e.target.value }))} onKeyDown={e=>{ if(e.key==='Enter') onAddDailyEntry(key); }} disabled={!hasDailyFolder}
-                  placeholder={hasDailyFolder ? `Add ${label.toLowerCase()}...` : 'Set daily folder first'}
-                  style={{ flex:1, minWidth:0, padding:'8px 10px', borderRadius:8, background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.08)', color:'#e2e8f0', fontSize:12, outline:'none', fontFamily:'inherit', opacity:hasDailyFolder?1:0.45 }}/>
-                <button onClick={()=>onAddDailyEntry(key)} disabled={!hasDailyFolder || !dailyInputs[key]?.trim()} style={{ padding:'8px 10px', borderRadius:8, border:'none', cursor:hasDailyFolder?'pointer':'not-allowed', fontWeight:800, fontSize:11, fontFamily:'inherit', background:'rgba(124,58,237,0.18)', color:'#c4b5fd', opacity:hasDailyFolder && dailyInputs[key]?.trim()?1:0.4 }}>Add</button>
-              </div>
-            </section>
-          ))}
-        </div>
-
         </div>
 
         <div style={{ minWidth:0, minHeight:0, display:'flex', flexDirection:'column', padding:'16px 18px 16px 16px', overflow:'hidden' }}>
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(3,minmax(180px,1fr))', gap:10, marginBottom:14, flexShrink:0 }}>
+            {[
+              ['notes', 'Notes', dailyNote?.notes || []],
+              ['reflections', 'Reflections', dailyNote?.reflections || []],
+              ['brainDump', 'Brain dump - issues', dailyNote?.brainDump || []],
+            ].map(([key, label, items]) => (
+              <section key={key} style={{ borderRadius:8, border:'1px solid rgba(255,255,255,0.06)', background:'rgba(255,255,255,0.025)', padding:'12px', minWidth:0 }}>
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline', marginBottom:8 }}>
+                  <h3 style={{ margin:0, fontSize:13, color:'#f1f5f9' }}>{label}</h3>
+                  <span style={{ fontSize:10, color:'#64748b', fontWeight:800 }}>{items.length}</span>
+                </div>
+                <div style={{ minHeight:46, marginBottom:9 }}>
+                  {items.length ? items.slice(-2).map((item, i) => (
+                    <div key={i} style={{ fontSize:12, color:'#cbd5e1', lineHeight:1.4, marginBottom:5, overflow:'hidden', display:'-webkit-box', WebkitLineClamp:2, WebkitBoxOrient:'vertical' }}>- {item}</div>
+                  )) : <div style={{ fontSize:12, color:'#334155', paddingTop:8 }}>Nothing written yet</div>}
+                </div>
+                <div style={{ display:'flex', gap:7 }}>
+                  <input value={dailyInputs[key] || ''} onChange={e=>setDailyInputs(prev => ({ ...prev, [key]: e.target.value }))} onKeyDown={e=>{ if(e.key==='Enter') onAddDailyEntry(key); }} disabled={!hasDailyFolder}
+                    placeholder={hasDailyFolder ? `Add ${label.toLowerCase()}...` : 'Set daily folder first'}
+                    style={{ flex:1, minWidth:0, padding:'8px 10px', borderRadius:8, background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.08)', color:'#e2e8f0', fontSize:12, outline:'none', fontFamily:'inherit', opacity:hasDailyFolder?1:0.45 }}/>
+                  <button onClick={()=>onAddDailyEntry(key)} disabled={!hasDailyFolder || !dailyInputs[key]?.trim()} style={{ padding:'8px 10px', borderRadius:8, border:'none', cursor:hasDailyFolder?'pointer':'not-allowed', fontWeight:800, fontSize:11, fontFamily:'inherit', background:'rgba(124,58,237,0.18)', color:'#c4b5fd', opacity:hasDailyFolder && dailyInputs[key]?.trim()?1:0.4 }}>Add</button>
+                </div>
+              </section>
+            ))}
+          </div>
           <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:12, marginBottom:12, flexShrink:0 }}>
             <div>
               <h3 style={{ margin:0, fontSize:15, color:'#f1f5f9' }}>Task Queues</h3>
