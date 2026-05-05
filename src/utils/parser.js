@@ -141,6 +141,7 @@ export function parseDailyNote(name, txt) {
     id: name,
     filename: basename(name),
     date: fm.date || basename(name),
+    workStatus: fm.workStatus || 'workday',
     title: h1 || basename(name),
     timeClock: tableRows(timeClock),
     notes: bulletLines(notes),

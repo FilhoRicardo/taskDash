@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { parseTask, parseProperty, parseProject, parseDailyNote, readMdFiles, readDirNames, readImageFiles } from './utils/parser.js';
 import { idbGet, idbSet, idbDel, lsGet, lsSet, lsDel } from './utils/storage.js';
-import { fmt, tod, isToday, isOver, longDate, appendNoteToMd, appendPropertyCommentToMd, appendDailySectionEntry, appendDailyTimeClockEvent, buildDailyNoteMd, buildTrackerRow, appendTrackerRow, buildMeetingMd, buildNewTaskMd, buildNewPropertyMd, buildNewProjectMd, finishRecurrentTaskInstance, markTaskDone, postponeTaskDates, setPropertyCover, touchDateModified, updateTaskDates } from './utils/formatter.js';
+import { fmt, tod, isToday, isOver, longDate, appendNoteToMd, appendPropertyCommentToMd, appendDailySectionEntry, appendDailyTimeClockEvent, buildDailyNoteMd, buildTrackerRow, appendTrackerRow, buildMeetingMd, buildNewTaskMd, buildNewPropertyMd, buildNewProjectMd, finishRecurrentTaskInstance, markTaskDone, postponeTaskDates, replaceDailyTimeClockRows, setDailyWorkStatus, setPropertyCover, touchDateModified, updateTaskDates } from './utils/formatter.js';
 
 const REFRESH_MS  = 5 * 60 * 1000;
 const WARN_MS     = 60 * 60 * 1000;
@@ -129,6 +129,117 @@ function Field({ label, children }) {
   );
 }
 
+const TARGET_WORK_MINUTES = 7.25 * 60;
+const WORK_EVENT_ORDER = ['Clock in', 'Break start', 'Break finish', 'Clock out'];
+const WORK_STATUS_LABELS = {
+  workday: 'Workday',
+  'bank-holiday': 'Bank holiday',
+  'sick-leave': 'Sick leave',
+  holiday: 'Holiday',
+};
+
+function dateFromStr(dateStr) {
+  return new Date(`${dateStr}T12:00:00`);
+}
+
+function addDays(dateStr, amount) {
+  const d = dateFromStr(dateStr);
+  d.setDate(d.getDate() + amount);
+  return tod(d);
+}
+
+function monthLabel(monthStr) {
+  return dateFromStr(`${monthStr}-01`).toLocaleDateString('en-US', { month:'long', year:'numeric' });
+}
+
+function monthDates(monthStr) {
+  const first = dateFromStr(`${monthStr}-01`);
+  const last = new Date(first);
+  last.setMonth(last.getMonth() + 1, 0);
+  const dates = [];
+  for (let day = 1; day <= last.getDate(); day++) dates.push(`${monthStr}-${String(day).padStart(2, '0')}`);
+  return dates;
+}
+
+function weekDates(dateStr) {
+  const d = dateFromStr(dateStr);
+  const day = d.getDay() || 7;
+  const monday = addDays(dateStr, 1 - day);
+  return Array.from({ length:5 }, (_, i) => addDays(monday, i));
+}
+
+function prevMonth(monthStr) {
+  const d = dateFromStr(`${monthStr}-01`);
+  d.setMonth(d.getMonth() - 1);
+  return tod(d).slice(0, 7);
+}
+
+function nextMonth(monthStr) {
+  const d = dateFromStr(`${monthStr}-01`);
+  d.setMonth(d.getMonth() + 1);
+  return tod(d).slice(0, 7);
+}
+
+function minutesFromTime(time) {
+  const match = String(time || '').match(/^(\d{1,2}):(\d{2})$/);
+  if (!match) return null;
+  return Number(match[1]) * 60 + Number(match[2]);
+}
+
+function formatHours(minutes) {
+  const mins = Math.max(0, Math.round(minutes || 0));
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  return `${h}h ${String(m).padStart(2, '0')}m`;
+}
+
+function timeDraftFromRows(rows = []) {
+  const draft = { 'Clock in':'', 'Break start':'', 'Break finish':'', 'Clock out':'' };
+  for (const row of rows) {
+    if (draft[row.event] !== undefined && !draft[row.event]) draft[row.event] = row.time || '';
+  }
+  return draft;
+}
+
+function rowsFromTimeDraft(draft) {
+  return WORK_EVENT_ORDER
+    .map(event => ({ time: draft[event], event }))
+    .filter(row => /^\d{2}:\d{2}$/.test(row.time || ''))
+    .sort((a, b) => minutesFromTime(a.time) - minutesFromTime(b.time));
+}
+
+function workStats(note) {
+  const rows = (note?.timeClock || [])
+    .map(row => ({ ...row, minutes: minutesFromTime(row.time) }))
+    .filter(row => row.minutes !== null)
+    .sort((a, b) => a.minutes - b.minutes);
+  const status = note?.workStatus || 'workday';
+  const clockIn = rows.find(row => row.event === 'Clock in')?.minutes;
+  const clockOut = [...rows].reverse().find(row => row.event === 'Clock out')?.minutes;
+  let breakStart = null;
+  let breakMinutes = 0;
+
+  for (const row of rows) {
+    if (row.event === 'Break start') breakStart = row.minutes;
+    if (row.event === 'Break finish' && breakStart !== null && row.minutes > breakStart) {
+      breakMinutes += row.minutes - breakStart;
+      breakStart = null;
+    }
+  }
+
+  const totalMinutes = clockIn !== undefined && clockOut !== undefined && clockOut > clockIn
+    ? Math.max(0, clockOut - clockIn - breakMinutes)
+    : 0;
+
+  return {
+    totalMinutes,
+    breakMinutes,
+    status,
+    label: WORK_STATUS_LABELS[status] || WORK_STATUS_LABELS.workday,
+    complete: clockIn !== undefined && clockOut !== undefined,
+  };
+}
+
 function ChipMulti({ value, onChange, options, placeholder }) {
   const [input, setInput] = useState('');
   const id = `dl_${Math.random().toString(36).slice(2,8)}`;
@@ -190,6 +301,10 @@ export default function App() {
   const [dailyNote,   setDailyNote]   = useState(null);
   const [dailyHandle, setDailyHandle] = useState(null);
   const [dailyInputs, setDailyInputs] = useState({ notes:'', reflections:'', brainDump:'' });
+  const [workDate,    setWorkDate]    = useState(tod());
+  const [workMonth,   setWorkMonth]   = useState(tod().slice(0, 7));
+  const [workNotes,   setWorkNotes]   = useState({});
+  const [workHandles, setWorkHandles] = useState({});
 
   // ── Tasks / timer / UI state ──
   const [tasks,         setTasks]         = useState([]);
@@ -362,27 +477,58 @@ export default function App() {
     } catch(e) { console.error('projects load failed', e); }
   }, []);
 
-  const ensureDailyNote = useCallback(async (dir) => {
+  const readDailyNoteForDate = useCallback(async (dir, dateStr, create = false) => {
     if (!dir) return null;
-    const dateStr = tod();
     const filename = `${dateStr}.md`;
     try {
-      const fh = await dir.getFileHandle(filename, { create:true });
+      const fh = await dir.getFileHandle(filename, { create });
       const file = await fh.getFile();
       let text = await file.text();
-      if (!text.trim()) {
+      if (!text.trim() && create) {
         text = buildDailyNoteMd(dateStr);
         await writeFile(fh, text);
       }
       const parsed = parseDailyNote(filename, text);
-      setDailyHandle(fh);
-      setDailyNote(parsed);
-      return parsed;
+      return { handle:fh, note:parsed };
     } catch(e) {
-      console.error('daily note load failed', e);
+      if (e.name !== 'NotFoundError') console.error('daily note load failed', e);
       return null;
     }
   }, []);
+
+  const ensureDailyNote = useCallback(async (dir) => {
+    const result = await readDailyNoteForDate(dir, tod(), true);
+    if (result) {
+      const { handle:fh, note:parsed } = result;
+      setDailyHandle(fh);
+      setDailyNote(parsed);
+      setWorkHandles(prev => ({ ...prev, [tod()]: fh }));
+      setWorkNotes(prev => ({ ...prev, [tod()]: parsed }));
+      return parsed;
+    }
+    return null;
+  }, [readDailyNoteForDate]);
+
+  const loadWorkNotes = useCallback(async (dates, createDate = null) => {
+    if (!dirs.daily) return;
+    const uniqueDates = [...new Set(dates.filter(Boolean))];
+    const nextNotes = {};
+    const nextHandles = {};
+    for (const dateStr of uniqueDates) {
+      const result = await readDailyNoteForDate(dirs.daily, dateStr, dateStr === createDate);
+      if (result) {
+        nextNotes[dateStr] = result.note;
+        nextHandles[dateStr] = result.handle;
+      }
+    }
+    setWorkNotes(prev => ({ ...prev, ...nextNotes }));
+    setWorkHandles(prev => ({ ...prev, ...nextHandles }));
+  }, [dirs.daily, readDailyNoteForDate]);
+
+  useEffect(() => {
+    if (!dirs.daily) return;
+    loadWorkNotes([...monthDates(workMonth), ...weekDates(workDate), tod()]);
+  }, [dirs.daily, workMonth, workDate, loadWorkNotes]);
 
   const loadAttachmentImages = useCallback(async (dir) => {
     try {
@@ -494,7 +640,7 @@ export default function App() {
     if (key === 'tasks') { setTasks([]); setTaskHandles({}); setTrackerHandle(null); }
     else if (key === 'projects') { setProjects([]); setProjectHandles({}); setProjectSel(null); setProjectDraft(''); }
     else if (key === 'properties') { setProperties([]); setPropertyHandles({}); setPropertySel(null); }
-    else if (key === 'daily') { setDailyNote(null); setDailyHandle(null); setDailyInputs({ notes:'', reflections:'', brainDump:'' }); }
+    else if (key === 'daily') { setDailyNote(null); setDailyHandle(null); setDailyInputs({ notes:'', reflections:'', brainDump:'' }); setWorkNotes({}); setWorkHandles({}); }
     else if (key === 'attachments') {
       Object.values(imageUrlsRef.current).forEach(URL.revokeObjectURL);
       imageUrlsRef.current = {};
@@ -511,7 +657,7 @@ export default function App() {
     setTasks([]); setTaskHandles({}); setTrackerHandle(null);
     setProjects([]); setProjectHandles({}); setProjectSel(null); setProjectDraft('');
     setProperties([]); setPropertyHandles({}); setPropertySel(null);
-    setDailyNote(null); setDailyHandle(null); setDailyInputs({ notes:'', reflections:'', brainDump:'' });
+    setDailyNote(null); setDailyHandle(null); setDailyInputs({ notes:'', reflections:'', brainDump:'' }); setWorkNotes({}); setWorkHandles({});
     Object.values(imageUrlsRef.current).forEach(URL.revokeObjectURL);
     imageUrlsRef.current = {};
     setPropertyImages({});
@@ -855,12 +1001,49 @@ export default function App() {
     try {
       const updated = appendDailyTimeClockEvent(dailyNote.raw, event);
       await writeFile(dailyHandle, updated);
-      setDailyNote(parseDailyNote(`${tod()}.md`, updated));
+      const parsed = parseDailyNote(`${tod()}.md`, updated);
+      setDailyNote(parsed);
+      setWorkNotes(prev => ({ ...prev, [tod()]: parsed }));
+      setWorkHandles(prev => ({ ...prev, [tod()]: dailyHandle }));
       setToast(`${event} saved to today's daily note`);
     } catch(e) {
       console.error('time clock write failed', e);
       alert('Failed to update time clock: ' + e.message);
     }
+  };
+
+  const saveWorkNote = async (dateStr, handle, updated, message) => {
+    await writeFile(handle, updated);
+    const parsed = parseDailyNote(`${dateStr}.md`, updated);
+    setWorkNotes(prev => ({ ...prev, [dateStr]: parsed }));
+    setWorkHandles(prev => ({ ...prev, [dateStr]: handle }));
+    if (dateStr === tod()) {
+      setDailyNote(parsed);
+      setDailyHandle(handle);
+    }
+    if (message) setToast(message);
+  };
+
+  const saveTimeClockRows = async (dateStr, rows) => {
+    if (!dirs.daily) {
+      alert('Pick a Daily Notes folder first.');
+      return;
+    }
+    const result = await readDailyNoteForDate(dirs.daily, dateStr, true);
+    if (!result) return;
+    const updated = replaceDailyTimeClockRows(result.note.raw, rowsFromTimeDraft(rows));
+    await saveWorkNote(dateStr, result.handle, updated, `Updated hours for ${dateStr}`);
+  };
+
+  const updateWorkStatus = async (dateStr, status) => {
+    if (!dirs.daily) {
+      alert('Pick a Daily Notes folder first.');
+      return;
+    }
+    const result = await readDailyNoteForDate(dirs.daily, dateStr, true);
+    if (!result) return;
+    const updated = setDailyWorkStatus(result.note.raw, status);
+    await saveWorkNote(dateStr, result.handle, updated, `${WORK_STATUS_LABELS[status] || 'Status'} saved for ${dateStr}`);
   };
 
   const task      = tasks.find(t => t.id===sel);
@@ -1205,6 +1388,13 @@ export default function App() {
           setDailyInputs={setDailyInputs}
           onAddDailyEntry={addDailyEntry}
           onTimeClockEvent={addTimeClockEvent}
+          workDate={workDate}
+          workMonth={workMonth}
+          workNotes={workNotes}
+          onSelectWorkDate={(dateStr)=>{ setWorkDate(dateStr); setWorkMonth(dateStr.slice(0, 7)); }}
+          onWorkMonthChange={setWorkMonth}
+          onSaveTimeClockRows={saveTimeClockRows}
+          onWorkStatusChange={updateWorkStatus}
           hasDailyFolder={!!dirs.daily}
           onConfigure={()=>setFolderSetupOpen(true)}
         />
@@ -1368,7 +1558,7 @@ export default function App() {
   );
 }
 
-function MissionControlPanel({ today, overdue, recurrent, selectedId, liveId, getTime, onSelectTask, onStart, onStop, onNewTask, dailyNote, dailyInputs, setDailyInputs, onAddDailyEntry, onTimeClockEvent, hasDailyFolder, onConfigure }) {
+function MissionControlPanel({ today, overdue, recurrent, selectedId, liveId, getTime, onSelectTask, onStart, onStop, onNewTask, dailyNote, dailyInputs, setDailyInputs, onAddDailyEntry, onTimeClockEvent, workDate, workMonth, workNotes, onSelectWorkDate, onWorkMonthChange, onSaveTimeClockRows, onWorkStatusChange, hasDailyFolder, onConfigure }) {
   const renderTask = t => {
     const running = liveId === t.id;
     return (
@@ -1422,14 +1612,14 @@ function MissionControlPanel({ today, overdue, recurrent, selectedId, liveId, ge
             </div>
             <div style={{ display:'flex', gap:8, flexWrap:'wrap', justifyContent:'flex-end' }}>
               {[
-                ['Clock in', '◴', '#10b981'],
-                ['Clock out', '◷', '#f87171'],
-                ['Break start', '☕', '#fbbf24'],
-                ['Break finish', '↻', '#818cf8'],
+                ['Clock in', 'IN', '#10b981'],
+                ['Clock out', 'OUT', '#f87171'],
+                ['Break start', 'BR', '#fbbf24'],
+                ['Break finish', 'GO', '#818cf8'],
               ].map(([event, icon, color]) => (
                 <button key={event} onClick={()=>onTimeClockEvent(event)} disabled={!hasDailyFolder}
                   style={{ padding:'8px 11px', borderRadius:9, border:`1px solid ${hasDailyFolder ? color : 'rgba(255,255,255,0.08)'}`, cursor:hasDailyFolder?'pointer':'not-allowed', fontWeight:800, fontSize:12, fontFamily:'inherit', background:'rgba(255,255,255,0.025)', color:hasDailyFolder?color:'#475569', opacity:hasDailyFolder?1:0.45 }}>
-                  <span style={{ marginRight:6 }}>{icon}</span>{event}
+                  <span style={{ display:'inline-flex', alignItems:'center', justifyContent:'center', width:20, height:20, marginRight:7, borderRadius:7, background:hasDailyFolder?`${color}22`:'rgba(255,255,255,0.04)', border:`1px solid ${hasDailyFolder ? color : 'rgba(255,255,255,0.08)'}`, fontSize:8, fontWeight:900, verticalAlign:'middle' }}>{icon}</span>{event}
                 </button>
               ))}
             </div>
@@ -1443,6 +1633,25 @@ function MissionControlPanel({ today, overdue, recurrent, selectedId, liveId, ge
             {!dailyNote?.timeClock?.length && <span style={{ fontSize:12, color:'#334155' }}>No clock events yet today</span>}
           </div>
         </section>
+
+        <div style={{ display:'grid', gridTemplateColumns:'minmax(260px,0.34fr) minmax(460px,1fr)', gap:12, alignItems:'stretch', marginBottom:18 }}>
+          <WorkCalendar
+            month={workMonth}
+            selectedDate={workDate}
+            notes={workNotes}
+            onMonthChange={onWorkMonthChange}
+            onSelectDate={onSelectWorkDate}
+            hasDailyFolder={hasDailyFolder}
+          />
+          <WorkHoursPanel
+            selectedDate={workDate}
+            selectedNote={workNotes[workDate]}
+            notes={workNotes}
+            onSaveRows={onSaveTimeClockRows}
+            onStatusChange={onWorkStatusChange}
+            hasDailyFolder={hasDailyFolder}
+          />
+        </div>
 
         <div style={{ display:'grid', gridTemplateColumns:'repeat(3,minmax(220px,1fr))', gap:12, marginBottom:18 }}>
           {[
@@ -1487,6 +1696,122 @@ function MissionControlPanel({ today, overdue, recurrent, selectedId, liveId, ge
         </div>
       </div>
     </div>
+  );
+}
+
+function WorkCalendar({ month, selectedDate, notes, onMonthChange, onSelectDate, hasDailyFolder }) {
+  const days = monthDates(month);
+  const firstPad = (dateFromStr(days[0]).getDay() + 6) % 7;
+  const cells = [...Array(firstPad).fill(null), ...days];
+
+  return (
+    <section style={{ borderRadius:8, border:'1px solid rgba(255,255,255,0.06)', background:'rgba(255,255,255,0.025)', padding:'13px', minHeight:285 }}>
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:11 }}>
+        <button onClick={()=>onMonthChange(prevMonth(month))} disabled={!hasDailyFolder} style={{ width:28, height:28, borderRadius:8, border:'1px solid rgba(255,255,255,0.08)', background:'rgba(255,255,255,0.03)', color:'#94a3b8', cursor:hasDailyFolder?'pointer':'not-allowed', fontWeight:900 }}>‹</button>
+        <div style={{ textAlign:'center' }}>
+          <h3 style={{ margin:0, fontSize:14, color:'#f1f5f9' }}>Work Calendar</h3>
+          <div style={{ fontSize:11, color:'#64748b', marginTop:3 }}>{monthLabel(month)}</div>
+        </div>
+        <button onClick={()=>onMonthChange(nextMonth(month))} disabled={!hasDailyFolder} style={{ width:28, height:28, borderRadius:8, border:'1px solid rgba(255,255,255,0.08)', background:'rgba(255,255,255,0.03)', color:'#94a3b8', cursor:hasDailyFolder?'pointer':'not-allowed', fontWeight:900 }}>›</button>
+      </div>
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(7,1fr)', gap:5, marginBottom:5 }}>
+        {['M','T','W','T','F','S','S'].map((d, i) => <div key={`${d}-${i}`} style={{ fontSize:9, color:'#475569', textAlign:'center', fontWeight:800 }}>{d}</div>)}
+      </div>
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(7,1fr)', gap:5 }}>
+        {cells.map((dateStr, i) => {
+          if (!dateStr) return <div key={`blank-${i}`} />;
+          const stats = workStats(notes[dateStr]);
+          const status = notes[dateStr]?.workStatus;
+          const selected = selectedDate === dateStr;
+          const accent = status === 'holiday' ? '#38bdf8' : status === 'sick-leave' ? '#f87171' : status === 'bank-holiday' ? '#fbbf24' : stats.totalMinutes ? '#10b981' : '#334155';
+          return (
+            <button key={dateStr} onClick={()=>onSelectDate(dateStr)} disabled={!hasDailyFolder}
+              title={`${dateStr} · ${formatHours(stats.totalMinutes)} · ${stats.label}`}
+              style={{ minHeight:38, borderRadius:8, border:`1px solid ${selected ? '#a78bfa' : 'rgba(255,255,255,0.06)'}`, background:selected?'rgba(124,58,237,0.18)':'rgba(255,255,255,0.025)', color:'#e2e8f0', cursor:hasDailyFolder?'pointer':'not-allowed', fontFamily:'inherit', padding:'4px 2px', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:2 }}>
+              <span style={{ fontSize:12, fontWeight:800 }}>{Number(dateStr.slice(-2))}</span>
+              <span style={{ width:5, height:5, borderRadius:5, background:accent, opacity:status || stats.totalMinutes ? 1 : 0.35 }} />
+            </button>
+          );
+        })}
+      </div>
+      <div style={{ display:'flex', gap:8, flexWrap:'wrap', marginTop:10, color:'#64748b', fontSize:10 }}>
+        <span>Target 7h 15m</span>
+        <span>Green worked</span>
+        <span>Yellow bank holiday</span>
+      </div>
+    </section>
+  );
+}
+
+function WorkHoursPanel({ selectedDate, selectedNote, notes, onSaveRows, onStatusChange, hasDailyFolder }) {
+  const [draft, setDraft] = useState(timeDraftFromRows(selectedNote?.timeClock || []));
+  const stats = workStats(selectedNote);
+  const week = weekDates(selectedDate);
+  const weekStats = week.map(dateStr => ({ dateStr, ...workStats(notes[dateStr]) }));
+  const maxMinutes = Math.max(TARGET_WORK_MINUTES * 1.15, ...weekStats.map(d => d.totalMinutes));
+  const targetTop = `${100 - (TARGET_WORK_MINUTES / maxMinutes) * 100}%`;
+
+  useEffect(() => {
+    setDraft(timeDraftFromRows(selectedNote?.timeClock || []));
+  }, [selectedDate, selectedNote]);
+
+  const setDraftTime = (event, value) => setDraft(prev => ({ ...prev, [event]: value }));
+  const canSave = hasDailyFolder && Object.values(draft).some(Boolean);
+
+  return (
+    <section style={{ borderRadius:8, border:'1px solid rgba(255,255,255,0.06)', background:'rgba(255,255,255,0.025)', padding:'13px', minHeight:285 }}>
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:14, marginBottom:12 }}>
+        <div>
+          <h3 style={{ margin:0, fontSize:14, color:'#f1f5f9' }}>Hours</h3>
+          <div style={{ fontSize:11, color:'#64748b', marginTop:3 }}>{selectedDate} · {stats.label}</div>
+        </div>
+        <div style={{ textAlign:'right' }}>
+          <div style={{ fontSize:22, fontWeight:850, color:stats.totalMinutes >= TARGET_WORK_MINUTES ? '#10b981' : '#fbbf24' }}>{formatHours(stats.totalMinutes)}</div>
+          <div style={{ fontSize:10, color:'#64748b' }}>target 7h 15m</div>
+        </div>
+      </div>
+
+      <div style={{ height:145, position:'relative', borderRadius:8, border:'1px solid rgba(255,255,255,0.05)', background:'rgba(15,23,42,0.55)', padding:'15px 12px 24px', marginBottom:12 }}>
+        <div style={{ position:'absolute', left:10, right:10, top:targetTop, borderTop:'1px dashed rgba(251,191,36,0.9)' }} />
+        <div style={{ position:'absolute', right:12, top:`calc(${targetTop} - 9px)`, fontSize:9, color:'#fbbf24', background:'#0f172a', padding:'1px 4px' }}>7.25h</div>
+        <div style={{ height:'100%', display:'grid', gridTemplateColumns:'repeat(5,1fr)', gap:10, alignItems:'end' }}>
+          {weekStats.map(day => {
+            const pct = Math.min(100, (day.totalMinutes / maxMinutes) * 100);
+            const isSelected = day.dateStr === selectedDate;
+            const isLeave = day.status && day.status !== 'workday';
+            return (
+              <div key={day.dateStr} style={{ minWidth:0, height:'100%', display:'flex', flexDirection:'column', justifyContent:'flex-end', alignItems:'center', gap:5 }}>
+                <div style={{ fontSize:9, color:isSelected?'#c4b5fd':'#64748b', fontWeight:800 }}>{formatHours(day.totalMinutes)}</div>
+                <div style={{ width:'70%', height:`${Math.max(4, pct)}%`, borderRadius:'7px 7px 3px 3px', background:isLeave?'rgba(56,189,248,0.38)':day.totalMinutes >= TARGET_WORK_MINUTES?'linear-gradient(180deg,#34d399,#10b981)':'linear-gradient(180deg,#fbbf24,#7c3aed)', border:isSelected?'1px solid rgba(196,181,253,0.85)':'1px solid rgba(255,255,255,0.08)' }} />
+                <div style={{ fontSize:10, color:isSelected?'#f1f5f9':'#475569', fontWeight:800 }}>{dateFromStr(day.dateStr).toLocaleDateString('en-US', { weekday:'short' })}</div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(4,minmax(95px,1fr))', gap:8, marginBottom:10 }}>
+        {WORK_EVENT_ORDER.map(event => (
+          <label key={event} style={{ minWidth:0 }}>
+            <span style={{ display:'block', fontSize:9, color:'#64748b', fontWeight:800, textTransform:'uppercase', marginBottom:4 }}>{event}</span>
+            <input type="time" value={draft[event] || ''} onChange={e=>setDraftTime(event, e.target.value)} disabled={!hasDailyFolder}
+              style={{ width:'100%', boxSizing:'border-box', padding:'7px 8px', borderRadius:8, background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.08)', color:'#e2e8f0', fontSize:12, outline:'none', fontFamily:'inherit', opacity:hasDailyFolder?1:0.45 }} />
+          </label>
+        ))}
+      </div>
+
+      <div style={{ display:'flex', gap:8, alignItems:'center', flexWrap:'wrap' }}>
+        <select value={selectedNote?.workStatus || 'workday'} onChange={e=>onStatusChange(selectedDate, e.target.value)} disabled={!hasDailyFolder}
+          style={{ padding:'8px 10px', borderRadius:8, background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.08)', color:'#e2e8f0', fontSize:12, fontFamily:'inherit', outline:'none', opacity:hasDailyFolder?1:0.45 }}>
+          {Object.entries(WORK_STATUS_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+        </select>
+        <button onClick={()=>onSaveRows(selectedDate, draft)} disabled={!canSave}
+          style={{ padding:'8px 12px', borderRadius:8, border:'none', cursor:canSave?'pointer':'not-allowed', fontWeight:800, fontSize:12, fontFamily:'inherit', background:'rgba(124,58,237,0.2)', color:'#c4b5fd', opacity:canSave?1:0.4 }}>
+          Save hours
+        </button>
+        <div style={{ fontSize:11, color:'#64748b' }}>Breaks subtract from the day total.</div>
+      </div>
+    </section>
   );
 }
 

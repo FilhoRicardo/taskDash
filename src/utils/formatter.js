@@ -111,6 +111,7 @@ export function buildDailyNoteMd(dateStr = tod()) {
   const date = new Date(`${dateStr}T12:00:00`);
   return `---
 date: ${dateStr}
+workStatus: workday
 tags:
   - daily-note
 ---
@@ -215,20 +216,62 @@ function timeLabel(date = new Date()) {
   return date.toLocaleTimeString([], { hour:'2-digit', minute:'2-digit', hour12:false });
 }
 
-export function appendDailyTimeClockEvent(raw, event, date = new Date()) {
-  const row = `| ${timeLabel(date)} | ${event} |`;
+function ensureFrontmatter(raw) {
+  return /^---\n[\s\S]*?\n---/.test(raw) ? raw : `---\n---\n\n${raw.trimStart()}`;
+}
+
+function setFrontmatterValue(raw, key, value) {
+  const withFm = ensureFrontmatter(raw);
+  const match = withFm.match(/^---\n([\s\S]*?)\n---/);
+  if (!match) return withFm;
+  const fm = match[1];
+  const rx = new RegExp(`^${key}:.*$`, 'm');
+  const nextFm = rx.test(fm) ? fm.replace(rx, `${key}: ${value}`) : `${fm.trimEnd()}\n${key}: ${value}`;
+  return `---\n${nextFm}\n---${withFm.slice(match[0].length)}`;
+}
+
+function timeClockSection(rows = []) {
+  const body = rows
+    .filter(row => row?.time && row?.event)
+    .map(row => `| ${row.time} | ${row.event} |`)
+    .join('\n');
+  return `## Time Clock\n\n| Time | Event |\n| --- | --- |\n${body ? `${body}\n` : ''}\n---\n\n`;
+}
+
+export function setDailyWorkStatus(raw, status) {
+  return setFrontmatterValue(raw, 'workStatus', status || 'workday');
+}
+
+export function replaceDailyTimeClockRows(raw, rows = []) {
   const headingRx = /(^|\n)##\s+.*Time Clock[ \t]*(?=\n|$)/i;
   const match = headingRx.exec(raw);
+  const section = timeClockSection(rows);
 
   if (!match) {
     const notesRx = /(^|\n)##\s+.*Notes[ \t]*(?=\n|$)/i;
-    const section = `## Time Clock\n\n| Time | Event |\n| --- | --- |\n${row}\n\n---\n\n`;
     const notesMatch = notesRx.exec(raw);
     if (notesMatch) {
       const insertAt = notesMatch.index + notesMatch[1].length;
       return raw.slice(0, insertAt) + section + raw.slice(insertAt);
     }
     return `${raw.trimEnd()}\n\n${section}`;
+  }
+
+  const start = match.index + match[1].length;
+  const bodyStart = match.index + match[0].length;
+  const rest = raw.slice(bodyStart);
+  const next = rest.search(/\n##\s+/);
+  const end = next === -1 ? raw.length : bodyStart + next;
+  return raw.slice(0, start) + section + raw.slice(end).replace(/^\n+/, '');
+}
+
+export function appendDailyTimeClockEvent(raw, event, date = new Date()) {
+  const row = { time: timeLabel(date), event };
+  const headingRx = /(^|\n)##\s+.*Time Clock[ \t]*(?=\n|$)/i;
+  const match = headingRx.exec(raw);
+
+  if (!match) {
+    return replaceDailyTimeClockRows(raw, [row]);
   }
 
   const start = match.index + match[0].length;
@@ -238,11 +281,15 @@ export function appendDailyTimeClockEvent(raw, event, date = new Date()) {
   const sectionText = raw.slice(start, end);
 
   if (!/\|\s*Time\s*\|\s*Event\s*\|/i.test(sectionText)) {
-    const table = `\n\n| Time | Event |\n| --- | --- |\n${row}\n`;
-    return raw.slice(0, start) + table + raw.slice(end);
+    return raw.slice(0, match.index + match[1].length) + timeClockSection([row]) + raw.slice(end).replace(/^\n+/, '');
   }
 
-  return `${raw.slice(0, end).trimEnd()}\n${row}\n${raw.slice(end)}`;
+  const separator = sectionText.search(/\n---[ \t]*(?=\n|$)/);
+  if (separator !== -1) {
+    const insertAt = start + separator;
+    return `${raw.slice(0, insertAt).trimEnd()}\n| ${row.time} | ${row.event} |\n\n${raw.slice(insertAt).replace(/^\n+/, '')}`;
+  }
+  return `${raw.slice(0, end).trimEnd()}\n| ${row.time} | ${row.event} |\n\n---\n\n${raw.slice(end).replace(/^\n+/, '')}`;
 }
 
 export function appendDailySectionEntry(raw, section, text) {
