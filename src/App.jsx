@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { parseTask, parseProperty, parseProject, parseDailyNote, readMdFiles, readDirNames, readImageFiles } from './utils/parser.js';
 import { idbGet, idbSet, idbDel, lsGet, lsSet, lsDel } from './utils/storage.js';
-import { fmt, tod, isToday, isOver, longDate, appendNoteToMd, appendPropertyCommentToMd, appendDailySectionEntry, buildDailyNoteMd, buildTrackerRow, appendTrackerRow, buildMeetingMd, buildNewTaskMd, buildNewPropertyMd, buildNewProjectMd, markTaskDone, setPropertyCover, touchDateModified } from './utils/formatter.js';
+import { fmt, tod, isToday, isOver, longDate, appendNoteToMd, appendPropertyCommentToMd, appendDailySectionEntry, buildDailyNoteMd, buildTrackerRow, appendTrackerRow, buildMeetingMd, buildNewTaskMd, buildNewPropertyMd, buildNewProjectMd, markTaskDone, postponeTaskDates, setPropertyCover, touchDateModified, updateTaskDates } from './utils/formatter.js';
 
 const REFRESH_MS  = 5 * 60 * 1000;
 const WARN_MS     = 60 * 60 * 1000;
@@ -651,6 +651,42 @@ export default function App() {
     }
   };
 
+  const writeTaskUpdate = async (taskId, updated, toastMsg) => {
+    const handle = taskHandles[taskId];
+    if (!handle) return;
+    await writeFile(handle, updated);
+    const updatedTask = parseTask(taskId, updated);
+    setTasks(prev => prev.map(t => t.id === taskId ? updatedTask : t));
+    setToast(toastMsg);
+  };
+
+  const changeTaskDates = async (taskId, nextDates) => {
+    const task = tasks.find(t => t.id === taskId);
+    if (!task) return;
+    try {
+      const updated = updateTaskDates(task.raw, {
+        due: nextDates.due ?? task.due ?? '',
+        scheduled: nextDates.scheduled ?? task.scheduled ?? '',
+      });
+      await writeTaskUpdate(taskId, updated, 'Updated task dates');
+    } catch(e) {
+      console.error('task date update failed', e);
+      alert('Failed to update task dates: ' + e.message);
+    }
+  };
+
+  const postponeTaskByWeek = async (taskId) => {
+    const task = tasks.find(t => t.id === taskId);
+    if (!task) return;
+    try {
+      const updated = postponeTaskDates(task.raw, task.due, task.scheduled, 7);
+      await writeTaskUpdate(taskId, updated, 'Postponed task by 1 week');
+    } catch(e) {
+      console.error('task postpone failed', e);
+      alert('Failed to postpone task: ' + e.message);
+    }
+  };
+
   const addPropertyComment = async () => {
     if (!propertySel || !propertyComment.trim()) return;
     const handle = propertyHandles[propertySel];
@@ -1220,10 +1256,24 @@ export default function App() {
                 <div style={{ display:'flex', gap:7, alignItems:'center', marginBottom:9, flexWrap:'wrap' }}>
                   <PBadge p={task.priority}/><SBadge s={task.status}/>
                   {task.due && <span style={{ fontSize:12, color:dueColor(task.due) }}>📅 {isToday(task.due)?'Due Today':isOver(task.due)?`Overdue · ${task.due}`:task.due}</span>}
+                  {task.scheduled && <span style={{ fontSize:12, color:'#818cf8' }}>Scheduled {task.scheduled}</span>}
                   {task.client && <span style={{ fontSize:12, color:'#475569' }}>· 👤 {task.client}</span>}
                   {task.building && <span style={{ fontSize:12, color:'#475569' }}>· 🏢 {task.building}</span>}
                 </div>
                 <h2 style={{ margin:0, fontSize:19, fontWeight:700, lineHeight:1.35, color:'#f1f5f9' }}>{task.title}</h2>
+                <div style={{ display:'flex', gap:9, alignItems:'end', flexWrap:'wrap', marginTop:13 }}>
+                  <label style={{ display:'flex', flexDirection:'column', gap:4, minWidth:145 }}>
+                    <span style={{ fontSize:9, color:'#64748b', fontWeight:800, letterSpacing:'0.08em', textTransform:'uppercase' }}>Due</span>
+                    <input type="date" value={task.due || ''} onChange={e=>changeTaskDates(task.id, { due:e.target.value })} style={{ ...inputBase, padding:'7px 9px', fontSize:12 }}/>
+                  </label>
+                  <label style={{ display:'flex', flexDirection:'column', gap:4, minWidth:145 }}>
+                    <span style={{ fontSize:9, color:'#64748b', fontWeight:800, letterSpacing:'0.08em', textTransform:'uppercase' }}>Scheduled</span>
+                    <input type="date" value={task.scheduled || ''} onChange={e=>changeTaskDates(task.id, { scheduled:e.target.value })} style={{ ...inputBase, padding:'7px 9px', fontSize:12 }}/>
+                  </label>
+                  <button onClick={()=>postponeTaskByWeek(task.id)} title="Move due and scheduled dates forward by 7 days" style={{ padding:'8px 12px', borderRadius:9, border:'1px solid rgba(245,158,11,0.28)', cursor:'pointer', fontWeight:800, fontSize:12, fontFamily:'inherit', background:'rgba(245,158,11,0.08)', color:'#fbbf24' }}>
+                    Postpone 1w
+                  </button>
+                </div>
               </div>
               <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:10, flexShrink:0 }}>
                 <div style={{ fontSize:31, fontWeight:800, letterSpacing:'-0.03em', fontVariantNumeric:'tabular-nums', color:live?'#10b981':'#e2e8f0', textShadow:live?'0 0 28px rgba(16,185,129,0.55)':'none', transition:'color 0.3s,text-shadow 0.3s' }}>{fmt(selTime)}</div>

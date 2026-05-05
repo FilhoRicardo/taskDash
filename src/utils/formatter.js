@@ -412,6 +412,42 @@ export function setPropertyCover(raw, coverPath) {
   return raw.replace(/^---\n[\s\S]*?\n---/, `---\n${fm}\n---`);
 }
 
+function addDays(dateStr, days) {
+  const d = dateStr ? new Date(`${dateStr}T12:00:00`) : new Date();
+  d.setDate(d.getDate() + days);
+  return tod(d);
+}
+
+export function updateTaskDates(raw, { due, scheduled }) {
+  const fmMatch = raw.match(/^---\n([\s\S]*?)\n---/);
+  if (!fmMatch) return raw;
+  let fm = fmMatch[1];
+
+  const upsertOrRemove = (key, value) => {
+    const re = new RegExp(`^${key}:[ \\t]*.*$`, 'm');
+    if (value) {
+      if (re.test(fm)) fm = fm.replace(re, `${key}: ${value}`);
+      else fm = fm + (fm.endsWith('\n') ? '' : '\n') + `${key}: ${value}`;
+    } else {
+      fm = fm.replace(new RegExp(`^${key}:[ \\t]*.*\\n?`, 'm'), '');
+    }
+  };
+
+  upsertOrRemove('due', due);
+  upsertOrRemove('scheduled', scheduled);
+  const modifiedRx = /^dateModified:[ \t]*.*$/m;
+  if (modifiedRx.test(fm)) fm = fm.replace(modifiedRx, `dateModified: ${isoLocal()}`);
+  else fm = fm + (fm.endsWith('\n') ? '' : '\n') + `dateModified: ${isoLocal()}`;
+
+  return raw.replace(/^---\n[\s\S]*?\n---/, `---\n${fm.trimEnd()}\n---`);
+}
+
+export function postponeTaskDates(raw, currentDue, currentScheduled, days = 7) {
+  const due = currentDue ? addDays(currentDue, days) : (!currentScheduled ? addDays(tod(), days) : '');
+  const scheduled = currentScheduled ? addDays(currentScheduled, days) : '';
+  return updateTaskDates(raw, { due, scheduled });
+}
+
 // ── Mark task done + archived (in-place frontmatter update) ──
 export function markTaskDone(raw) {
   const today = tod();
