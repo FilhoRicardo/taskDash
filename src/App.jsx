@@ -227,7 +227,8 @@ function workStats(note) {
     }
   }
 
-  const totalMinutes = clockIn !== undefined && clockOut !== undefined && clockOut > clockIn
+  const creditedDay = status !== 'workday';
+  const totalMinutes = creditedDay ? TARGET_WORK_MINUTES : clockIn !== undefined && clockOut !== undefined && clockOut > clockIn
     ? Math.max(0, clockOut - clockIn - breakMinutes)
     : 0;
 
@@ -236,7 +237,8 @@ function workStats(note) {
     breakMinutes,
     status,
     label: WORK_STATUS_LABELS[status] || WORK_STATUS_LABELS.workday,
-    complete: clockIn !== undefined && clockOut !== undefined,
+    complete: creditedDay || (clockIn !== undefined && clockOut !== undefined),
+    creditedDay,
   };
 }
 
@@ -1603,7 +1605,8 @@ function MissionControlPanel({ today, overdue, recurrent, selectedId, liveId, ge
           <button onClick={onNewTask} style={{ padding:'9px 16px', borderRadius:10, border:'none', cursor:'pointer', fontWeight:800, fontSize:13, fontFamily:'inherit', background:'linear-gradient(135deg,#7c3aed,#3b82f6)', color:'#fff' }}>+ New Task</button>
         </div>
       </div>
-      <div style={{ flex:1, overflowY:'auto', padding:'20px 24px' }}>
+      <div style={{ flex:1, minHeight:0, display:'grid', gridTemplateColumns:'minmax(360px,0.42fr) minmax(520px,1fr)', overflow:'hidden' }}>
+        <div style={{ minWidth:0, minHeight:0, overflowY:'auto', padding:'16px', borderRight:'1px solid rgba(255,255,255,0.06)' }}>
         <section style={{ borderRadius:8, border:'1px solid rgba(255,255,255,0.06)', background:'rgba(255,255,255,0.025)', padding:'13px', marginBottom:12 }}>
           <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:14, marginBottom:10 }}>
             <div>
@@ -1634,15 +1637,7 @@ function MissionControlPanel({ today, overdue, recurrent, selectedId, liveId, ge
           </div>
         </section>
 
-        <div style={{ display:'grid', gridTemplateColumns:'minmax(260px,0.34fr) minmax(460px,1fr)', gap:12, alignItems:'stretch', marginBottom:18 }}>
-          <WorkCalendar
-            month={workMonth}
-            selectedDate={workDate}
-            notes={workNotes}
-            onMonthChange={onWorkMonthChange}
-            onSelectDate={onSelectWorkDate}
-            hasDailyFolder={hasDailyFolder}
-          />
+        <div style={{ display:'grid', gridTemplateColumns:'1fr', gap:12, alignItems:'stretch', marginBottom:12 }}>
           <WorkHoursPanel
             selectedDate={workDate}
             selectedNote={workNotes[workDate]}
@@ -1651,9 +1646,17 @@ function MissionControlPanel({ today, overdue, recurrent, selectedId, liveId, ge
             onStatusChange={onWorkStatusChange}
             hasDailyFolder={hasDailyFolder}
           />
+          <WorkCalendar
+            month={workMonth}
+            selectedDate={workDate}
+            notes={workNotes}
+            onMonthChange={onWorkMonthChange}
+            onSelectDate={onSelectWorkDate}
+            hasDailyFolder={hasDailyFolder}
+          />
         </div>
 
-        <div style={{ display:'grid', gridTemplateColumns:'repeat(3,minmax(220px,1fr))', gap:12, marginBottom:18 }}>
+        <div style={{ display:'grid', gridTemplateColumns:'1fr', gap:10, marginBottom:4 }}>
           {[
             ['notes', 'Notes', dailyNote?.notes || []],
             ['reflections', 'Reflections', dailyNote?.reflections || []],
@@ -1679,9 +1682,19 @@ function MissionControlPanel({ today, overdue, recurrent, selectedId, liveId, ge
           ))}
         </div>
 
-        <div style={{ display:'grid', gridTemplateColumns:'repeat(3,minmax(220px,1fr))', gap:14, alignItems:'start' }}>
+        </div>
+
+        <div style={{ minWidth:0, minHeight:0, display:'flex', flexDirection:'column', padding:'16px 18px 16px 16px', overflow:'hidden' }}>
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:12, marginBottom:12, flexShrink:0 }}>
+            <div>
+              <h3 style={{ margin:0, fontSize:15, color:'#f1f5f9' }}>Task Queues</h3>
+              <div style={{ fontSize:11, color:'#64748b', marginTop:3 }}>Today, overdue, and recurrent work stay visible beside your hours.</div>
+            </div>
+            <button onClick={onNewTask} style={{ padding:'8px 12px', borderRadius:9, border:'none', cursor:'pointer', fontWeight:800, fontSize:12, fontFamily:'inherit', background:'linear-gradient(135deg,#7c3aed,#3b82f6)', color:'#fff', flexShrink:0 }}>+ New Task</button>
+          </div>
+          <div style={{ flex:1, minHeight:0, display:'grid', gridTemplateColumns:'repeat(3,minmax(180px,1fr))', gap:12, alignItems:'stretch', overflow:'hidden' }}>
           {sections.map(s => (
-            <section key={s.title} style={{ minWidth:0 }}>
+            <section key={s.title} style={{ minWidth:0, minHeight:0, overflowY:'auto', paddingRight:4 }}>
               <div style={{ padding:'0 2px 10px', borderBottom:`2px solid ${s.color}`, marginBottom:10 }}>
                 <div style={{ display:'flex', justifyContent:'space-between', gap:10, alignItems:'baseline' }}>
                   <h3 style={{ margin:0, fontSize:16, color:'#f1f5f9' }}>{s.title}</h3>
@@ -1695,6 +1708,7 @@ function MissionControlPanel({ today, overdue, recurrent, selectedId, liveId, ge
           ))}
         </div>
       </div>
+    </div>
     </div>
   );
 }
@@ -1756,7 +1770,8 @@ function WorkHoursPanel({ selectedDate, selectedNote, notes, onSaveRows, onStatu
   }, [selectedDate, selectedNote]);
 
   const setDraftTime = (event, value) => setDraft(prev => ({ ...prev, [event]: value }));
-  const canSave = hasDailyFolder && Object.values(draft).some(Boolean);
+  const canEditTimes = hasDailyFolder && !stats.creditedDay;
+  const canSave = canEditTimes && Object.values(draft).some(Boolean);
 
   return (
     <section style={{ borderRadius:8, border:'1px solid rgba(255,255,255,0.06)', background:'rgba(255,255,255,0.025)', padding:'13px', minHeight:285 }}>
@@ -1794,8 +1809,8 @@ function WorkHoursPanel({ selectedDate, selectedNote, notes, onSaveRows, onStatu
         {WORK_EVENT_ORDER.map(event => (
           <label key={event} style={{ minWidth:0 }}>
             <span style={{ display:'block', fontSize:9, color:'#64748b', fontWeight:800, textTransform:'uppercase', marginBottom:4 }}>{event}</span>
-            <input type="time" value={draft[event] || ''} onChange={e=>setDraftTime(event, e.target.value)} disabled={!hasDailyFolder}
-              style={{ width:'100%', boxSizing:'border-box', padding:'7px 8px', borderRadius:8, background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.08)', color:'#e2e8f0', fontSize:12, outline:'none', fontFamily:'inherit', opacity:hasDailyFolder?1:0.45 }} />
+            <input type="time" value={draft[event] || ''} onChange={e=>setDraftTime(event, e.target.value)} disabled={!canEditTimes}
+              style={{ width:'100%', boxSizing:'border-box', padding:'7px 8px', borderRadius:8, background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.08)', color:'#e2e8f0', fontSize:12, outline:'none', fontFamily:'inherit', opacity:canEditTimes?1:0.45 }} />
           </label>
         ))}
       </div>
@@ -1809,7 +1824,7 @@ function WorkHoursPanel({ selectedDate, selectedNote, notes, onSaveRows, onStatu
           style={{ padding:'8px 12px', borderRadius:8, border:'none', cursor:canSave?'pointer':'not-allowed', fontWeight:800, fontSize:12, fontFamily:'inherit', background:'rgba(124,58,237,0.2)', color:'#c4b5fd', opacity:canSave?1:0.4 }}>
           Save hours
         </button>
-        <div style={{ fontSize:11, color:'#64748b' }}>Breaks subtract from the day total.</div>
+        <div style={{ fontSize:11, color:'#64748b' }}>{stats.creditedDay ? 'Leave days credit 7h 15m automatically.' : 'Breaks subtract from the day total.'}</div>
       </div>
     </section>
   );
