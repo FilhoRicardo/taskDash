@@ -130,6 +130,8 @@ function Field({ label, children }) {
 }
 
 const TARGET_WORK_MINUTES = 7.25 * 60;
+const WEEK_TARGET_MINUTES = TARGET_WORK_MINUTES * 5;
+const WORK_CHART_MAX_MINUTES = 600;
 const WORK_EVENT_ORDER = ['Clock in', 'Break start', 'Break finish', 'Clock out'];
 const WORK_STATUS_LABELS = {
   workday: 'Workday',
@@ -186,11 +188,8 @@ function minutesFromTime(time) {
   return Number(match[1]) * 60 + Number(match[2]);
 }
 
-function formatHours(minutes) {
-  const mins = Math.max(0, Math.round(minutes || 0));
-  const h = Math.floor(mins / 60);
-  const m = mins % 60;
-  return `${h}h ${String(m).padStart(2, '0')}m`;
+function formatMinutes(minutes) {
+  return `${Math.max(0, Math.round(minutes || 0))} min`;
 }
 
 function timeDraftFromRows(rows = []) {
@@ -1740,7 +1739,7 @@ function WorkCalendar({ month, selectedDate, notes, onMonthChange, onSelectDate,
           const accent = status === 'holiday' ? '#38bdf8' : status === 'sick-leave' ? '#f87171' : status === 'bank-holiday' ? '#fbbf24' : stats.totalMinutes ? '#10b981' : '#334155';
           return (
             <button key={dateStr} onClick={()=>onSelectDate(dateStr)} disabled={!hasDailyFolder}
-              title={`${dateStr} · ${formatHours(stats.totalMinutes)} · ${stats.label}`}
+              title={`${dateStr} · ${formatMinutes(stats.totalMinutes)} · ${stats.label}`}
               style={{ minHeight:38, borderRadius:8, border:`1px solid ${selected ? '#a78bfa' : 'rgba(255,255,255,0.06)'}`, background:selected?'rgba(124,58,237,0.18)':'rgba(255,255,255,0.025)', color:'#e2e8f0', cursor:hasDailyFolder?'pointer':'not-allowed', fontFamily:'inherit', padding:'4px 2px', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:2 }}>
               <span style={{ fontSize:12, fontWeight:800 }}>{Number(dateStr.slice(-2))}</span>
               <span style={{ width:5, height:5, borderRadius:5, background:accent, opacity:status || stats.totalMinutes ? 1 : 0.35 }} />
@@ -1749,7 +1748,7 @@ function WorkCalendar({ month, selectedDate, notes, onMonthChange, onSelectDate,
         })}
       </div>
       <div style={{ display:'flex', gap:8, flexWrap:'wrap', marginTop:10, color:'#64748b', fontSize:10 }}>
-        <span>Target 7h 15m</span>
+        <span>Target 435 min</span>
         <span>Green worked</span>
         <span>Yellow bank holiday</span>
       </div>
@@ -1762,8 +1761,8 @@ function WorkHoursPanel({ selectedDate, selectedNote, notes, onSaveRows, onStatu
   const stats = workStats(selectedNote);
   const week = weekDates(selectedDate);
   const weekStats = week.map(dateStr => ({ dateStr, ...workStats(notes[dateStr]) }));
-  const maxMinutes = Math.max(TARGET_WORK_MINUTES * 1.15, ...weekStats.map(d => d.totalMinutes));
-  const targetTop = `${100 - (TARGET_WORK_MINUTES / maxMinutes) * 100}%`;
+  const weekTotalMinutes = weekStats.reduce((sum, day) => sum + day.totalMinutes, 0);
+  const targetTop = `${100 - (TARGET_WORK_MINUTES / WORK_CHART_MAX_MINUTES) * 100}%`;
 
   useEffect(() => {
     setDraft(timeDraftFromRows(selectedNote?.timeClock || []));
@@ -1781,22 +1780,22 @@ function WorkHoursPanel({ selectedDate, selectedNote, notes, onSaveRows, onStatu
           <div style={{ fontSize:11, color:'#64748b', marginTop:3 }}>{selectedDate} · {stats.label}</div>
         </div>
         <div style={{ textAlign:'right' }}>
-          <div style={{ fontSize:22, fontWeight:850, color:stats.totalMinutes >= TARGET_WORK_MINUTES ? '#10b981' : '#fbbf24' }}>{formatHours(stats.totalMinutes)}</div>
-          <div style={{ fontSize:10, color:'#64748b' }}>target 7h 15m</div>
+          <div style={{ fontSize:22, fontWeight:850, color:weekTotalMinutes >= WEEK_TARGET_MINUTES ? '#10b981' : '#fbbf24' }}>{formatMinutes(weekTotalMinutes)}</div>
+          <div style={{ fontSize:10, color:'#64748b' }}>week target {formatMinutes(WEEK_TARGET_MINUTES)}</div>
         </div>
       </div>
 
       <div style={{ height:145, position:'relative', borderRadius:8, border:'1px solid rgba(255,255,255,0.05)', background:'rgba(15,23,42,0.55)', padding:'15px 12px 24px', marginBottom:12 }}>
         <div style={{ position:'absolute', left:10, right:10, top:targetTop, borderTop:'1px dashed rgba(251,191,36,0.9)' }} />
-        <div style={{ position:'absolute', right:12, top:`calc(${targetTop} - 9px)`, fontSize:9, color:'#fbbf24', background:'#0f172a', padding:'1px 4px' }}>7.25h</div>
+        <div style={{ position:'absolute', right:12, top:`calc(${targetTop} - 9px)`, fontSize:9, color:'#fbbf24', background:'#0f172a', padding:'1px 4px' }}>435 min</div>
         <div style={{ height:'100%', display:'grid', gridTemplateColumns:'repeat(5,1fr)', gap:10, alignItems:'end' }}>
           {weekStats.map(day => {
-            const pct = Math.min(100, (day.totalMinutes / maxMinutes) * 100);
+            const pct = Math.min(100, (day.totalMinutes / WORK_CHART_MAX_MINUTES) * 100);
             const isSelected = day.dateStr === selectedDate;
             const isLeave = day.status && day.status !== 'workday';
             return (
               <div key={day.dateStr} style={{ minWidth:0, height:'100%', display:'flex', flexDirection:'column', justifyContent:'flex-end', alignItems:'center', gap:5 }}>
-                <div style={{ fontSize:9, color:isSelected?'#c4b5fd':'#64748b', fontWeight:800 }}>{formatHours(day.totalMinutes)}</div>
+                <div style={{ fontSize:9, color:isSelected?'#c4b5fd':'#64748b', fontWeight:800 }}>{formatMinutes(day.totalMinutes)}</div>
                 <div style={{ width:'70%', height:`${Math.max(4, pct)}%`, borderRadius:'7px 7px 3px 3px', background:isLeave?'rgba(56,189,248,0.38)':day.totalMinutes >= TARGET_WORK_MINUTES?'linear-gradient(180deg,#34d399,#10b981)':'linear-gradient(180deg,#fbbf24,#7c3aed)', border:isSelected?'1px solid rgba(196,181,253,0.85)':'1px solid rgba(255,255,255,0.08)' }} />
                 <div style={{ fontSize:10, color:isSelected?'#f1f5f9':'#475569', fontWeight:800 }}>{dateFromStr(day.dateStr).toLocaleDateString('en-US', { weekday:'short' })}</div>
               </div>
@@ -1824,7 +1823,7 @@ function WorkHoursPanel({ selectedDate, selectedNote, notes, onSaveRows, onStatu
           style={{ padding:'8px 12px', borderRadius:8, border:'none', cursor:canSave?'pointer':'not-allowed', fontWeight:800, fontSize:12, fontFamily:'inherit', background:'rgba(124,58,237,0.2)', color:'#c4b5fd', opacity:canSave?1:0.4 }}>
           Save hours
         </button>
-        <div style={{ fontSize:11, color:'#64748b' }}>{stats.creditedDay ? 'Leave days credit 7h 15m automatically.' : 'Breaks subtract from the day total.'}</div>
+        <div style={{ fontSize:11, color:'#64748b' }}>{stats.creditedDay ? 'Leave days credit 435 minutes automatically.' : 'Breaks subtract from the day total.'}</div>
       </div>
     </section>
   );
