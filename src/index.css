@@ -11,3 +11,68 @@ body {
 ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 4px; }
 input::placeholder { color: #475569; }
 button { font-family: inherit; }
+.markdown-body {
+  color: #cbd5e1;
+  font-size: 13px;
+  line-height: 1.65;
+}
+.markdown-body > * + * { margin-top: 10px; }
+.markdown-body h1,
+.markdown-body h2,
+.markdown-body h3,
+.markdown-body h4 {
+  color: #f8fafc;
+  line-height: 1.25;
+}
+.markdown-body h1 { font-size: 22px; }
+.markdown-body h2 { font-size: 18px; }
+.markdown-body h3 { font-size: 15px; }
+.markdown-body p,
+.markdown-body ul,
+.markdown-body ol,
+.markdown-body blockquote,
+.markdown-body table,
+.markdown-body pre { margin-bottom: 0; }
+.markdown-body ul,
+.markdown-body ol { padding-left: 20px; }
+.markdown-body li + li { margin-top: 4px; }
+.markdown-body a { color: #93c5fd; }
+.markdown-body blockquote {
+  border-left: 3px solid rgba(124, 58, 237, 0.65);
+  padding-left: 12px;
+  color: #94a3b8;
+}
+.markdown-body code {
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 5px;
+  background: rgba(15, 23, 42, 0.75);
+  padding: 1px 5px;
+  color: #e0e7ff;
+  font-size: 12px;
+}
+.markdown-body pre {
+  overflow-x: auto;
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 8px;
+  background: rgba(2, 6, 23, 0.8);
+  padding: 10px 12px;
+}
+.markdown-body pre code {
+  border: 0;
+  background: transparent;
+  padding: 0;
+}
+.markdown-body table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.markdown-body th,
+.markdown-body td {
+  border: 1px solid rgba(255,255,255,0.08);
+  padding: 6px 8px;
+}
+.markdown-body th {
+  color: #f8fafc;
+  background: rgba(255,255,255,0.04);
+}

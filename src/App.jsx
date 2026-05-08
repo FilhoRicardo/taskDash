@@ -1,4 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { parseTask, parseProperty, parseProject, parseDailyNote, readMdFiles, readDirNames, readImageFiles } from './utils/parser.js';
 import { idbGet, idbSet, idbDel, lsGet, lsSet, lsDel } from './utils/storage.js';
 import { fmt, tod, isToday, isOver, longDate, appendNoteToMd, appendPropertyCommentToMd, appendDailySectionEntry, appendDailyTimeClockEvent, buildDailyNoteMd, buildTrackerRow, appendTrackerRow, buildMeetingMd, buildNewTaskMd, buildNewPropertyMd, buildNewProjectMd, finishRecurrentTaskInstance, markTaskDone, postponeTaskDates, replaceDailyTimeClockRows, setDailyWorkStatus, setPropertyCover, touchDateModified, updateTaskDates } from './utils/formatter.js';
@@ -9,6 +11,7 @@ const WARN_CHK_MS = 30 * 1000;
 
 const FOLDER_DEFS = [
   { key:'tasks',      label:'Tasks',      mode:'readwrite', required:true,  desc:'Where your task .md files live (e.g. TaskNotes/Tasks)' },
+  { key:'done',       label:'Done / Archive', mode:'readwrite', required:false, desc:'Optional folder for completed or archived task .md files' },
   { key:'projects',   label:'Projects',   mode:'readwrite', required:false, desc:'For project autocomplete and project editing' },
   { key:'properties', label:'Properties', mode:'readwrite', required:false, desc:'For building autocomplete and property comments' },
   { key:'clients',    label:'Clients',    mode:'read',      required:false, desc:'For client autocomplete' },
@@ -69,6 +72,16 @@ function taskDescriptionText(raw = '') {
     .split(/\n### (?:\[\[)?(?:\d{4}-\d{2}-\d{2}|\d{1,2}\/\d{1,2}\/\d{4})/)[0]
     .replace(/^#\s+.+\n?/, '')
     .trim();
+}
+
+function MarkdownBody({ children }) {
+  const text = String(children || '').trim();
+  if (!text) return <div style={{ color:'#64748b' }}>No task description body yet.</div>;
+  return (
+    <ReactMarkdown remarkPlugins={[remarkGfm]} className="markdown-body">
+      {text}
+    </ReactMarkdown>
+  );
 }
 
 function safeFilename(title) {
@@ -391,7 +404,7 @@ export default function App() {
         }
         setDirs(live);
         setSavedDirs(saved);
-        if (live.tasks) await loadAll(live);
+        if (live.tasks || live.done) await loadAll(live);
         if (live.tasks && REF_KEYS.every(k => !live[k] && !saved[k]) && !lsGet(FOLDER_SETUP_SEEN)) {
           setFolderSetupOpen(true);
         }
@@ -445,9 +458,11 @@ export default function App() {
     setProjectDraft(project?.raw || '');
   }, [projectSel, projects]);
 
-  const loadFiles = useCallback(async (dir) => {
+  const loadFiles = useCallback(async (dir, doneDir = null) => {
     try {
-      const raw = await readMdFiles(dir);
+      const raw = [];
+      if (dir) raw.push(...await readMdFiles(dir));
+      if (doneDir) raw.push(...await readMdFiles(doneDir, [], '__done__'));
       const parsed = raw.map(f => parseTask(f.name, f.text))
         .sort((a,b) => (a.due||'9999') > (b.due||'9999') ? 1 : -1);
       setTasks(parsed);
@@ -455,13 +470,14 @@ export default function App() {
       raw.forEach(f => { handles[f.name] = f.handle; });
       setTaskHandles(handles);
       try {
+        if (!dir) throw new Error('No tasks folder configured');
         const th = await dir.getFileHandle('timetracker.md', { create:true });
         setTrackerHandle(th);
       } catch {}
       setLastSync(Date.now());
       setNeedsRefresh(false);
       setSel(prev => {
-        if (prev && parsed.some(t => t.id === prev && !t.archived)) return prev;
+        if (prev && parsed.some(t => t.id === prev)) return prev;
         return parsed.find(t => !t.archived)?.id || parsed[0]?.id || null;
       });
     } catch(e) { console.error(e); }
@@ -573,7 +589,7 @@ export default function App() {
   }, []);
 
   const loadAll = useCallback(async (liveDirs) => {
-    if (liveDirs.tasks) await loadFiles(liveDirs.tasks);
+    if (liveDirs.tasks || liveDirs.done) await loadFiles(liveDirs.tasks, liveDirs.done);
     await loadRefs(liveDirs);
     if (liveDirs.projects) await loadProjects(liveDirs.projects);
     if (liveDirs.properties) await loadProperties(liveDirs.properties);
@@ -582,7 +598,7 @@ export default function App() {
   }, [loadFiles, loadRefs, loadProjects, loadProperties, loadAttachmentImages, ensureDailyNote]);
 
   useEffect(() => {
-    if (!dirs.tasks && !dirs.projects && !dirs.properties && !dirs.daily && !dirs.attachments) return;
+    if (!dirs.tasks && !dirs.done && !dirs.projects && !dirs.properties && !dirs.daily && !dirs.attachments) return;
     syncRef.current = setInterval(() => loadAll(dirs), REFRESH_MS);
     return () => clearInterval(syncRef.current);
   }, [dirs, loadAll]);
@@ -620,9 +636,9 @@ export default function App() {
       const next = { ...dirs, [key]: dir };
       setDirs(next);
       setSavedDirs(prev => { const c = {...prev}; delete c[key]; return c; });
-      if (key === 'tasks') {
+      if (key === 'tasks' || key === 'done') {
         setFolderSetupOpen(true);
-        await loadFiles(dir);
+        await loadFiles(next.tasks, next.done);
       }
       else {
         if (key === 'projects') await loadProjects(dir);
@@ -645,9 +661,9 @@ export default function App() {
         const next = { ...dirs, [key]: h };
         setDirs(next);
         setSavedDirs(prev => { const c = {...prev}; delete c[key]; return c; });
-        if (key === 'tasks') {
+        if (key === 'tasks' || key === 'done') {
           setFolderSetupOpen(true);
-          await loadFiles(h);
+          await loadFiles(next.tasks, next.done);
         }
         else {
           if (key === 'projects') await loadProjects(h);
@@ -683,6 +699,7 @@ export default function App() {
     setDirs(prev => { const c = {...prev}; delete c[key]; return c; });
     setSavedDirs(prev => { const c = {...prev}; delete c[key]; return c; });
     if (key === 'tasks') { setTasks([]); setTaskHandles({}); setTrackerHandle(null); }
+    else if (key === 'done') await loadFiles(dirs.tasks, null);
     else if (key === 'projects') { setProjects([]); setProjectHandles({}); setProjectSel(null); setProjectDraft(''); }
     else if (key === 'properties') { setProperties([]); setPropertyHandles({}); setPropertySel(null); }
     else if (key === 'daily') { setDailyNote(null); setDailyHandle(null); setDailyInputs({ notes:'', reflections:'', brainDump:'' }); setWorkNotes({}); setWorkHandles({}); }
@@ -748,9 +765,9 @@ export default function App() {
     try {
       const fh = await dirs.tasks.getFileHandle(filename, { create:true });
       await writeFile(fh, content);
-      await loadFiles(dirs.tasks);
+      await loadFiles(dirs.tasks, dirs.done);
     } catch(e) { console.error('meeting save failed', e); }
-  }, [dirs.tasks, loadFiles]);
+  }, [dirs.tasks, dirs.done, loadFiles]);
 
   const start = useCallback(async (id) => {
     if (meetingOpen) { await saveMeetingFile(); setMeetingOpen(false); }
@@ -810,7 +827,7 @@ export default function App() {
     try {
       const fh = await dirs.tasks.getFileHandle(filename, { create:true });
       await writeFile(fh, content);
-      await loadFiles(dirs.tasks);
+      await loadFiles(dirs.tasks, dirs.done);
       setNewTaskOpen(false);
       setSel(filename);
       setToast(`✅ Created "${form.title.trim()}"`);
@@ -1117,8 +1134,8 @@ export default function App() {
     return acc;
   }, {});
   const filtered  = tasks
-    .filter(t => !t.archived)
-    .filter(t => filt==='today'?isToday(t.due):filt==='overdue'?isOver(t.due):filt==='done'?t.status==='done':true)
+    .filter(t => filt === 'done' ? (t.archived || t.status === 'done') : !t.archived)
+    .filter(t => filt==='today'?isToday(t.due):filt==='overdue'?isOver(t.due):true)
     .filter(t => {
       const q = taskSearch.trim().toLowerCase();
       if (!q) return true;
@@ -1348,14 +1365,6 @@ export default function App() {
                       </div>
                       {time>0 && <span style={{ fontSize:11, color:'#6366f1', fontWeight:700, fontVariantNumeric:'tabular-nums' }}>{fmt(time)}</span>}
                     </div>
-                    {t.checklistTotal>0 && (
-                      <div style={{ marginTop:7 }}>
-                        <div style={{ height:2, borderRadius:2, background:'rgba(255,255,255,0.05)' }}>
-                          <div style={{ height:'100%', borderRadius:2, background:'linear-gradient(90deg,#7c3aed,#3b82f6)', width:`${Math.round(t.checklistDone/t.checklistTotal*100)}%`, transition:'width 0.4s' }}/>
-                        </div>
-                        <div style={{ fontSize:10, color:'#475569', marginTop:2 }}>{t.checklistDone}/{t.checklistTotal} done</div>
-                      </div>
-                    )}
                   </div>
                 );
               })}
@@ -1638,8 +1647,8 @@ export default function App() {
                 <h3 style={{ margin:0, fontSize:14, color:'#f1f5f9' }}>Task Description</h3>
                 <span style={{ fontSize:10, color:'#475569', fontWeight:800 }}>{task.filename}</span>
               </div>
-              <div style={{ borderRadius:10, border:'1px solid rgba(255,255,255,0.06)', background:'rgba(255,255,255,0.025)', padding:'14px 16px', minHeight:220, color:'#cbd5e1', fontSize:13, lineHeight:1.65, whiteSpace:'pre-wrap' }}>
-                {taskDescriptionText(task.raw) || 'No task description body yet.'}
+              <div style={{ borderRadius:10, border:'1px solid rgba(255,255,255,0.06)', background:'rgba(255,255,255,0.025)', padding:'14px 16px', minHeight:220 }}>
+                <MarkdownBody>{taskDescriptionText(task.raw)}</MarkdownBody>
               </div>
             </aside>
           </div>
