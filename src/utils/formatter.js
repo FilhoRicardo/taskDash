@@ -472,6 +472,31 @@ export function buildNewProjectMd({ title, client, summary, status = 'active', t
   return lines.join('\n') + '\n';
 }
 
+export function buildNewPersonMd({ name, company, role, email, phone, tags, body }) {
+  const today = tod();
+  const tagArr = ['people'];
+  splitTags(tags).forEach(t => {
+    if (!tagArr.includes(t)) tagArr.push(t);
+  });
+
+  const lines = ['---'];
+  lines.push(`dateCreated: ${today}`);
+  lines.push(`dateModified: ${today}`);
+  lines.push(`tags: [${tagArr.join(', ')}]`);
+  lines.push('type: person');
+  lines.push(`person: ${yamlQuote(name)}`);
+  if (company) lines.push(`company: ${yamlQuote(`[[${company}]]`)}`);
+  if (role) lines.push(`role: ${yamlQuote(role)}`);
+  if (email) lines.push(`email: ${yamlQuote(email)}`);
+  if (phone) lines.push(`phone: ${yamlQuote(phone)}`);
+  lines.push('---');
+  lines.push(`# ${name}`);
+  lines.push('');
+  if (body && body.trim()) lines.push(body.trim());
+  else lines.push('## Notes', '');
+  return lines.join('\n') + '\n';
+}
+
 export function touchDateModified(raw) {
   const fmMatch = raw.match(/^---\n([\s\S]*?)\n---/);
   if (!fmMatch) return raw;

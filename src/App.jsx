@@ -3,7 +3,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { parseTask, parseProperty, parseProject, parseDailyNote, readMdFiles, readDirNames, readImageFiles } from './utils/parser.js';
 import { idbGet, idbSet, idbDel, lsGet, lsSet, lsDel } from './utils/storage.js';
-import { fmt, tod, isToday, isOver, longDate, appendNoteToMd, appendPropertyCommentToMd, appendDailySectionEntry, appendDailyTimeClockEvent, buildDailyNoteMd, buildTrackerRow, appendTrackerRow, buildMeetingMd, buildNewTaskMd, buildNewPropertyMd, buildNewProjectMd, finishRecurrentTaskInstance, markTaskDone, postponeTaskDates, replaceDailyTimeClockRows, setDailyWorkStatus, setPropertyCover, touchDateModified, updateTaskDates } from './utils/formatter.js';
+import { fmt, tod, isToday, isOver, longDate, appendNoteToMd, appendPropertyCommentToMd, appendDailySectionEntry, appendDailyTimeClockEvent, buildDailyNoteMd, buildTrackerRow, appendTrackerRow, buildMeetingMd, buildNewTaskMd, buildNewPropertyMd, buildNewProjectMd, buildNewPersonMd, finishRecurrentTaskInstance, markTaskDone, postponeTaskDates, replaceDailyTimeClockRows, setDailyWorkStatus, setPropertyCover, touchDateModified, updateTaskDates } from './utils/formatter.js';
 
 const REFRESH_MS  = 5 * 60 * 1000;
 const WARN_MS     = 60 * 60 * 1000;
@@ -15,7 +15,7 @@ const FOLDER_DEFS = [
   { key:'projects',   label:'Projects',   mode:'readwrite', required:false, desc:'For project autocomplete and project editing' },
   { key:'properties', label:'Properties', mode:'readwrite', required:false, desc:'For building autocomplete and property comments' },
   { key:'clients',    label:'Clients',    mode:'read',      required:false, desc:'For client autocomplete' },
-  { key:'people',     label:'People',     mode:'read',      required:false, desc:'For "waiting for" autocomplete' },
+  { key:'people',     label:'People',     mode:'readwrite', required:false, desc:'For "waiting for" autocomplete and adding new people' },
   { key:'attachments', label:'Attachments', mode:'readwrite', required:false, desc:'For property cover images and uploads' },
   { key:'daily',      label:'Daily Notes', mode:'readwrite', required:false, desc:'Where TaskDash should auto-create YYYY-MM-DD daily notes' },
 ];
@@ -362,6 +362,7 @@ export default function App() {
   const [meetingNotes,  setMeetingNotes]  = useState('');
   const [newTaskOpen,   setNewTaskOpen]   = useState(false);
   const [newPropertyOpen, setNewPropertyOpen] = useState(false);
+  const [newPersonOpen, setNewPersonOpen] = useState(false);
 
   const adHocRef        = useRef('');
   const meetingTitleRef = useRef('');
@@ -1027,6 +1028,22 @@ export default function App() {
     }
   };
 
+  const createPerson = async (form) => {
+    if (!dirs.people || !form.name.trim()) return;
+    try {
+      const filename = await uniqueFileNameInDir(dirs.people, `${safeFilename(form.name)}.md`);
+      const content = buildNewPersonMd(form);
+      const fh = await dirs.people.getFileHandle(filename, { create:true });
+      await writeFile(fh, content);
+      await loadRefs({ ...dirs, people: dirs.people });
+      setNewPersonOpen(false);
+      setToast(`Created person "${form.name.trim()}"`);
+    } catch(e) {
+      console.error('create person failed', e);
+      alert('Failed to create person: ' + e.message);
+    }
+  };
+
   const saveProject = async () => {
     if (!projectSel) return;
     const handle = projectHandles[projectSel];
@@ -1285,7 +1302,7 @@ export default function App() {
           </div>
           <div style={{ display:'flex', gap:4, marginTop:10, padding:3, borderRadius:10, background:'rgba(255,255,255,0.03)', border:'1px solid rgba(255,255,255,0.06)' }}>
             {['mission','tasks','projects','properties'].map(v => (
-              <button key={v} onClick={()=>{ setView(v); setNewTaskOpen(false); setNewPropertyOpen(false); setNewProjectOpen(false); }} style={{ flex:1, padding:'6px 5px', borderRadius:8, border:'none', cursor:'pointer', fontWeight:700, fontSize:10, fontFamily:'inherit', textTransform:'capitalize', background:view===v?'rgba(124,58,237,0.2)':'transparent', color:view===v?'#c4b5fd':'#64748b' }}>
+              <button key={v} onClick={()=>{ setView(v); setNewTaskOpen(false); setNewPropertyOpen(false); setNewProjectOpen(false); setNewPersonOpen(false); }} style={{ flex:1, padding:'6px 5px', borderRadius:8, border:'none', cursor:'pointer', fontWeight:700, fontSize:10, fontFamily:'inherit', textTransform:'capitalize', background:view===v?'rgba(124,58,237,0.2)':'transparent', color:view===v?'#c4b5fd':'#64748b' }}>
                 {v === 'mission' ? 'Today' : v}
               </button>
             ))}
@@ -1326,8 +1343,11 @@ export default function App() {
             </div>
 
             <div style={{ padding:'8px 10px 4px', display:'flex', gap:6, alignItems:'center' }}>
-              <button onClick={()=>{ setMeetingOpen(false); setNewTaskOpen(true); }} style={{ flex:1, padding:'8px 10px', borderRadius:9, border:'none', cursor:'pointer', fontWeight:700, fontSize:12, fontFamily:'inherit', background:'linear-gradient(135deg,#7c3aed,#3b82f6)', color:'#fff', boxShadow:'0 2px 12px rgba(124,58,237,0.35)' }}>
+              <button onClick={()=>{ setMeetingOpen(false); setNewPersonOpen(false); setNewTaskOpen(true); }} style={{ flex:1, padding:'8px 10px', borderRadius:9, border:'none', cursor:'pointer', fontWeight:700, fontSize:12, fontFamily:'inherit', background:'linear-gradient(135deg,#7c3aed,#3b82f6)', color:'#fff', boxShadow:'0 2px 12px rgba(124,58,237,0.35)' }}>
                 +  New Task
+              </button>
+              <button onClick={()=>{ setMeetingOpen(false); setNewTaskOpen(false); setNewPersonOpen(true); }} title={dirs.people ? 'Add a person note' : 'Configure the People folder first'} style={{ padding:'8px 10px', borderRadius:9, border:'1px solid rgba(255,255,255,0.08)', cursor:'pointer', fontWeight:700, fontSize:12, fontFamily:'inherit', background:'rgba(255,255,255,0.035)', color:'#c4b5fd', opacity:dirs.people?1:0.65 }}>
+                + Person
               </button>
             </div>
 
@@ -1448,7 +1468,7 @@ export default function App() {
                 ))}
               </div>
             ))}
-            <button onClick={()=>{ setView('tasks'); setNewTaskOpen(true); }} style={{ width:'100%', padding:'8px 10px', borderRadius:9, border:'none', cursor:'pointer', fontWeight:700, fontSize:12, fontFamily:'inherit', background:'linear-gradient(135deg,#7c3aed,#3b82f6)', color:'#fff' }}>+ New Task</button>
+            <button onClick={()=>{ setView('tasks'); setNewPersonOpen(false); setNewTaskOpen(true); }} style={{ width:'100%', padding:'8px 10px', borderRadius:9, border:'none', cursor:'pointer', fontWeight:700, fontSize:12, fontFamily:'inherit', background:'linear-gradient(135deg,#7c3aed,#3b82f6)', color:'#fff' }}>+ New Task</button>
           </div>
         )}
 
@@ -1473,7 +1493,7 @@ export default function App() {
           onSelectTask={(id)=>{ setSel(id); setView('tasks'); }}
           onStart={start}
           onStop={stop}
-          onNewTask={()=>{ setView('tasks'); setNewTaskOpen(true); }}
+          onNewTask={()=>{ setView('tasks'); setNewPersonOpen(false); setNewTaskOpen(true); }}
           dailyNote={dailyNote}
           dailyInputs={dailyInputs}
           setDailyInputs={setDailyInputs}
@@ -1532,6 +1552,8 @@ export default function App() {
           onConfigure={()=>setFolderSetupOpen(true)}
         />
         )
+      ) : newPersonOpen ? (
+        <NewPersonPanel onCancel={()=>setNewPersonOpen(false)} onCreate={createPerson} refs={refs} hasPeopleFolder={!!dirs.people} onConfigure={()=>setFolderSetupOpen(true)}/>
       ) : newTaskOpen ? (
         <NewTaskPanel onCancel={()=>setNewTaskOpen(false)} onCreate={createTask} refs={refs}/>
       ) : meetingOpen ? (
@@ -2223,6 +2245,85 @@ function NewPropertyPanel({ onCancel, onCreate, refs, hasAttachmentsFolder, onCo
 
           <Field label="Initial notes (optional)">
             <textarea value={form.body} onChange={e=>set('body', e.target.value)} placeholder="Optional property details..." rows={7} style={{ ...inputBase, resize:'vertical', lineHeight:1.55 }}/>
+          </Field>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// ─── New Person Panel ─────────────────────────────────────
+function NewPersonPanel({ onCancel, onCreate, refs, hasPeopleFolder, onConfigure }) {
+  const [form, setForm] = useState({
+    name:'',
+    company:'',
+    role:'',
+    email:'',
+    phone:'',
+    tags:'people',
+    body:'',
+  });
+  const [busy, setBusy] = useState(false);
+  const set = (k, v) => setForm(prev => ({ ...prev, [k]: v }));
+  const dlClients = `dl_person_clients_${Math.random().toString(36).slice(2,8)}`;
+
+  const submit = async (e) => {
+    e?.preventDefault?.();
+    if (!form.name.trim() || !hasPeopleFolder) return;
+    setBusy(true);
+    await onCreate(form);
+    setBusy(false);
+  };
+
+  return (
+    <div style={{ flex:1, display:'flex', flexDirection:'column', overflow:'hidden' }}>
+      <div style={{ padding:'22px 30px 16px', borderBottom:'1px solid rgba(255,255,255,0.06)', flexShrink:0, display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:24 }}>
+        <div>
+          <div style={{ fontSize:10, color:'#a78bfa', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:8 }}>+ New Person</div>
+          <h2 style={{ margin:0, fontSize:19, fontWeight:700, color:'#f1f5f9' }}>Create a person note</h2>
+        </div>
+        <div style={{ display:'flex', gap:8 }}>
+          <button onClick={onCancel} style={{ padding:'9px 16px', borderRadius:10, border:'1px solid rgba(255,255,255,0.1)', cursor:'pointer', fontWeight:700, fontSize:13, fontFamily:'inherit', background:'transparent', color:'#94a3b8' }}>Cancel</button>
+          <button onClick={hasPeopleFolder ? submit : onConfigure} disabled={busy || (hasPeopleFolder && !form.name.trim())} style={{ padding:'9px 22px', borderRadius:10, border:'none', cursor:'pointer', fontWeight:700, fontSize:13, fontFamily:'inherit', background:'linear-gradient(135deg,#7c3aed,#3b82f6)', color:'#fff', opacity:(busy || (hasPeopleFolder && !form.name.trim()))?0.4:1 }}>
+            {hasPeopleFolder ? (busy ? 'Creating...' : 'Create Person') : 'Configure People Folder'}
+          </button>
+        </div>
+      </div>
+
+      <div style={{ flex:1, overflowY:'auto', padding:'20px 30px' }}>
+        <form onSubmit={submit} style={{ maxWidth:720 }}>
+          <Field label="Person name">
+            <input autoFocus value={form.name} onChange={e=>set('name', e.target.value)} placeholder="e.g. Jane Smith" style={{ ...inputBase, fontSize:16, fontWeight:600, padding:'10px 14px' }}/>
+            <div style={{ fontSize:10, color:'#475569', marginTop:4 }}>Filename will be <code style={{ color:'#94a3b8' }}>{form.name.trim() ? `${safeFilename(form.name)}.md` : '<person-name>.md'}</code></div>
+          </Field>
+
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:11 }}>
+            <Field label={`Company / client${refs.clients.length?` · ${refs.clients.length} available`:''}`}>
+              <input list={dlClients} value={form.company} onChange={e=>set('company', e.target.value)} placeholder="Pick or type..." style={inputBase}/>
+              <datalist id={dlClients}>
+                {refs.clients.map(c => <option key={c} value={c}/>)}
+              </datalist>
+            </Field>
+            <Field label="Role">
+              <input value={form.role} onChange={e=>set('role', e.target.value)} placeholder="e.g. Asset manager" style={inputBase}/>
+            </Field>
+          </div>
+
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:11 }}>
+            <Field label="Email">
+              <input type="email" value={form.email} onChange={e=>set('email', e.target.value)} placeholder="name@example.com" style={inputBase}/>
+            </Field>
+            <Field label="Phone">
+              <input value={form.phone} onChange={e=>set('phone', e.target.value)} placeholder="+353..." style={inputBase}/>
+            </Field>
+          </div>
+
+          <Field label="Tags (comma-separated)">
+            <input value={form.tags} onChange={e=>set('tags', e.target.value)} placeholder="people, client" style={inputBase}/>
+          </Field>
+
+          <Field label="Initial notes">
+            <textarea value={form.body} onChange={e=>set('body', e.target.value)} placeholder="Relationship notes, preferences, context..." rows={8} style={{ ...inputBase, resize:'vertical', lineHeight:1.55 }}/>
           </Field>
         </form>
       </div>
