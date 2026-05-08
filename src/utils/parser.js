@@ -19,7 +19,8 @@ export function parseFrontmatter(txt) {
 }
 
 const wl = s => s ? s.replace(/^\[\[|\]\]$/g, '') : null;
-const basename = name => name.replace(/\.md$/i, '');
+const fileBase = name => name.replace(/\\/g, '/').split('/').pop();
+const basename = name => fileBase(name).replace(/\.md$/i, '');
 const ignoredName = name => {
   const base = basename(name).trim().toLowerCase();
   return base === 'index' || base.startsWith('_');
@@ -61,14 +62,14 @@ function parseDatedLogs(txt) {
 }
 
 export function parseTask(name, txt) {
-  const fm = parseFrontmatter(txt), title = fm.title || name.replace(/\.md$/, '');
+  const fm = parseFrontmatter(txt), title = fm.title || basename(name);
   const cl = [...txt.matchAll(/- \[([ x])\] (.+)/g)].map(m => ({done:m[1]==='x',text:m[2]}));
   const logs = parseDatedLogs(txt);
 
   const tags = Array.isArray(fm.tags) ? fm.tags : fm.tags ? [fm.tags] : [];
 
   return {
-    id:name, title, filename:name.replace(/\.md$/,''),
+    id:name, title, filename:basename(name),
     priority:fm.priority||'normal', status:fm.status||'none', due:fm.due||null, scheduled:fm.scheduled||null,
     dateCreated:fm.dateCreated||null, dateModified:fm.dateModified||null,
     contexts:Array.isArray(fm.contexts)?fm.contexts:fm.contexts?[fm.contexts]:[],
@@ -172,13 +173,14 @@ export function parseProperty(name, txt) {
   };
 }
 
-export async function readMdFiles(dir, acc = []) {
+export async function readMdFiles(dir, acc = [], prefix = '') {
   for await (const [name, h] of dir.entries()) {
     if (ignoredName(name)) continue;
+    const rel = prefix ? `${prefix}/${name}` : name;
     if (h.kind==='file' && name.endsWith('.md') && name !== 'timetracker.md')
-      acc.push({ name, handle:h, text: await (await h.getFile()).text() });
+      acc.push({ name: rel, handle:h, text: await (await h.getFile()).text() });
     else if (h.kind==='directory' && !name.startsWith('.'))
-      await readMdFiles(h, acc);
+      await readMdFiles(h, acc, rel);
   }
   return acc;
 }

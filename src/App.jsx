@@ -31,6 +31,10 @@ async function writeFile(handle, content) {
   await w.write(content); await w.close();
 }
 
+async function readHandleText(handle) {
+  return await (await handle.getFile()).text();
+}
+
 function Toast({ msg, onClose }) {
   return (
     <div style={{ position:'fixed', top:16, left:'50%', transform:'translateX(-50%)', zIndex:999,
@@ -57,6 +61,14 @@ function SBadge({ s }) {
 function parseLogText(text) {
   const m = text.match(/^\[(\d{2}:\d{2})\]\s*(.*)/);
   return m ? { time:m[1], body:m[2] } : { time:null, body:text };
+}
+
+function taskDescriptionText(raw = '') {
+  return raw
+    .replace(/^---\n[\s\S]*?\n---\n?/, '')
+    .split(/\n### (?:\[\[)?(?:\d{4}-\d{2}-\d{2}|\d{1,2}\/\d{1,2}\/\d{4})/)[0]
+    .replace(/^#\s+.+\n?/, '')
+    .trim();
 }
 
 function safeFilename(title) {
@@ -326,6 +338,7 @@ export default function App() {
   const [sel,           setSel]           = useState(null);
   const [note,          setNote]          = useState('');
   const [filt,          setFilt]          = useState('all');
+  const [taskSearch,    setTaskSearch]    = useState('');
   const [toast,         setToast]         = useState(null);
   const [showAdHoc,     setShowAdHoc]     = useState(false);
   const [adHocInput,    setAdHocInput]    = useState('');
@@ -396,12 +409,6 @@ export default function App() {
   useEffect(() => {
     return () => Object.values(imageUrlsRef.current).forEach(URL.revokeObjectURL);
   }, []);
-
-  useEffect(() => {
-    if (!dirs.tasks) return;
-    syncRef.current = setInterval(() => loadFiles(dirs.tasks), REFRESH_MS);
-    return () => clearInterval(syncRef.current);
-  }, [dirs.tasks]);
 
   useEffect(() => {
     clearTimeout(nudgeRef.current);
@@ -572,6 +579,12 @@ export default function App() {
     if (liveDirs.attachments) await loadAttachmentImages(liveDirs.attachments);
     if (liveDirs.daily) await ensureDailyNote(liveDirs.daily);
   }, [loadFiles, loadRefs, loadProjects, loadProperties, loadAttachmentImages, ensureDailyNote]);
+
+  useEffect(() => {
+    if (!dirs.tasks && !dirs.projects && !dirs.properties && !dirs.daily && !dirs.attachments) return;
+    syncRef.current = setInterval(() => loadAll(dirs), REFRESH_MS);
+    return () => clearInterval(syncRef.current);
+  }, [dirs, loadAll]);
 
   // ── Setup & permission flow ──
   const pickFolder = async (key) => {
@@ -753,7 +766,8 @@ export default function App() {
     if (handle) {
       try {
         const task = tasks.find(t => t.id===sel);
-        const updated = appendNoteToMd(task.raw, note.trim());
+        const latest = await readHandleText(handle);
+        const updated = appendNoteToMd(latest, note.trim());
         await writeFile(handle, updated);
         setTasks(prev => prev.map(t => t.id===sel ? parseTask(t.id, updated) : t));
       } catch(e) { console.error('note write failed', e); }
@@ -794,7 +808,8 @@ export default function App() {
     if (!confirm(confirmText)) return;
     try {
       if (timer?.taskId === sel) await stop();
-      const updated = markTaskDone(task.raw);
+      const latest = await readHandleText(handle);
+      const updated = markTaskDone(latest);
       await writeFile(handle, updated);
       const updatedTask = parseTask(task.id, updated);
       const nextTasks = tasks.map(t => t.id===sel ? updatedTask : t);
@@ -810,11 +825,13 @@ export default function App() {
 
   const finishRecurrentInstance = async (taskId) => {
     const task = tasks.find(t => t.id === taskId);
-    if (!task) return;
+    const handle = taskHandles[taskId];
+    if (!task || !handle) return;
     try {
       if (timer?.taskId === taskId) await stop();
-      const instanceDate = task.due || task.scheduled || tod();
-      const updated = finishRecurrentTaskInstance(task.raw, task.due, task.scheduled);
+      const latestTask = parseTask(taskId, await readHandleText(handle));
+      const instanceDate = latestTask.due || latestTask.scheduled || tod();
+      const updated = finishRecurrentTaskInstance(latestTask.raw, latestTask.due, latestTask.scheduled);
       await writeTaskUpdate(taskId, updated, `Finished ${instanceDate}; next run scheduled`);
     } catch(e) {
       console.error('finish recurrent instance failed', e);
@@ -833,11 +850,13 @@ export default function App() {
 
   const changeTaskDates = async (taskId, nextDates) => {
     const task = tasks.find(t => t.id === taskId);
-    if (!task) return;
+    const handle = taskHandles[taskId];
+    if (!task || !handle) return;
     try {
-      const updated = updateTaskDates(task.raw, {
-        due: nextDates.due ?? task.due ?? '',
-        scheduled: nextDates.scheduled ?? task.scheduled ?? '',
+      const latestTask = parseTask(taskId, await readHandleText(handle));
+      const updated = updateTaskDates(latestTask.raw, {
+        due: nextDates.due ?? latestTask.due ?? '',
+        scheduled: nextDates.scheduled ?? latestTask.scheduled ?? '',
       });
       await writeTaskUpdate(taskId, updated, 'Updated task dates');
     } catch(e) {
@@ -848,9 +867,11 @@ export default function App() {
 
   const postponeTaskByWeek = async (taskId) => {
     const task = tasks.find(t => t.id === taskId);
-    if (!task) return;
+    const handle = taskHandles[taskId];
+    if (!task || !handle) return;
     try {
-      const updated = postponeTaskDates(task.raw, task.due, task.scheduled, 7);
+      const latestTask = parseTask(taskId, await readHandleText(handle));
+      const updated = postponeTaskDates(latestTask.raw, latestTask.due, latestTask.scheduled, 7);
       await writeTaskUpdate(taskId, updated, 'Postponed task by 1 week');
     } catch(e) {
       console.error('task postpone failed', e);
@@ -864,7 +885,8 @@ export default function App() {
     const property = properties.find(p => p.id === propertySel);
     if (!handle || !property) return;
     try {
-      const updated = appendPropertyCommentToMd(property.raw, propertyComment.trim());
+      const latest = await readHandleText(handle);
+      const updated = appendPropertyCommentToMd(latest, propertyComment.trim());
       await writeFile(handle, updated);
       const updatedProperty = parseProperty(property.id, updated);
       setProperties(prev => prev.map(p => p.id === propertySel ? updatedProperty : p));
@@ -932,7 +954,8 @@ export default function App() {
     try {
       const coverName = await saveCoverFile(file, property.title);
       const coverPath = `${dirs.attachments.name}/${coverName}`;
-      const updated = setPropertyCover(property.raw, coverPath);
+      const latest = await readHandleText(handle);
+      const updated = setPropertyCover(latest, coverPath);
       await writeFile(handle, updated);
       await loadAttachmentImages(dirs.attachments);
       const updatedProperty = parseProperty(property.id, updated);
@@ -989,7 +1012,8 @@ export default function App() {
     }
 
     try {
-      const updated = appendDailySectionEntry(dailyNote.raw, section, text);
+      const latest = await readHandleText(dailyHandle);
+      const updated = appendDailySectionEntry(latest, section, text);
       await writeFile(dailyHandle, updated);
       setDailyNote(parseDailyNote(`${tod()}.md`, updated));
       setDailyInputs(prev => ({ ...prev, [section]: '' }));
@@ -1007,7 +1031,8 @@ export default function App() {
     }
 
     try {
-      const updated = appendDailyTimeClockEvent(dailyNote.raw, event);
+      const latest = await readHandleText(dailyHandle);
+      const updated = appendDailyTimeClockEvent(latest, event);
       await writeFile(dailyHandle, updated);
       const parsed = parseDailyNote(`${tod()}.md`, updated);
       setDailyNote(parsed);
@@ -1062,7 +1087,16 @@ export default function App() {
   const totalToday = [...tasks.map(t=>t.id),'__email__','__meeting__','__adhoc__'].reduce((a,id)=>a+getTime(id),0);
   const dueColor  = due => isOver(due)?'#ef4444':isToday(due)?'#f59e0b':'#475569';
   const syncLabel = lastSync ? `Synced ${new Date(lastSync).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}` : 'Not synced';
-  const filtered  = tasks.filter(t => !t.archived).filter(t => filt==='today'?isToday(t.due):filt==='overdue'?isOver(t.due):filt==='done'?t.status==='done':true);
+  const filtered  = tasks
+    .filter(t => !t.archived)
+    .filter(t => filt==='today'?isToday(t.due):filt==='overdue'?isOver(t.due):filt==='done'?t.status==='done':true)
+    .filter(t => {
+      const q = taskSearch.trim().toLowerCase();
+      if (!q) return true;
+      return [t.title, t.filename, t.client, t.building, t.priority, t.status, t.due, t.scheduled, ...(t.projects || []), ...(t.contexts || []), ...(t.tags || [])]
+        .filter(Boolean)
+        .some(v => String(v).toLowerCase().includes(q));
+    });
   const openTasks = tasks.filter(t => !t.archived && t.status !== 'done');
   const byOldestCreated = (a, b) => (a.dateCreated || '9999').localeCompare(b.dateCreated || '9999') || a.title.localeCompare(b.title);
   const missionToday = openTasks.filter(t => !t.recurrent && (isToday(t.due) || isToday(t.scheduled))).sort(byOldestCreated);
@@ -1249,6 +1283,11 @@ export default function App() {
               <button onClick={()=>{ setMeetingOpen(false); setNewTaskOpen(true); }} style={{ flex:1, padding:'8px 10px', borderRadius:9, border:'none', cursor:'pointer', fontWeight:700, fontSize:12, fontFamily:'inherit', background:'linear-gradient(135deg,#7c3aed,#3b82f6)', color:'#fff', boxShadow:'0 2px 12px rgba(124,58,237,0.35)' }}>
                 +  New Task
               </button>
+            </div>
+
+
+            <div style={{ padding:'6px 10px 8px', borderBottom:'1px solid rgba(255,255,255,0.06)' }}>
+              <input value={taskSearch} onChange={e=>setTaskSearch(e.target.value)} placeholder="Search tasks..." style={{ ...inputBase, padding:'8px 10px', fontSize:12 }}/>
             </div>
 
             <div style={{ display:'flex', gap:3, padding:'4px 10px 8px', borderBottom:'1px solid rgba(255,255,255,0.06)' }}>
@@ -1536,8 +1575,8 @@ export default function App() {
             </div>
           </div>
 
-          <div style={{ flex:1, overflowY:'auto', padding:'18px 30px' }}>
-            <div>
+          <div style={{ flex:1, minHeight:0, display:'grid', gridTemplateColumns:'minmax(420px, 0.58fr) minmax(360px, 0.42fr)', gap:0, overflow:'hidden' }}>
+            <div style={{ minWidth:0, overflowY:'auto', padding:'18px 24px 18px 30px', borderRight:'1px solid rgba(255,255,255,0.06)' }}>
               <div style={{ display:'flex', gap:8, marginBottom:18 }}>
                 <input value={note} onChange={e=>setNote(e.target.value)} onKeyDown={e=>e.key==='Enter'&&!e.shiftKey&&addNote()}
                   placeholder="Add a note… Enter to save · writes directly to your .md file"
@@ -1559,6 +1598,15 @@ export default function App() {
                 );
               })}
             </div>
+            <aside style={{ minWidth:0, overflowY:'auto', padding:'18px 30px 18px 24px' }}>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline', gap:12, marginBottom:12 }}>
+                <h3 style={{ margin:0, fontSize:14, color:'#f1f5f9' }}>Task Description</h3>
+                <span style={{ fontSize:10, color:'#475569', fontWeight:800 }}>{task.filename}</span>
+              </div>
+              <div style={{ borderRadius:10, border:'1px solid rgba(255,255,255,0.06)', background:'rgba(255,255,255,0.025)', padding:'14px 16px', minHeight:220, color:'#cbd5e1', fontSize:13, lineHeight:1.65, whiteSpace:'pre-wrap' }}>
+                {taskDescriptionText(task.raw) || 'No task description body yet.'}
+              </div>
+            </aside>
           </div>
         </div>
       )}
@@ -1906,9 +1954,9 @@ function PropertyPanel({ properties, selected, selectedId, images, onSelect, com
         </div>
       </div>
 
-      <div style={{ flex:1, minHeight:0, display:'grid', gridTemplateColumns:'minmax(340px, 1.1fr) minmax(320px, 0.9fr)', gap:0 }}>
+      <div style={{ flex:1, minHeight:0, display:'grid', gridTemplateColumns:'minmax(280px, 0.45fr) minmax(520px, 1fr)', gap:0 }}>
         <div style={{ overflowY:'auto', padding:'18px 20px', borderRight:'1px solid rgba(255,255,255,0.06)' }}>
-          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(170px,1fr))', gap:12 }}>
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(145px,1fr))', gap:12 }}>
             {properties.map(p => {
               const img = imageFor(p);
               const active = selectedId === p.id;
@@ -1956,7 +2004,7 @@ function PropertyPanel({ properties, selected, selectedId, images, onSelect, com
               {selected.summary && <p style={{ margin:'0 0 18px', color:'#64748b', fontSize:13, lineHeight:1.55 }}>{selected.summary}</p>}
 
               <div style={{ display:'flex', gap:8, marginBottom:18 }}>
-                <textarea value={comment} onChange={e=>setComment(e.target.value)} placeholder="Add a property comment…" rows={3}
+                <textarea value={comment} onChange={e=>setComment(e.target.value)} placeholder="Add a property comment…" rows={6}
                   style={{ flex:1, padding:'10px 12px', borderRadius:10, resize:'vertical', background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.09)', color:'#e2e8f0', fontSize:13, lineHeight:1.5, outline:'none', fontFamily:'inherit' }}/>
                 <button onClick={onAddComment} disabled={!comment.trim()} style={{ alignSelf:'stretch', padding:'0 18px', borderRadius:10, border:'none', cursor:'pointer', fontWeight:700, fontSize:13, fontFamily:'inherit', background:'linear-gradient(135deg,#7c3aed,#3b82f6)', color:'#fff', opacity:comment.trim()?1:0.35 }}>Add</button>
               </div>
