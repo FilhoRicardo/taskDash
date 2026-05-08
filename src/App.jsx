@@ -333,6 +333,7 @@ export default function App() {
   const [loading,       setLoading]       = useState(false);
   const [lastSync,      setLastSync]      = useState(null);
   const [needsRefresh,  setNeedsRefresh]  = useState(false);
+  const [syncBusy,      setSyncBusy]      = useState(false);
   const [timer,         setTimer]         = useState(null);
   const [tick,          setTick]          = useState(0);
   const [sel,           setSel]           = useState(null);
@@ -585,6 +586,29 @@ export default function App() {
     syncRef.current = setInterval(() => loadAll(dirs), REFRESH_MS);
     return () => clearInterval(syncRef.current);
   }, [dirs, loadAll]);
+
+  const forceSyncAll = async () => {
+    if (syncBusy) return;
+    if (!Object.keys(dirs).length) {
+      alert('Configure folders first.');
+      return;
+    }
+    setSyncBusy(true);
+    setNeedsRefresh(false);
+    setFilt('all');
+    setTaskSearch('');
+    setProjectSearch('');
+    setPropertySearch('');
+    try {
+      await loadAll(dirs);
+      setToast('Force sync complete');
+    } catch(e) {
+      console.error('force sync failed', e);
+      alert('Force sync failed: ' + e.message);
+    } finally {
+      setSyncBusy(false);
+    }
+  };
 
   // ── Setup & permission flow ──
   const pickFolder = async (key) => {
@@ -1087,13 +1111,18 @@ export default function App() {
   const totalToday = [...tasks.map(t=>t.id),'__email__','__meeting__','__adhoc__'].reduce((a,id)=>a+getTime(id),0);
   const dueColor  = due => isOver(due)?'#ef4444':isToday(due)?'#f59e0b':'#475569';
   const syncLabel = lastSync ? `Synced ${new Date(lastSync).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}` : 'Not synced';
+  const taskTitleCounts = tasks.reduce((acc, t) => {
+    const key = (t.title || '').trim().toLowerCase();
+    if (key) acc[key] = (acc[key] || 0) + 1;
+    return acc;
+  }, {});
   const filtered  = tasks
     .filter(t => !t.archived)
     .filter(t => filt==='today'?isToday(t.due):filt==='overdue'?isOver(t.due):filt==='done'?t.status==='done':true)
     .filter(t => {
       const q = taskSearch.trim().toLowerCase();
       if (!q) return true;
-      return [t.title, t.filename, t.client, t.building, t.priority, t.status, t.due, t.scheduled, ...(t.projects || []), ...(t.contexts || []), ...(t.tags || [])]
+      return [t.title, t.filename, t.id, t.client, t.building, t.priority, t.status, t.due, t.scheduled, ...(t.projects || []), ...(t.contexts || []), ...(t.tags || [])]
         .filter(Boolean)
         .some(v => String(v).toLowerCase().includes(q));
     });
@@ -1222,10 +1251,10 @@ export default function App() {
               <span style={{ fontSize:15 }}>⚡</span>
               <span style={{ fontWeight:700, fontSize:13, maxWidth:155, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{dirs.tasks?.name}</span>
             </div>
-            <button onClick={() => loadAll(dirs)} style={{ padding:'4px 10px', borderRadius:7, border:'none', cursor:'pointer', fontSize:11, fontWeight:600, fontFamily:'inherit',
+            <button onClick={forceSyncAll} disabled={syncBusy} title="Force rescan all configured folders" style={{ padding:'4px 10px', borderRadius:7, border:'none', cursor:syncBusy?'wait':'pointer', fontSize:11, fontWeight:600, fontFamily:'inherit',
               background:needsRefresh?'rgba(245,158,11,0.2)':'rgba(124,58,237,0.15)',
-              color:needsRefresh?'#fbbf24':'#a78bfa', boxShadow:needsRefresh?'0 0 10px rgba(245,158,11,0.3)':'none', transition:'all 0.3s' }}>
-              ↺ {needsRefresh?'Stale':'Sync'}
+              color:needsRefresh?'#fbbf24':'#a78bfa', boxShadow:needsRefresh?'0 0 10px rgba(245,158,11,0.3)':'none', transition:'all 0.3s', opacity:syncBusy?0.6:1 }}>
+              ↺ {syncBusy?'Syncing':needsRefresh?'Stale':'Force Sync'}
             </button>
           </div>
           <div style={{ display:'flex', alignItems:'center', gap:5, marginBottom:10 }}>
@@ -1300,12 +1329,18 @@ export default function App() {
               {!filtered.length && <div style={{ color:'#475569', textAlign:'center', paddingTop:40, fontSize:12 }}>No tasks</div>}
               {filtered.map(t => {
                 const running=timer?.taskId===t.id, active=sel===t.id, time=getTime(t.id);
+                const duplicateTitle = taskTitleCounts[(t.title || '').trim().toLowerCase()] > 1;
                 return (
                   <div key={t.id} onClick={()=>setSel(t.id)} style={{ padding:'10px', marginBottom:4, borderRadius:10, cursor:'pointer', background:active?'rgba(124,58,237,0.1)':'rgba(255,255,255,0.02)', border:`1px solid ${active?'rgba(124,58,237,0.28)':'rgba(255,255,255,0.04)'}`, boxShadow:running?'0 0 14px rgba(16,185,129,0.18)':'none', transition:'all 0.15s' }}>
                     <div style={{ display:'flex', justifyContent:'space-between', gap:6, marginBottom:5 }}>
                       <span style={{ fontSize:12, fontWeight:500, lineHeight:1.35, flex:1 }}>{t.title}</span>
                       {running && <span style={{ fontSize:9, padding:'2px 6px', borderRadius:20, background:'rgba(16,185,129,0.12)', color:'#10b981', fontWeight:700, flexShrink:0 }}>● LIVE</span>}
                     </div>
+                    {duplicateTitle && (
+                      <div title={t.id} style={{ fontSize:10, color:'#818cf8', marginBottom:5, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                        {t.id.replace(/\.md$/i, '')}
+                      </div>
+                    )}
                     <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', flexWrap:'wrap', gap:4 }}>
                       <div style={{ display:'flex', gap:4, alignItems:'center', flexWrap:'wrap' }}>
                         <PBadge p={t.priority}/><SBadge s={t.status}/>
