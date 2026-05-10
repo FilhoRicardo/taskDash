@@ -1725,8 +1725,9 @@ export default function App() {
             <div style={{ flex:1, overflowY:'auto', padding:'6px 8px' }}>
               {!dirs.people && <div style={{ color:'#475569', textAlign:'center', paddingTop:40, fontSize:12 }}>Pick your People folder in Configure folders</div>}
               {filteredPeople.map(p => (
-                <div key={p} style={{ padding:'10px', marginBottom:4, borderRadius:10, background:'rgba(255,255,255,0.02)', border:'1px solid rgba(255,255,255,0.04)' }}>
-                  <div style={{ fontSize:12, fontWeight:700, lineHeight:1.35, color:'#e2e8f0' }}>{p}</div>
+                <div key={p.id} onClick={()=>setPersonSel(p.id)} style={{ padding:'10px', marginBottom:4, borderRadius:10, cursor:'pointer', background:personSel===p.id?'rgba(124,58,237,0.1)':'rgba(255,255,255,0.02)', border:`1px solid ${personSel===p.id?'rgba(124,58,237,0.28)':'rgba(255,255,255,0.04)'}` }}>
+                  <div style={{ fontSize:12, fontWeight:700, lineHeight:1.35, color:'#e2e8f0' }}>{p.title}</div>
+                  <div style={{ fontSize:10, color:'#475569', marginTop:3 }}>{p.company || p.role || p.filename}</div>
                 </div>
               ))}
             </div>
