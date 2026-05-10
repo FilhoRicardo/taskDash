@@ -21,6 +21,8 @@ const FOLDER_DEFS = [
 ];
 const REF_KEYS = ['projects','properties','clients','people'];
 const FOLDER_SETUP_SEEN = 'folderSetupV2Seen';
+const WRITE_BACKUPS_KEY = 'taskdashWriteBackups';
+const SAVED_FILTERS_KEY = 'taskdashSavedFilters';
 
 const STATUS_COLORS = {
   done:          { bg:'rgba(16,185,129,0.12)',  color:'#10b981' },
@@ -29,7 +31,30 @@ const STATUS_COLORS = {
   none:          { bg:'rgba(100,116,139,0.12)', color:'#64748b' },
 };
 
+async function rememberWriteBackup(handle, oldText) {
+  if (!oldText || typeof oldText !== 'string' || oldText.length > 500000) return;
+  try {
+    const backups = (await idbGet(WRITE_BACKUPS_KEY)) || [];
+    const next = [
+      { at: new Date().toISOString(), filename: handle?.name || 'Unknown file', content: oldText },
+      ...backups,
+    ].slice(0, 25);
+    await idbSet(WRITE_BACKUPS_KEY, next);
+    window.dispatchEvent(new CustomEvent('taskdash-backups-updated'));
+  } catch(e) {
+    console.warn('backup capture failed', e);
+  }
+}
+
 async function writeFile(handle, content) {
+  if (typeof content === 'string') {
+    try {
+      const oldText = await (await handle.getFile()).text();
+      if (oldText && oldText !== content) await rememberWriteBackup(handle, oldText);
+    } catch(e) {
+      console.warn('pre-write backup skipped', e);
+    }
+  }
   const w = await handle.createWritable();
   await w.write(content); await w.close();
 }
@@ -90,6 +115,87 @@ function safeFilename(title) {
     .replace(/\s+/g, ' ')
     .replace(/[. ]+$/g, '')
     .slice(0, 180) || 'Untitled task';
+}
+
+function isIsoDate(value) {
+  return !value || /^\d{4}-\d{2}-\d{2}$/.test(String(value));
+}
+
+function parseQuickCaptureText(text) {
+  const words = text.trim().split(/\s+/).filter(Boolean);
+  const tags = [];
+  let due = '';
+  let priority = 'normal';
+  const titleParts = [];
+  for (const word of words) {
+    if (/^#\w+/.test(word)) tags.push(word.slice(1));
+    else if (/^!(high|normal|low)$/i.test(word)) priority = word.slice(1).toLowerCase();
+    else if (/^due:/i.test(word)) due = word.split(':').slice(1).join(':');
+    else if (/^today$/i.test(word)) due = tod();
+    else if (/^tomorrow$/i.test(word)) {
+      const d = new Date();
+      d.setDate(d.getDate() + 1);
+      due = tod(d);
+    } else {
+      titleParts.push(word);
+    }
+  }
+  return {
+    title: titleParts.join(' ').trim(),
+    priority,
+    status:'none',
+    due: isIsoDate(due) ? due : '',
+    scheduled:'',
+    contexts:'work',
+    client:'',
+    building:'',
+    waitingfor:'',
+    projects:[],
+    extraTags: tags.join(', '),
+    body:'',
+    timeEstimate:'',
+    recurrent:false,
+  };
+}
+
+function buildDiagnostics({ tasks, projects, properties, refs, dirs, folderStats, backups }) {
+  const issues = [];
+  const duplicateGroups = Object.values(tasks.reduce((acc, t) => {
+    const key = (t.title || '').trim().toLowerCase();
+    if (!key) return acc;
+    acc[key] = acc[key] || [];
+    acc[key].push(t);
+    return acc;
+  }, {})).filter(group => group.length > 1);
+
+  duplicateGroups.forEach(group => {
+    issues.push({ level:'warning', text:`Duplicate task title "${group[0].title}" appears ${group.length} times.`, detail:group.map(t => t.id).join(' | ') });
+  });
+  tasks.forEach(t => {
+    if (!/^---\n[\s\S]*?\n---/.test(t.raw || '')) issues.push({ level:'warning', text:`${t.filename} has no frontmatter.`, detail:t.id });
+    if (!isIsoDate(t.due)) issues.push({ level:'error', text:`${t.filename} has invalid due date "${t.due}".`, detail:'Use YYYY-MM-DD.' });
+    if (!isIsoDate(t.scheduled)) issues.push({ level:'error', text:`${t.filename} has invalid scheduled date "${t.scheduled}".`, detail:'Use YYYY-MM-DD.' });
+    if (!t.dateCreated) issues.push({ level:'info', text:`${t.filename} has no dateCreated.`, detail:t.id });
+  });
+
+  if (!dirs.tasks) issues.push({ level:'error', text:'Tasks folder is not connected.', detail:'TaskDash needs this to be your mission control.' });
+  if (!dirs.daily) issues.push({ level:'warning', text:'Daily Notes folder is not connected.', detail:'Time tracking and daily review need it.' });
+  if (!dirs.people) issues.push({ level:'info', text:'People folder is not connected.', detail:'People autocomplete and person creation are limited.' });
+
+  return {
+    issues,
+    duplicateGroups,
+    counts: {
+      tasks: tasks.length,
+      openTasks: tasks.filter(t => !t.archived && t.status !== 'done').length,
+      doneTasks: tasks.filter(t => t.archived || t.status === 'done').length,
+      projects: projects.length,
+      properties: properties.length,
+      people: refs.people.length,
+      backups: backups.length,
+    },
+    folderStats,
+  };
 }
 
 function propertySlug(title) {
@@ -313,6 +419,9 @@ export default function App() {
   // ── Reference autocomplete lists (filenames without .md) ──
   const [refs, setRefs] = useState({ projects:[], properties:[], clients:[], people:[] });
   const [view, setView] = useState('mission');
+  const [folderStats, setFolderStats] = useState({});
+  const [writeBackups, setWriteBackups] = useState([]);
+  const [savedFilters, setSavedFilters] = useState([]);
 
   // ── Property library state ──
   const [properties,       setProperties]       = useState([]);
@@ -353,6 +462,8 @@ export default function App() {
   const [note,          setNote]          = useState('');
   const [filt,          setFilt]          = useState('all');
   const [taskSearch,    setTaskSearch]    = useState('');
+  const [quickCapture,  setQuickCapture]  = useState('');
+  const [filterName,    setFilterName]    = useState('');
   const [toast,         setToast]         = useState(null);
   const [showAdHoc,     setShowAdHoc]     = useState(false);
   const [adHocInput,    setAdHocInput]    = useState('');
@@ -363,6 +474,7 @@ export default function App() {
   const [newTaskOpen,   setNewTaskOpen]   = useState(false);
   const [newPropertyOpen, setNewPropertyOpen] = useState(false);
   const [newPersonOpen, setNewPersonOpen] = useState(false);
+  const [peopleSearch, setPeopleSearch] = useState('');
 
   const adHocRef        = useRef('');
   const meetingTitleRef = useRef('');
@@ -382,6 +494,12 @@ export default function App() {
       const at = lsGet('activeTimer');
       if (at && Date.now()-at.start < 86400000) setTimer(at);
       else if (at) lsDel('activeTimer');
+      try {
+        setSavedFilters(lsGet(SAVED_FILTERS_KEY) || []);
+        setWriteBackups((await idbGet(WRITE_BACKUPS_KEY)) || []);
+      } catch(e) {
+        console.warn('local preferences load skipped', e);
+      }
 
       try {
         // Migrate legacy single-folder key
@@ -426,6 +544,15 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    const refresh = async () => {
+      try { setWriteBackups((await idbGet(WRITE_BACKUPS_KEY)) || []); }
+      catch(e) { console.warn('backup refresh skipped', e); }
+    };
+    window.addEventListener('taskdash-backups-updated', refresh);
+    return () => window.removeEventListener('taskdash-backups-updated', refresh);
+  }, []);
+
+  useEffect(() => {
     clearTimeout(nudgeRef.current);
     if (!lastSync) return;
     setNeedsRefresh(false);
@@ -462,11 +589,13 @@ export default function App() {
   const loadFiles = useCallback(async (dir, doneDir = null) => {
     try {
       const raw = [];
-      if (dir) raw.push(...await readMdFiles(dir));
-      if (doneDir) raw.push(...await readMdFiles(doneDir, [], '__done__'));
+      const activeRaw = dir ? await readMdFiles(dir) : [];
+      const doneRaw = doneDir ? await readMdFiles(doneDir, [], '__done__') : [];
+      raw.push(...activeRaw, ...doneRaw);
       const parsed = raw.map(f => parseTask(f.name, f.text))
         .sort((a,b) => (a.due||'9999') > (b.due||'9999') ? 1 : -1);
       setTasks(parsed);
+      setFolderStats(prev => ({ ...prev, tasks: activeRaw.length, done: doneRaw.length }));
       const handles = {};
       raw.forEach(f => { handles[f.name] = f.handle; });
       setTaskHandles(handles);
@@ -490,6 +619,7 @@ export default function App() {
       const parsed = raw.map(f => parseProperty(f.name, f.text))
         .sort((a,b) => a.title.localeCompare(b.title));
       setProperties(parsed);
+      setFolderStats(prev => ({ ...prev, properties: raw.length }));
       const handles = {};
       raw.forEach(f => { handles[f.name] = f.handle; });
       setPropertyHandles(handles);
@@ -503,6 +633,7 @@ export default function App() {
       const parsed = raw.map(f => parseProject(f.name, f.text))
         .sort((a,b) => a.title.localeCompare(b.title));
       setProjects(parsed);
+      setFolderStats(prev => ({ ...prev, projects: raw.length }));
       const handles = {};
       raw.forEach(f => { handles[f.name] = f.handle; });
       setProjectHandles(handles);
@@ -566,6 +697,7 @@ export default function App() {
   const loadAttachmentImages = useCallback(async (dir) => {
     try {
       const raw = await readImageFiles(dir);
+      setFolderStats(prev => ({ ...prev, attachments: raw.length }));
       const next = {};
       for (const item of raw) {
         const file = await item.handle.getFile();
@@ -587,6 +719,7 @@ export default function App() {
       } catch(e) { console.error(`failed to read ${k}`, e); }
     }
     setRefs(out);
+    setFolderStats(prev => ({ ...prev, refs: Object.fromEntries(Object.entries(out).map(([k, v]) => [k, v.length])) }));
   }, []);
 
   const loadAll = useCallback(async (liveDirs) => {
@@ -618,6 +751,7 @@ export default function App() {
     setPropertySearch('');
     try {
       await loadAll(dirs);
+      setWriteBackups((await idbGet(WRITE_BACKUPS_KEY)) || []);
       setToast('Force sync complete');
     } catch(e) {
       console.error('force sync failed', e);
@@ -1028,6 +1162,37 @@ export default function App() {
     }
   };
 
+  const submitQuickCapture = async () => {
+    const form = parseQuickCaptureText(quickCapture);
+    if (!form.title) return;
+    await createTask(form);
+    setQuickCapture('');
+  };
+
+  const saveCurrentFilter = () => {
+    const name = filterName.trim() || `${filt}${taskSearch.trim() ? `: ${taskSearch.trim()}` : ''}`;
+    const next = [
+      { name, filt, search:taskSearch.trim() },
+      ...savedFilters.filter(item => item.name !== name),
+    ].slice(0, 8);
+    setSavedFilters(next);
+    lsSet(SAVED_FILTERS_KEY, next);
+    setFilterName('');
+    setToast(`Saved filter "${name}"`);
+  };
+
+  const applySavedFilter = (filter) => {
+    setFilt(filter.filt || 'all');
+    setTaskSearch(filter.search || '');
+    setView('tasks');
+  };
+
+  const deleteSavedFilter = (name) => {
+    const next = savedFilters.filter(item => item.name !== name);
+    setSavedFilters(next);
+    lsSet(SAVED_FILTERS_KEY, next);
+  };
+
   const createPerson = async (form) => {
     if (!dirs.people || !form.name.trim()) return;
     try {
@@ -1175,15 +1340,24 @@ export default function App() {
     if (!q) return true;
     return [p.title, p.filename, p.client, p.summary, p.status].filter(Boolean).some(v => v.toLowerCase().includes(q));
   });
-  const headerLabel = view === 'mission' ? 'MISSION CONTROL' : view === 'tasks' ? "TODAY'S TOTAL" : view === 'projects' ? 'PROJECT LIBRARY' : 'PROPERTY LIBRARY';
-  const headerMetric = view === 'mission' ? missionToday.length + missionOverdue.length + missionRecurrent.length : view === 'tasks' ? fmt(totalToday) : view === 'projects' ? projects.length : properties.length;
+  const filteredPeople = refs.people.filter(p => !peopleSearch.trim() || p.toLowerCase().includes(peopleSearch.trim().toLowerCase()));
+  const tomorrow = addDays(tod(), 1);
+  const completedToday = tasks.filter(t => (t.completedDate || '').slice(0, 10) === tod());
+  const tomorrowTasks = openTasks.filter(t => t.due === tomorrow || t.scheduled === tomorrow).sort(byOldestCreated);
+  const diagnostics = buildDiagnostics({ tasks, projects, properties, refs, dirs, folderStats, backups:writeBackups });
+  const headerLabel = view === 'mission' ? 'MISSION CONTROL' : view === 'tasks' ? "TODAY'S TOTAL" : view === 'projects' ? 'PROJECT LIBRARY' : view === 'properties' ? 'PROPERTY LIBRARY' : view === 'people' ? 'PEOPLE' : 'VAULT HEALTH';
+  const headerMetric = view === 'mission' ? missionToday.length + missionOverdue.length + missionRecurrent.length : view === 'tasks' ? fmt(totalToday) : view === 'projects' ? projects.length : view === 'properties' ? properties.length : view === 'people' ? refs.people.length : diagnostics.issues.length;
   const headerDetail = view === 'mission'
     ? `${missionToday.length} today · ${missionOverdue.length} overdue · ${missionRecurrent.length} recurrent · ${dirs.daily ? 'daily on' : 'daily off'}`
     : view === 'tasks'
       ? `${tasks.filter(t=>!t.archived).length} tasks · ${Object.values(refs).reduce((a,r)=>a+r.length,0)} refs`
       : view === 'projects'
         ? `${dirs.projects ? dirs.projects.name : 'No folder'} · editable`
-        : `${dirs.properties ? dirs.properties.name : 'No folder'} · ${dirs.attachments ? 'covers on' : 'covers off'}`;
+        : view === 'properties'
+          ? `${dirs.properties ? dirs.properties.name : 'No folder'} · ${dirs.attachments ? 'covers on' : 'covers off'}`
+          : view === 'people'
+            ? `${dirs.people ? dirs.people.name : 'No folder'} · ${refs.people.length} names`
+            : `${diagnostics.issues.filter(i => i.level === 'error').length} errors · ${writeBackups.length} backups`;
 
   const btnPrimary = { padding:'13px 34px', borderRadius:12, border:'none', cursor:'pointer', fontWeight:700, fontSize:14, fontFamily:'inherit', background:'linear-gradient(135deg,#7c3aed,#3b82f6)', color:'#fff', boxShadow:'0 4px 24px rgba(124,58,237,0.45)' };
 
@@ -1301,11 +1475,15 @@ export default function App() {
             <div style={{ fontSize:10, color:'#475569', marginTop:2 }}>{headerDetail}</div>
           </div>
           <div style={{ display:'flex', gap:4, marginTop:10, padding:3, borderRadius:10, background:'rgba(255,255,255,0.03)', border:'1px solid rgba(255,255,255,0.06)' }}>
-            {['mission','tasks','projects','properties'].map(v => (
+            {['mission','tasks','projects','properties','people','health'].map(v => (
               <button key={v} onClick={()=>{ setView(v); setNewTaskOpen(false); setNewPropertyOpen(false); setNewProjectOpen(false); setNewPersonOpen(false); }} style={{ flex:1, padding:'6px 5px', borderRadius:8, border:'none', cursor:'pointer', fontWeight:700, fontSize:10, fontFamily:'inherit', textTransform:'capitalize', background:view===v?'rgba(124,58,237,0.2)':'transparent', color:view===v?'#c4b5fd':'#64748b' }}>
-                {v === 'mission' ? 'Today' : v}
+                {v === 'mission' ? 'Today' : v === 'health' ? 'Health' : v}
               </button>
             ))}
+          </div>
+          <div style={{ display:'flex', gap:6, marginTop:10 }}>
+            <input value={quickCapture} onChange={e=>setQuickCapture(e.target.value)} onKeyDown={e=>e.key==='Enter'&&submitQuickCapture()} placeholder="Quick capture: Call Jane tomorrow #client" style={{ flex:1, minWidth:0, padding:'8px 10px', borderRadius:8, background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.08)', color:'#e2e8f0', fontSize:11, outline:'none', fontFamily:'inherit' }}/>
+            <button onClick={submitQuickCapture} disabled={!quickCapture.trim() || !dirs.tasks} title="Creates a task. Use today, tomorrow, due:YYYY-MM-DD, #tags, !high." style={{ padding:'8px 9px', borderRadius:8, border:'none', cursor:quickCapture.trim()&&dirs.tasks?'pointer':'not-allowed', fontWeight:800, fontSize:11, fontFamily:'inherit', background:'rgba(124,58,237,0.2)', color:'#c4b5fd', opacity:quickCapture.trim()&&dirs.tasks?1:0.4 }}>Add</button>
           </div>
         </div>
 
@@ -1359,6 +1537,18 @@ export default function App() {
             <div style={{ display:'flex', gap:3, padding:'4px 10px 8px', borderBottom:'1px solid rgba(255,255,255,0.06)' }}>
               {['all','today','overdue','done'].map(f => (
                 <button key={f} onClick={()=>setFilt(f)} style={{ flex:1, padding:'5px 0', borderRadius:7, border:'none', cursor:'pointer', fontSize:10, fontWeight:600, textTransform:'capitalize', fontFamily:'inherit', background:filt===f?'rgba(124,58,237,0.15)':'transparent', color:filt===f?'#a78bfa':'#475569' }}>{f}</button>
+              ))}
+            </div>
+            <div style={{ padding:'7px 10px 8px', borderBottom:'1px solid rgba(255,255,255,0.06)' }}>
+              <div style={{ display:'flex', gap:5, marginBottom:savedFilters.length?6:0 }}>
+                <input value={filterName} onChange={e=>setFilterName(e.target.value)} placeholder="Filter name" style={{ flex:1, minWidth:0, padding:'6px 8px', borderRadius:7, background:'rgba(255,255,255,0.035)', border:'1px solid rgba(255,255,255,0.07)', color:'#e2e8f0', fontSize:11, outline:'none', fontFamily:'inherit' }}/>
+                <button onClick={saveCurrentFilter} style={{ padding:'6px 8px', borderRadius:7, border:'none', cursor:'pointer', fontWeight:800, fontSize:10, fontFamily:'inherit', background:'rgba(124,58,237,0.18)', color:'#c4b5fd' }}>Save</button>
+              </div>
+              {savedFilters.map(sf => (
+                <div key={sf.name} style={{ display:'flex', gap:5, alignItems:'center', marginTop:4 }}>
+                  <button onClick={()=>applySavedFilter(sf)} style={{ flex:1, minWidth:0, textAlign:'left', padding:'5px 7px', borderRadius:7, border:'1px solid rgba(255,255,255,0.05)', background:'rgba(255,255,255,0.02)', color:'#94a3b8', cursor:'pointer', fontSize:10, fontFamily:'inherit', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{sf.name}</button>
+                  <button onClick={()=>deleteSavedFilter(sf.name)} style={{ width:22, height:22, borderRadius:7, border:'none', background:'rgba(239,68,68,0.08)', color:'#f87171', cursor:'pointer', fontSize:11 }}>x</button>
+                </div>
               ))}
             </div>
 
@@ -1447,6 +1637,43 @@ export default function App() {
               </button>
             </div>
           </>
+        ) : view === 'people' ? (
+          <>
+            <div style={{ padding:'8px 10px 4px', display:'flex', gap:6, alignItems:'center' }}>
+              <button onClick={()=>setNewPersonOpen(true)} style={{ flex:1, padding:'8px 10px', borderRadius:9, border:'none', cursor:'pointer', fontWeight:700, fontSize:12, fontFamily:'inherit', background:'linear-gradient(135deg,#7c3aed,#3b82f6)', color:'#fff', boxShadow:'0 2px 12px rgba(124,58,237,0.35)' }}>
+                + New Person
+              </button>
+            </div>
+            <div style={{ padding:'10px', borderBottom:'1px solid rgba(255,255,255,0.06)' }}>
+              <input value={peopleSearch} onChange={e=>setPeopleSearch(e.target.value)} placeholder="Search people..." style={{ ...inputBase, padding:'8px 10px', fontSize:12 }}/>
+            </div>
+            <div style={{ flex:1, overflowY:'auto', padding:'6px 8px' }}>
+              {!dirs.people && <div style={{ color:'#475569', textAlign:'center', paddingTop:40, fontSize:12 }}>Pick your People folder in Configure folders</div>}
+              {filteredPeople.map(p => (
+                <div key={p} style={{ padding:'10px', marginBottom:4, borderRadius:10, background:'rgba(255,255,255,0.02)', border:'1px solid rgba(255,255,255,0.04)' }}>
+                  <div style={{ fontSize:12, fontWeight:700, lineHeight:1.35, color:'#e2e8f0' }}>{p}</div>
+                </div>
+              ))}
+            </div>
+            <div style={{ padding:'8px 10px', borderTop:'1px solid rgba(255,255,255,0.04)' }}>
+              <button onClick={()=>setFolderSetupOpen(true)} style={{ width:'100%', padding:'7px 10px', borderRadius:8, border:'1px solid rgba(255,255,255,0.06)', background:'rgba(255,255,255,0.02)', color:'#64748b', fontSize:11, cursor:'pointer', fontFamily:'inherit' }}>
+                Configure people folder
+              </button>
+            </div>
+          </>
+        ) : view === 'health' ? (
+          <div style={{ flex:1, overflowY:'auto', padding:'10px' }}>
+            <div style={{ fontSize:9, color:'#475569', fontWeight:700, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:8 }}>Vault health</div>
+            {Object.entries(diagnostics.counts).map(([key, value]) => (
+              <div key={key} style={{ display:'flex', justifyContent:'space-between', padding:'8px 10px', marginBottom:4, borderRadius:8, background:'rgba(255,255,255,0.02)', border:'1px solid rgba(255,255,255,0.04)' }}>
+                <span style={{ fontSize:11, color:'#64748b', textTransform:'capitalize' }}>{key.replace(/([A-Z])/g, ' $1')}</span>
+                <span style={{ fontSize:12, color:'#e2e8f0', fontWeight:800 }}>{value}</span>
+              </div>
+            ))}
+            <button onClick={forceSyncAll} disabled={syncBusy} style={{ width:'100%', marginTop:8, padding:'8px 10px', borderRadius:9, border:'none', cursor:syncBusy?'wait':'pointer', fontWeight:800, fontSize:12, fontFamily:'inherit', background:'linear-gradient(135deg,#7c3aed,#3b82f6)', color:'#fff' }}>
+              {syncBusy ? 'Checking...' : 'Run Health Check'}
+            </button>
+          </div>
         ) : (
           <div style={{ flex:1, overflowY:'auto', padding:'10px' }}>
             <div style={{ fontSize:9, color:'#475569', fontWeight:700, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:8 }}>Mission queues</div>
@@ -1508,6 +1735,9 @@ export default function App() {
           onWorkStatusChange={updateWorkStatus}
           hasDailyFolder={!!dirs.daily}
           onConfigure={()=>setFolderSetupOpen(true)}
+          completedToday={completedToday}
+          tomorrowTasks={tomorrowTasks}
+          weekDates={weekDates(tod())}
         />
       ) : view === 'projects' ? (
         newProjectOpen ? (
@@ -1552,6 +1782,14 @@ export default function App() {
           onConfigure={()=>setFolderSetupOpen(true)}
         />
         )
+      ) : view === 'people' ? (
+        newPersonOpen ? (
+          <NewPersonPanel onCancel={()=>setNewPersonOpen(false)} onCreate={createPerson} refs={refs} hasPeopleFolder={!!dirs.people} onConfigure={()=>setFolderSetupOpen(true)}/>
+        ) : (
+          <PeoplePanel people={filteredPeople} hasPeopleFolder={!!dirs.people} onNewPerson={()=>setNewPersonOpen(true)} onConfigure={()=>setFolderSetupOpen(true)}/>
+        )
+      ) : view === 'health' ? (
+        <HealthPanel diagnostics={diagnostics} dirs={dirs} backups={writeBackups} onForceSync={forceSyncAll} syncBusy={syncBusy} onConfigure={()=>setFolderSetupOpen(true)}/>
       ) : newPersonOpen ? (
         <NewPersonPanel onCancel={()=>setNewPersonOpen(false)} onCreate={createPerson} refs={refs} hasPeopleFolder={!!dirs.people} onConfigure={()=>setFolderSetupOpen(true)}/>
       ) : newTaskOpen ? (
@@ -1680,7 +1918,101 @@ export default function App() {
   );
 }
 
-function MissionControlPanel({ today, overdue, recurrent, selectedId, liveId, getTime, onSelectTask, onStart, onStop, onNewTask, dailyNote, dailyInputs, setDailyInputs, onAddDailyEntry, onTimeClockEvent, workDate, workMonth, workNotes, onSelectWorkDate, onWorkMonthChange, onSaveTimeClockRows, onWorkStatusChange, hasDailyFolder, onConfigure }) {
+function PeoplePanel({ people, hasPeopleFolder, onNewPerson, onConfigure }) {
+  if (!hasPeopleFolder) {
+    return (
+      <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', color:'#475569', fontSize:13 }}>
+        <button onClick={onConfigure} style={{ padding:'10px 18px', borderRadius:10, border:'none', cursor:'pointer', fontWeight:700, fontSize:13, fontFamily:'inherit', background:'linear-gradient(135deg,#7c3aed,#3b82f6)', color:'#fff' }}>Configure People folder</button>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ flex:1, display:'flex', flexDirection:'column', overflow:'hidden' }}>
+      <div style={{ padding:'22px 30px 16px', borderBottom:'1px solid rgba(255,255,255,0.06)', flexShrink:0, display:'flex', justifyContent:'space-between', alignItems:'center', gap:18 }}>
+        <div>
+          <div style={{ fontSize:10, color:'#a78bfa', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:8 }}>People</div>
+          <h2 style={{ margin:0, fontSize:19, fontWeight:700, color:'#f1f5f9' }}>People library</h2>
+        </div>
+        <button onClick={onNewPerson} style={{ padding:'9px 16px', borderRadius:10, border:'none', cursor:'pointer', fontWeight:800, fontSize:13, fontFamily:'inherit', background:'linear-gradient(135deg,#7c3aed,#3b82f6)', color:'#fff' }}>+ New Person</button>
+      </div>
+      <div style={{ flex:1, overflowY:'auto', padding:'20px 30px' }}>
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(180px,1fr))', gap:10 }}>
+          {people.map(name => (
+            <div key={name} style={{ borderRadius:8, border:'1px solid rgba(255,255,255,0.06)', background:'rgba(255,255,255,0.025)', padding:'13px 14px' }}>
+              <div style={{ fontSize:14, fontWeight:800, color:'#f1f5f9', lineHeight:1.3 }}>{name}</div>
+              <div style={{ fontSize:10, color:'#64748b', marginTop:5 }}>Available in Waiting for</div>
+            </div>
+          ))}
+        </div>
+        {!people.length && <div style={{ color:'#334155', textAlign:'center', paddingTop:80, fontSize:13 }}>No people found yet</div>}
+      </div>
+    </div>
+  );
+}
+
+function HealthPanel({ diagnostics, dirs, backups, onForceSync, syncBusy, onConfigure }) {
+  const issueColor = issue => issue.level === 'error' ? '#f87171' : issue.level === 'warning' ? '#fbbf24' : '#818cf8';
+  return (
+    <div style={{ flex:1, display:'flex', flexDirection:'column', overflow:'hidden' }}>
+      <div style={{ padding:'22px 30px 16px', borderBottom:'1px solid rgba(255,255,255,0.06)', flexShrink:0, display:'flex', justifyContent:'space-between', alignItems:'center', gap:18 }}>
+        <div>
+          <div style={{ fontSize:10, color:'#a78bfa', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:8 }}>Vault Health Check</div>
+          <h2 style={{ margin:0, fontSize:19, fontWeight:700, color:'#f1f5f9' }}>Trust dashboard</h2>
+          <div style={{ fontSize:12, color:'#64748b', marginTop:5 }}>Counts, duplicate titles, parse warnings, and local write backups.</div>
+        </div>
+        <div style={{ display:'flex', gap:8 }}>
+          <button onClick={onConfigure} style={{ padding:'9px 13px', borderRadius:10, border:'1px solid rgba(255,255,255,0.08)', cursor:'pointer', fontWeight:800, fontSize:12, fontFamily:'inherit', background:'rgba(255,255,255,0.03)', color:'#94a3b8' }}>Folders</button>
+          <button onClick={onForceSync} disabled={syncBusy} style={{ padding:'9px 16px', borderRadius:10, border:'none', cursor:syncBusy?'wait':'pointer', fontWeight:800, fontSize:13, fontFamily:'inherit', background:'linear-gradient(135deg,#7c3aed,#3b82f6)', color:'#fff' }}>{syncBusy ? 'Checking...' : 'Run Check'}</button>
+        </div>
+      </div>
+      <div style={{ flex:1, overflowY:'auto', padding:'20px 30px' }}>
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(150px,1fr))', gap:10, marginBottom:16 }}>
+          {Object.entries(diagnostics.counts).map(([key, value]) => (
+            <div key={key} style={{ borderRadius:8, border:'1px solid rgba(255,255,255,0.06)', background:'rgba(255,255,255,0.025)', padding:'12px' }}>
+              <div style={{ fontSize:10, color:'#64748b', textTransform:'uppercase', fontWeight:800 }}>{key.replace(/([A-Z])/g, ' $1')}</div>
+              <div style={{ fontSize:24, fontWeight:850, color:'#f1f5f9', marginTop:4 }}>{value}</div>
+            </div>
+          ))}
+        </div>
+        <section style={{ borderRadius:8, border:'1px solid rgba(255,255,255,0.06)', background:'rgba(255,255,255,0.025)', padding:'14px', marginBottom:14 }}>
+          <h3 style={{ margin:'0 0 10px', fontSize:14, color:'#f1f5f9' }}>Connected Folders</h3>
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(170px,1fr))', gap:8 }}>
+            {FOLDER_DEFS.map(def => (
+              <div key={def.key} style={{ padding:'9px 10px', borderRadius:8, background:dirs[def.key]?'rgba(16,185,129,0.07)':'rgba(255,255,255,0.02)', border:`1px solid ${dirs[def.key]?'rgba(16,185,129,0.15)':'rgba(255,255,255,0.05)'}` }}>
+                <div style={{ fontSize:12, color:'#e2e8f0', fontWeight:800 }}>{def.label}</div>
+                <div style={{ fontSize:10, color:dirs[def.key]?'#10b981':'#64748b', marginTop:3 }}>{dirs[def.key]?.name || 'Not connected'}</div>
+              </div>
+            ))}
+          </div>
+        </section>
+        <section style={{ borderRadius:8, border:'1px solid rgba(255,255,255,0.06)', background:'rgba(255,255,255,0.025)', padding:'14px', marginBottom:14 }}>
+          <h3 style={{ margin:'0 0 10px', fontSize:14, color:'#f1f5f9' }}>Issues</h3>
+          {!diagnostics.issues.length && <div style={{ color:'#10b981', fontSize:13 }}>No obvious issues found.</div>}
+          {diagnostics.issues.map((issue, i) => (
+            <div key={i} style={{ padding:'10px 11px', marginBottom:7, borderRadius:8, background:'rgba(255,255,255,0.025)', border:`1px solid ${issueColor(issue)}33` }}>
+              <div style={{ fontSize:12, color:issueColor(issue), fontWeight:850, textTransform:'uppercase' }}>{issue.level}</div>
+              <div style={{ fontSize:13, color:'#e2e8f0', marginTop:4 }}>{issue.text}</div>
+              {issue.detail && <div style={{ fontSize:11, color:'#64748b', marginTop:4, overflowWrap:'anywhere' }}>{issue.detail}</div>}
+            </div>
+          ))}
+        </section>
+        <section style={{ borderRadius:8, border:'1px solid rgba(255,255,255,0.06)', background:'rgba(255,255,255,0.025)', padding:'14px' }}>
+          <h3 style={{ margin:'0 0 10px', fontSize:14, color:'#f1f5f9' }}>Recent Local Backups</h3>
+          {!backups.length && <div style={{ color:'#64748b', fontSize:13 }}>No backups captured yet. The next text write will keep the previous version locally in this browser.</div>}
+          {backups.slice(0, 10).map((backup, i) => (
+            <div key={`${backup.at}-${i}`} style={{ padding:'9px 10px', marginBottom:6, borderRadius:8, background:'rgba(255,255,255,0.02)', border:'1px solid rgba(255,255,255,0.05)' }}>
+              <div style={{ fontSize:12, color:'#e2e8f0', fontWeight:800 }}>{backup.filename}</div>
+              <div style={{ fontSize:10, color:'#64748b', marginTop:3 }}>{new Date(backup.at).toLocaleString()}</div>
+            </div>
+          ))}
+        </section>
+      </div>
+    </div>
+  );
+}
+
+function MissionControlPanel({ today, overdue, recurrent, selectedId, liveId, getTime, onSelectTask, onStart, onStop, onNewTask, dailyNote, dailyInputs, setDailyInputs, onAddDailyEntry, onTimeClockEvent, workDate, workMonth, workNotes, onSelectWorkDate, onWorkMonthChange, onSaveTimeClockRows, onWorkStatusChange, hasDailyFolder, onConfigure, completedToday = [], tomorrowTasks = [], weekDates: currentWeekDates = [] }) {
   const renderTask = t => {
     const running = liveId === t.id;
     return (
@@ -1811,6 +2143,31 @@ function MissionControlPanel({ today, overdue, recurrent, selectedId, liveId, ge
             </div>
             <button onClick={onNewTask} style={{ padding:'8px 12px', borderRadius:9, border:'none', cursor:'pointer', fontWeight:800, fontSize:12, fontFamily:'inherit', background:'linear-gradient(135deg,#7c3aed,#3b82f6)', color:'#fff', flexShrink:0 }}>+ New Task</button>
           </div>
+          <section style={{ borderRadius:8, border:'1px solid rgba(255,255,255,0.06)', background:'rgba(255,255,255,0.025)', padding:'12px', marginBottom:12, flexShrink:0 }}>
+            <div style={{ display:'flex', justifyContent:'space-between', gap:12, marginBottom:9 }}>
+              <div>
+                <h3 style={{ margin:0, fontSize:13, color:'#f1f5f9' }}>Daily Review</h3>
+                <div style={{ fontSize:11, color:'#64748b', marginTop:3 }}>Quick end-of-day pulse</div>
+              </div>
+              <div style={{ textAlign:'right', fontSize:11, color:'#94a3b8', fontWeight:800 }}>
+                {formatHoursMinutes(currentWeekDates.reduce((sum, dateStr) => sum + workStats(workNotes[dateStr]).totalMinutes, 0))} this week
+              </div>
+            </div>
+            <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:8 }}>
+              <div style={{ padding:'8px 9px', borderRadius:8, background:'rgba(16,185,129,0.07)', border:'1px solid rgba(16,185,129,0.13)' }}>
+                <div style={{ fontSize:18, fontWeight:850, color:'#10b981' }}>{completedToday.length}</div>
+                <div style={{ fontSize:10, color:'#64748b' }}>closed today</div>
+              </div>
+              <div style={{ padding:'8px 9px', borderRadius:8, background:'rgba(251,191,36,0.07)', border:'1px solid rgba(251,191,36,0.13)' }}>
+                <div style={{ fontSize:18, fontWeight:850, color:'#fbbf24' }}>{tomorrowTasks.length}</div>
+                <div style={{ fontSize:10, color:'#64748b' }}>tomorrow</div>
+              </div>
+              <div style={{ padding:'8px 9px', borderRadius:8, background:'rgba(248,113,113,0.07)', border:'1px solid rgba(248,113,113,0.13)' }}>
+                <div style={{ fontSize:18, fontWeight:850, color:'#f87171' }}>{overdue.length}</div>
+                <div style={{ fontSize:10, color:'#64748b' }}>overdue</div>
+              </div>
+            </div>
+          </section>
           <div style={{ flex:1, minHeight:0, display:'grid', gridTemplateColumns:'repeat(3,minmax(180px,1fr))', gap:12, alignItems:'stretch', overflow:'hidden' }}>
           {sections.map(s => (
             <section key={s.title} style={{ minWidth:0, minHeight:0, overflowY:'auto', paddingRight:4 }}>
