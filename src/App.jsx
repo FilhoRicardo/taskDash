@@ -462,7 +462,6 @@ export default function App() {
   const [note,          setNote]          = useState('');
   const [filt,          setFilt]          = useState('all');
   const [taskSearch,    setTaskSearch]    = useState('');
-  const [quickCapture,  setQuickCapture]  = useState('');
   const [filterName,    setFilterName]    = useState('');
   const [toast,         setToast]         = useState(null);
   const [showAdHoc,     setShowAdHoc]     = useState(false);
@@ -474,7 +473,6 @@ export default function App() {
   const [newTaskOpen,   setNewTaskOpen]   = useState(false);
   const [newPropertyOpen, setNewPropertyOpen] = useState(false);
   const [newPersonOpen, setNewPersonOpen] = useState(false);
-  const [peopleSearch, setPeopleSearch] = useState('');
 
   const adHocRef        = useRef('');
   const meetingTitleRef = useRef('');
@@ -592,7 +590,13 @@ export default function App() {
       const activeRaw = dir ? await readMdFiles(dir) : [];
       const doneRaw = doneDir ? await readMdFiles(doneDir, [], '__done__') : [];
       raw.push(...activeRaw, ...doneRaw);
-      const parsed = raw.map(f => parseTask(f.name, f.text))
+      const parsed = raw.flatMap(f => {
+        try { return [parseTask(f.name, f.text)]; }
+        catch(e) {
+          console.warn(`Skipped unparseable task: ${f.name}`, e);
+          return [];
+        }
+      })
         .sort((a,b) => (a.due||'9999') > (b.due||'9999') ? 1 : -1);
       setTasks(parsed);
       setFolderStats(prev => ({ ...prev, tasks: activeRaw.length, done: doneRaw.length }));
@@ -610,7 +614,10 @@ export default function App() {
         if (prev && parsed.some(t => t.id === prev)) return prev;
         return parsed.find(t => !t.archived)?.id || parsed[0]?.id || null;
       });
-    } catch(e) { console.error(e); }
+    } catch(e) {
+      console.error(e);
+      setToast(`Task sync failed: ${e.message}`);
+    }
   }, []);
 
   const loadProperties = useCallback(async (dir) => {
@@ -1162,13 +1169,6 @@ export default function App() {
     }
   };
 
-  const submitQuickCapture = async () => {
-    const form = parseQuickCaptureText(quickCapture);
-    if (!form.title) return;
-    await createTask(form);
-    setQuickCapture('');
-  };
-
   const saveCurrentFilter = () => {
     const name = filterName.trim() || `${filt}${taskSearch.trim() ? `: ${taskSearch.trim()}` : ''}`;
     const next = [
@@ -1340,24 +1340,18 @@ export default function App() {
     if (!q) return true;
     return [p.title, p.filename, p.client, p.summary, p.status].filter(Boolean).some(v => v.toLowerCase().includes(q));
   });
-  const filteredPeople = refs.people.filter(p => !peopleSearch.trim() || p.toLowerCase().includes(peopleSearch.trim().toLowerCase()));
   const tomorrow = addDays(tod(), 1);
   const completedToday = tasks.filter(t => (t.completedDate || '').slice(0, 10) === tod());
   const tomorrowTasks = openTasks.filter(t => t.due === tomorrow || t.scheduled === tomorrow).sort(byOldestCreated);
-  const diagnostics = buildDiagnostics({ tasks, projects, properties, refs, dirs, folderStats, backups:writeBackups });
-  const headerLabel = view === 'mission' ? 'MISSION CONTROL' : view === 'tasks' ? "TODAY'S TOTAL" : view === 'projects' ? 'PROJECT LIBRARY' : view === 'properties' ? 'PROPERTY LIBRARY' : view === 'people' ? 'PEOPLE' : 'VAULT HEALTH';
-  const headerMetric = view === 'mission' ? missionToday.length + missionOverdue.length + missionRecurrent.length : view === 'tasks' ? fmt(totalToday) : view === 'projects' ? projects.length : view === 'properties' ? properties.length : view === 'people' ? refs.people.length : diagnostics.issues.length;
+  const headerLabel = view === 'mission' ? 'MISSION CONTROL' : view === 'tasks' ? "TODAY'S TOTAL" : view === 'projects' ? 'PROJECT LIBRARY' : 'PROPERTY LIBRARY';
+  const headerMetric = view === 'mission' ? missionToday.length + missionOverdue.length + missionRecurrent.length : view === 'tasks' ? fmt(totalToday) : view === 'projects' ? projects.length : properties.length;
   const headerDetail = view === 'mission'
     ? `${missionToday.length} today · ${missionOverdue.length} overdue · ${missionRecurrent.length} recurrent · ${dirs.daily ? 'daily on' : 'daily off'}`
     : view === 'tasks'
       ? `${tasks.filter(t=>!t.archived).length} tasks · ${Object.values(refs).reduce((a,r)=>a+r.length,0)} refs`
       : view === 'projects'
         ? `${dirs.projects ? dirs.projects.name : 'No folder'} · editable`
-        : view === 'properties'
-          ? `${dirs.properties ? dirs.properties.name : 'No folder'} · ${dirs.attachments ? 'covers on' : 'covers off'}`
-          : view === 'people'
-            ? `${dirs.people ? dirs.people.name : 'No folder'} · ${refs.people.length} names`
-            : `${diagnostics.issues.filter(i => i.level === 'error').length} errors · ${writeBackups.length} backups`;
+        : `${dirs.properties ? dirs.properties.name : 'No folder'} · ${dirs.attachments ? 'covers on' : 'covers off'}`;
 
   const btnPrimary = { padding:'13px 34px', borderRadius:12, border:'none', cursor:'pointer', fontWeight:700, fontSize:14, fontFamily:'inherit', background:'linear-gradient(135deg,#7c3aed,#3b82f6)', color:'#fff', boxShadow:'0 4px 24px rgba(124,58,237,0.45)' };
 
@@ -1452,7 +1446,7 @@ export default function App() {
       {toast && <Toast msg={toast} onClose={() => setToast(null)} />}
 
       {/* ─── Sidebar ─── */}
-      <div style={{ width:290, flexShrink:0, borderRight:'1px solid rgba(255,255,255,0.06)', display:'flex', flexDirection:'column' }}>
+      <div style={{ width:320, flexShrink:0, borderRight:'1px solid rgba(255,255,255,0.06)', display:'flex', flexDirection:'column' }}>
         <div style={{ padding:'18px 14px 12px', borderBottom:'1px solid rgba(255,255,255,0.06)' }}>
           <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:4 }}>
             <div style={{ display:'flex', alignItems:'center', gap:7 }}>
@@ -1475,15 +1469,11 @@ export default function App() {
             <div style={{ fontSize:10, color:'#475569', marginTop:2 }}>{headerDetail}</div>
           </div>
           <div style={{ display:'flex', gap:4, marginTop:10, padding:3, borderRadius:10, background:'rgba(255,255,255,0.03)', border:'1px solid rgba(255,255,255,0.06)' }}>
-            {['mission','tasks','projects','properties','people','health'].map(v => (
+            {['mission','tasks','projects','properties'].map(v => (
               <button key={v} onClick={()=>{ setView(v); setNewTaskOpen(false); setNewPropertyOpen(false); setNewProjectOpen(false); setNewPersonOpen(false); }} style={{ flex:1, padding:'6px 5px', borderRadius:8, border:'none', cursor:'pointer', fontWeight:700, fontSize:10, fontFamily:'inherit', textTransform:'capitalize', background:view===v?'rgba(124,58,237,0.2)':'transparent', color:view===v?'#c4b5fd':'#64748b' }}>
-                {v === 'mission' ? 'Today' : v === 'health' ? 'Health' : v}
+                {v === 'mission' ? 'Today' : v}
               </button>
             ))}
-          </div>
-          <div style={{ display:'flex', gap:6, marginTop:10 }}>
-            <input value={quickCapture} onChange={e=>setQuickCapture(e.target.value)} onKeyDown={e=>e.key==='Enter'&&submitQuickCapture()} placeholder="Quick capture: Call Jane tomorrow #client" style={{ flex:1, minWidth:0, padding:'8px 10px', borderRadius:8, background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.08)', color:'#e2e8f0', fontSize:11, outline:'none', fontFamily:'inherit' }}/>
-            <button onClick={submitQuickCapture} disabled={!quickCapture.trim() || !dirs.tasks} title="Creates a task. Use today, tomorrow, due:YYYY-MM-DD, #tags, !high." style={{ padding:'8px 9px', borderRadius:8, border:'none', cursor:quickCapture.trim()&&dirs.tasks?'pointer':'not-allowed', fontWeight:800, fontSize:11, fontFamily:'inherit', background:'rgba(124,58,237,0.2)', color:'#c4b5fd', opacity:quickCapture.trim()&&dirs.tasks?1:0.4 }}>Add</button>
           </div>
         </div>
 
@@ -1637,43 +1627,6 @@ export default function App() {
               </button>
             </div>
           </>
-        ) : view === 'people' ? (
-          <>
-            <div style={{ padding:'8px 10px 4px', display:'flex', gap:6, alignItems:'center' }}>
-              <button onClick={()=>setNewPersonOpen(true)} style={{ flex:1, padding:'8px 10px', borderRadius:9, border:'none', cursor:'pointer', fontWeight:700, fontSize:12, fontFamily:'inherit', background:'linear-gradient(135deg,#7c3aed,#3b82f6)', color:'#fff', boxShadow:'0 2px 12px rgba(124,58,237,0.35)' }}>
-                + New Person
-              </button>
-            </div>
-            <div style={{ padding:'10px', borderBottom:'1px solid rgba(255,255,255,0.06)' }}>
-              <input value={peopleSearch} onChange={e=>setPeopleSearch(e.target.value)} placeholder="Search people..." style={{ ...inputBase, padding:'8px 10px', fontSize:12 }}/>
-            </div>
-            <div style={{ flex:1, overflowY:'auto', padding:'6px 8px' }}>
-              {!dirs.people && <div style={{ color:'#475569', textAlign:'center', paddingTop:40, fontSize:12 }}>Pick your People folder in Configure folders</div>}
-              {filteredPeople.map(p => (
-                <div key={p} style={{ padding:'10px', marginBottom:4, borderRadius:10, background:'rgba(255,255,255,0.02)', border:'1px solid rgba(255,255,255,0.04)' }}>
-                  <div style={{ fontSize:12, fontWeight:700, lineHeight:1.35, color:'#e2e8f0' }}>{p}</div>
-                </div>
-              ))}
-            </div>
-            <div style={{ padding:'8px 10px', borderTop:'1px solid rgba(255,255,255,0.04)' }}>
-              <button onClick={()=>setFolderSetupOpen(true)} style={{ width:'100%', padding:'7px 10px', borderRadius:8, border:'1px solid rgba(255,255,255,0.06)', background:'rgba(255,255,255,0.02)', color:'#64748b', fontSize:11, cursor:'pointer', fontFamily:'inherit' }}>
-                Configure people folder
-              </button>
-            </div>
-          </>
-        ) : view === 'health' ? (
-          <div style={{ flex:1, overflowY:'auto', padding:'10px' }}>
-            <div style={{ fontSize:9, color:'#475569', fontWeight:700, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:8 }}>Vault health</div>
-            {Object.entries(diagnostics.counts).map(([key, value]) => (
-              <div key={key} style={{ display:'flex', justifyContent:'space-between', padding:'8px 10px', marginBottom:4, borderRadius:8, background:'rgba(255,255,255,0.02)', border:'1px solid rgba(255,255,255,0.04)' }}>
-                <span style={{ fontSize:11, color:'#64748b', textTransform:'capitalize' }}>{key.replace(/([A-Z])/g, ' $1')}</span>
-                <span style={{ fontSize:12, color:'#e2e8f0', fontWeight:800 }}>{value}</span>
-              </div>
-            ))}
-            <button onClick={forceSyncAll} disabled={syncBusy} style={{ width:'100%', marginTop:8, padding:'8px 10px', borderRadius:9, border:'none', cursor:syncBusy?'wait':'pointer', fontWeight:800, fontSize:12, fontFamily:'inherit', background:'linear-gradient(135deg,#7c3aed,#3b82f6)', color:'#fff' }}>
-              {syncBusy ? 'Checking...' : 'Run Health Check'}
-            </button>
-          </div>
         ) : (
           <div style={{ flex:1, overflowY:'auto', padding:'10px' }}>
             <div style={{ fontSize:9, color:'#475569', fontWeight:700, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:8 }}>Mission queues</div>
@@ -1695,7 +1648,6 @@ export default function App() {
                 ))}
               </div>
             ))}
-            <button onClick={()=>{ setView('tasks'); setNewPersonOpen(false); setNewTaskOpen(true); }} style={{ width:'100%', padding:'8px 10px', borderRadius:9, border:'none', cursor:'pointer', fontWeight:700, fontSize:12, fontFamily:'inherit', background:'linear-gradient(135deg,#7c3aed,#3b82f6)', color:'#fff' }}>+ New Task</button>
           </div>
         )}
 
@@ -1782,14 +1734,6 @@ export default function App() {
           onConfigure={()=>setFolderSetupOpen(true)}
         />
         )
-      ) : view === 'people' ? (
-        newPersonOpen ? (
-          <NewPersonPanel onCancel={()=>setNewPersonOpen(false)} onCreate={createPerson} refs={refs} hasPeopleFolder={!!dirs.people} onConfigure={()=>setFolderSetupOpen(true)}/>
-        ) : (
-          <PeoplePanel people={filteredPeople} hasPeopleFolder={!!dirs.people} onNewPerson={()=>setNewPersonOpen(true)} onConfigure={()=>setFolderSetupOpen(true)}/>
-        )
-      ) : view === 'health' ? (
-        <HealthPanel diagnostics={diagnostics} dirs={dirs} backups={writeBackups} onForceSync={forceSyncAll} syncBusy={syncBusy} onConfigure={()=>setFolderSetupOpen(true)}/>
       ) : newPersonOpen ? (
         <NewPersonPanel onCancel={()=>setNewPersonOpen(false)} onCreate={createPerson} refs={refs} hasPeopleFolder={!!dirs.people} onConfigure={()=>setFolderSetupOpen(true)}/>
       ) : newTaskOpen ? (
@@ -1918,100 +1862,6 @@ export default function App() {
   );
 }
 
-function PeoplePanel({ people, hasPeopleFolder, onNewPerson, onConfigure }) {
-  if (!hasPeopleFolder) {
-    return (
-      <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', color:'#475569', fontSize:13 }}>
-        <button onClick={onConfigure} style={{ padding:'10px 18px', borderRadius:10, border:'none', cursor:'pointer', fontWeight:700, fontSize:13, fontFamily:'inherit', background:'linear-gradient(135deg,#7c3aed,#3b82f6)', color:'#fff' }}>Configure People folder</button>
-      </div>
-    );
-  }
-
-  return (
-    <div style={{ flex:1, display:'flex', flexDirection:'column', overflow:'hidden' }}>
-      <div style={{ padding:'22px 30px 16px', borderBottom:'1px solid rgba(255,255,255,0.06)', flexShrink:0, display:'flex', justifyContent:'space-between', alignItems:'center', gap:18 }}>
-        <div>
-          <div style={{ fontSize:10, color:'#a78bfa', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:8 }}>People</div>
-          <h2 style={{ margin:0, fontSize:19, fontWeight:700, color:'#f1f5f9' }}>People library</h2>
-        </div>
-        <button onClick={onNewPerson} style={{ padding:'9px 16px', borderRadius:10, border:'none', cursor:'pointer', fontWeight:800, fontSize:13, fontFamily:'inherit', background:'linear-gradient(135deg,#7c3aed,#3b82f6)', color:'#fff' }}>+ New Person</button>
-      </div>
-      <div style={{ flex:1, overflowY:'auto', padding:'20px 30px' }}>
-        <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(180px,1fr))', gap:10 }}>
-          {people.map(name => (
-            <div key={name} style={{ borderRadius:8, border:'1px solid rgba(255,255,255,0.06)', background:'rgba(255,255,255,0.025)', padding:'13px 14px' }}>
-              <div style={{ fontSize:14, fontWeight:800, color:'#f1f5f9', lineHeight:1.3 }}>{name}</div>
-              <div style={{ fontSize:10, color:'#64748b', marginTop:5 }}>Available in Waiting for</div>
-            </div>
-          ))}
-        </div>
-        {!people.length && <div style={{ color:'#334155', textAlign:'center', paddingTop:80, fontSize:13 }}>No people found yet</div>}
-      </div>
-    </div>
-  );
-}
-
-function HealthPanel({ diagnostics, dirs, backups, onForceSync, syncBusy, onConfigure }) {
-  const issueColor = issue => issue.level === 'error' ? '#f87171' : issue.level === 'warning' ? '#fbbf24' : '#818cf8';
-  return (
-    <div style={{ flex:1, display:'flex', flexDirection:'column', overflow:'hidden' }}>
-      <div style={{ padding:'22px 30px 16px', borderBottom:'1px solid rgba(255,255,255,0.06)', flexShrink:0, display:'flex', justifyContent:'space-between', alignItems:'center', gap:18 }}>
-        <div>
-          <div style={{ fontSize:10, color:'#a78bfa', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:8 }}>Vault Health Check</div>
-          <h2 style={{ margin:0, fontSize:19, fontWeight:700, color:'#f1f5f9' }}>Trust dashboard</h2>
-          <div style={{ fontSize:12, color:'#64748b', marginTop:5 }}>Counts, duplicate titles, parse warnings, and local write backups.</div>
-        </div>
-        <div style={{ display:'flex', gap:8 }}>
-          <button onClick={onConfigure} style={{ padding:'9px 13px', borderRadius:10, border:'1px solid rgba(255,255,255,0.08)', cursor:'pointer', fontWeight:800, fontSize:12, fontFamily:'inherit', background:'rgba(255,255,255,0.03)', color:'#94a3b8' }}>Folders</button>
-          <button onClick={onForceSync} disabled={syncBusy} style={{ padding:'9px 16px', borderRadius:10, border:'none', cursor:syncBusy?'wait':'pointer', fontWeight:800, fontSize:13, fontFamily:'inherit', background:'linear-gradient(135deg,#7c3aed,#3b82f6)', color:'#fff' }}>{syncBusy ? 'Checking...' : 'Run Check'}</button>
-        </div>
-      </div>
-      <div style={{ flex:1, overflowY:'auto', padding:'20px 30px' }}>
-        <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(150px,1fr))', gap:10, marginBottom:16 }}>
-          {Object.entries(diagnostics.counts).map(([key, value]) => (
-            <div key={key} style={{ borderRadius:8, border:'1px solid rgba(255,255,255,0.06)', background:'rgba(255,255,255,0.025)', padding:'12px' }}>
-              <div style={{ fontSize:10, color:'#64748b', textTransform:'uppercase', fontWeight:800 }}>{key.replace(/([A-Z])/g, ' $1')}</div>
-              <div style={{ fontSize:24, fontWeight:850, color:'#f1f5f9', marginTop:4 }}>{value}</div>
-            </div>
-          ))}
-        </div>
-        <section style={{ borderRadius:8, border:'1px solid rgba(255,255,255,0.06)', background:'rgba(255,255,255,0.025)', padding:'14px', marginBottom:14 }}>
-          <h3 style={{ margin:'0 0 10px', fontSize:14, color:'#f1f5f9' }}>Connected Folders</h3>
-          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(170px,1fr))', gap:8 }}>
-            {FOLDER_DEFS.map(def => (
-              <div key={def.key} style={{ padding:'9px 10px', borderRadius:8, background:dirs[def.key]?'rgba(16,185,129,0.07)':'rgba(255,255,255,0.02)', border:`1px solid ${dirs[def.key]?'rgba(16,185,129,0.15)':'rgba(255,255,255,0.05)'}` }}>
-                <div style={{ fontSize:12, color:'#e2e8f0', fontWeight:800 }}>{def.label}</div>
-                <div style={{ fontSize:10, color:dirs[def.key]?'#10b981':'#64748b', marginTop:3 }}>{dirs[def.key]?.name || 'Not connected'}</div>
-              </div>
-            ))}
-          </div>
-        </section>
-        <section style={{ borderRadius:8, border:'1px solid rgba(255,255,255,0.06)', background:'rgba(255,255,255,0.025)', padding:'14px', marginBottom:14 }}>
-          <h3 style={{ margin:'0 0 10px', fontSize:14, color:'#f1f5f9' }}>Issues</h3>
-          {!diagnostics.issues.length && <div style={{ color:'#10b981', fontSize:13 }}>No obvious issues found.</div>}
-          {diagnostics.issues.map((issue, i) => (
-            <div key={i} style={{ padding:'10px 11px', marginBottom:7, borderRadius:8, background:'rgba(255,255,255,0.025)', border:`1px solid ${issueColor(issue)}33` }}>
-              <div style={{ fontSize:12, color:issueColor(issue), fontWeight:850, textTransform:'uppercase' }}>{issue.level}</div>
-              <div style={{ fontSize:13, color:'#e2e8f0', marginTop:4 }}>{issue.text}</div>
-              {issue.detail && <div style={{ fontSize:11, color:'#64748b', marginTop:4, overflowWrap:'anywhere' }}>{issue.detail}</div>}
-            </div>
-          ))}
-        </section>
-        <section style={{ borderRadius:8, border:'1px solid rgba(255,255,255,0.06)', background:'rgba(255,255,255,0.025)', padding:'14px' }}>
-          <h3 style={{ margin:'0 0 10px', fontSize:14, color:'#f1f5f9' }}>Recent Local Backups</h3>
-          {!backups.length && <div style={{ color:'#64748b', fontSize:13 }}>No backups captured yet. The next text write will keep the previous version locally in this browser.</div>}
-          {backups.slice(0, 10).map((backup, i) => (
-            <div key={`${backup.at}-${i}`} style={{ padding:'9px 10px', marginBottom:6, borderRadius:8, background:'rgba(255,255,255,0.02)', border:'1px solid rgba(255,255,255,0.05)' }}>
-              <div style={{ fontSize:12, color:'#e2e8f0', fontWeight:800 }}>{backup.filename}</div>
-              <div style={{ fontSize:10, color:'#64748b', marginTop:3 }}>{new Date(backup.at).toLocaleString()}</div>
-            </div>
-          ))}
-        </section>
-      </div>
-    </div>
-  );
-}
-
 function MissionControlPanel({ today, overdue, recurrent, selectedId, liveId, getTime, onSelectTask, onStart, onStop, onNewTask, dailyNote, dailyInputs, setDailyInputs, onAddDailyEntry, onTimeClockEvent, workDate, workMonth, workNotes, onSelectWorkDate, onWorkMonthChange, onSaveTimeClockRows, onWorkStatusChange, hasDailyFolder, onConfigure, completedToday = [], tomorrowTasks = [], weekDates: currentWeekDates = [] }) {
   const renderTask = t => {
     const running = liveId === t.id;
@@ -2054,7 +1904,6 @@ function MissionControlPanel({ today, overdue, recurrent, selectedId, liveId, ge
         </div>
         <div style={{ display:'flex', gap:8 }}>
           <button onClick={onConfigure} style={{ padding:'9px 13px', borderRadius:10, border:'1px solid rgba(255,255,255,0.08)', cursor:'pointer', fontWeight:800, fontSize:12, fontFamily:'inherit', background:'rgba(255,255,255,0.03)', color:'#94a3b8' }}>{hasDailyFolder ? 'Daily folder set' : 'Set Daily folder'}</button>
-          <button onClick={onNewTask} style={{ padding:'9px 16px', borderRadius:10, border:'none', cursor:'pointer', fontWeight:800, fontSize:13, fontFamily:'inherit', background:'linear-gradient(135deg,#7c3aed,#3b82f6)', color:'#fff' }}>+ New Task</button>
         </div>
       </div>
       <div style={{ flex:1, minHeight:0, display:'grid', gridTemplateColumns:'minmax(360px,0.42fr) minmax(520px,1fr)', overflow:'hidden' }}>
@@ -2141,7 +1990,6 @@ function MissionControlPanel({ today, overdue, recurrent, selectedId, liveId, ge
               <h3 style={{ margin:0, fontSize:15, color:'#f1f5f9' }}>Task Queues</h3>
               <div style={{ fontSize:11, color:'#64748b', marginTop:3 }}>Today, overdue, and recurrent work stay visible beside your hours.</div>
             </div>
-            <button onClick={onNewTask} style={{ padding:'8px 12px', borderRadius:9, border:'none', cursor:'pointer', fontWeight:800, fontSize:12, fontFamily:'inherit', background:'linear-gradient(135deg,#7c3aed,#3b82f6)', color:'#fff', flexShrink:0 }}>+ New Task</button>
           </div>
           <section style={{ borderRadius:8, border:'1px solid rgba(255,255,255,0.06)', background:'rgba(255,255,255,0.025)', padding:'12px', marginBottom:12, flexShrink:0 }}>
             <div style={{ display:'flex', justifyContent:'space-between', gap:12, marginBottom:9 }}>

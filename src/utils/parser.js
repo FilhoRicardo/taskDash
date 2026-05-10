@@ -175,12 +175,16 @@ export function parseProperty(name, txt) {
 
 export async function readMdFiles(dir, acc = [], prefix = '') {
   for await (const [name, h] of dir.entries()) {
-    if (ignoredName(name)) continue;
-    const rel = prefix ? `${prefix}/${name}` : name;
-    if (h.kind==='file' && name.endsWith('.md') && name !== 'timetracker.md')
-      acc.push({ name: rel, handle:h, text: await (await h.getFile()).text() });
-    else if (h.kind==='directory' && !name.startsWith('.'))
-      await readMdFiles(h, acc, rel);
+    try {
+      if (ignoredName(name)) continue;
+      const rel = prefix ? `${prefix}/${name}` : name;
+      if (h.kind==='file' && name.endsWith('.md') && name !== 'timetracker.md')
+        acc.push({ name: rel, handle:h, text: await (await h.getFile()).text() });
+      else if (h.kind==='directory' && !name.startsWith('.'))
+        await readMdFiles(h, acc, rel);
+    } catch(e) {
+      console.warn(`Skipped unreadable markdown entry: ${name}`, e);
+    }
   }
   return acc;
 }
