@@ -1420,6 +1420,7 @@ export default function App() {
   const tomorrow = addDays(tod(), 1);
   const completedToday = tasks.filter(t => (t.completedDate || '').slice(0, 10) === tod());
   const tomorrowTasks = openTasks.filter(t => t.due === tomorrow || t.scheduled === tomorrow).sort(byOldestCreated);
+  const vaultTotals = { tasks: tasks.length, projects: projects.length, properties: properties.length, people: people.length };
   const diagnostics = buildDiagnostics({ tasks, projects, properties, refs, dirs, folderStats, backups:writeBackups });
   const healthErrors = diagnostics.issues.filter(i => i.level === 'error').length;
   const healthWarnings = diagnostics.issues.filter(i => i.level === 'warning').length;
@@ -1803,6 +1804,7 @@ export default function App() {
           completedToday={completedToday}
           tomorrowTasks={tomorrowTasks}
           weekDates={weekDates(tod())}
+          vaultTotals={vaultTotals}
         />
       ) : view === 'projects' ? (
         newProjectOpen ? (
@@ -2125,7 +2127,7 @@ function HealthPanel({ diagnostics, dirs, backups, onForceSync, syncBusy, onConf
   );
 }
 
-function MissionControlPanel({ today, overdue, recurrent, selectedId, liveId, getTime, onSelectTask, onStart, onStop, onNewTask, dailyNote, dailyInputs, setDailyInputs, onAddDailyEntry, onTimeClockEvent, workDate, workMonth, workNotes, onSelectWorkDate, onWorkMonthChange, onSaveTimeClockRows, onWorkStatusChange, hasDailyFolder, onConfigure, completedToday = [], tomorrowTasks = [], weekDates: currentWeekDates = [] }) {
+function MissionControlPanel({ today, overdue, recurrent, selectedId, liveId, getTime, onSelectTask, onStart, onStop, onNewTask, dailyNote, dailyInputs, setDailyInputs, onAddDailyEntry, onTimeClockEvent, workDate, workMonth, workNotes, onSelectWorkDate, onWorkMonthChange, onSaveTimeClockRows, onWorkStatusChange, hasDailyFolder, onConfigure, completedToday = [], tomorrowTasks = [], weekDates: currentWeekDates = [], vaultTotals = { tasks:0, projects:0, properties:0, people:0 } }) {
   const renderTask = t => {
     const running = liveId === t.id;
     return (
@@ -2160,9 +2162,25 @@ function MissionControlPanel({ today, overdue, recurrent, selectedId, liveId, ge
   return (
     <div style={{ flex:1, display:'flex', flexDirection:'column', overflow:'hidden' }}>
       <div style={{ padding:'22px 30px 16px', borderBottom:'1px solid rgba(255,255,255,0.06)', flexShrink:0, display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:20 }}>
-        <div>
+        <div style={{ minWidth:0, flex:1 }}>
           <div style={{ fontSize:10, color:'#a78bfa', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:8 }}>Today Mission Control</div>
-          <h2 style={{ margin:0, fontSize:20, fontWeight:750, color:'#f1f5f9' }}>{longDate(new Date())}</h2>
+          <div style={{ display:'flex', alignItems:'center', gap:14, flexWrap:'wrap' }}>
+            <h2 style={{ margin:0, fontSize:20, fontWeight:750, color:'#f1f5f9' }}>{longDate(new Date())}</h2>
+            <div style={{ display:'flex', gap:7, flexWrap:'wrap' }}>
+              {[
+                ['☑', 'Tasks', vaultTotals.tasks, '#fbbf24'],
+                ['◆', 'Projects', vaultTotals.projects, '#818cf8'],
+                ['⌂', 'Properties', vaultTotals.properties, '#38bdf8'],
+                ['👤', 'People', vaultTotals.people, '#10b981'],
+              ].map(([icon, label, count, color]) => (
+                <span key={label} title={`Total ${label.toLowerCase()}`} style={{ display:'inline-flex', alignItems:'center', gap:6, minHeight:26, padding:'4px 8px', borderRadius:8, border:`1px solid ${color}33`, background:`${color}12`, color:'#cbd5e1', fontSize:11, fontWeight:800, lineHeight:1, fontVariantNumeric:'tabular-nums' }}>
+                  <span style={{ color, fontSize:13, lineHeight:1 }}>{icon}</span>
+                  <span style={{ color:'#f8fafc' }}>{count}</span>
+                  <span style={{ color:'#64748b', fontWeight:700 }}>{label}</span>
+                </span>
+              ))}
+            </div>
+          </div>
           <div style={{ fontSize:12, color:'#64748b', marginTop:5 }}>{dailyNote ? dailyNote.filename : hasDailyFolder ? 'Creating today daily note...' : 'Daily notes folder not configured'}</div>
         </div>
         <div style={{ display:'flex', gap:8 }}>
