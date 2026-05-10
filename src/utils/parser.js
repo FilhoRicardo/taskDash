@@ -173,6 +173,25 @@ export function parseProperty(name, txt) {
   };
 }
 
+export function parsePerson(name, txt) {
+  const fm = parseFrontmatter(txt);
+  const h1 = txt.match(/^#\s+(.+)$/m)?.[1]?.trim();
+  const tags = Array.isArray(fm.tags) ? fm.tags : fm.tags ? [fm.tags] : [];
+  return {
+    id: name,
+    filename: basename(name),
+    title: fm.person || fm.name || fm.title || h1 || titleFromName(name),
+    company: wl(fm.company || fm.client),
+    role: fm.role || '',
+    email: fm.email || '',
+    phone: fm.phone || '',
+    tags,
+    dateCreated: fm.dateCreated || null,
+    dateModified: fm.dateModified || null,
+    raw: txt,
+  };
+}
+
 export async function readMdFiles(dir, acc = [], prefix = '') {
   for await (const [name, h] of dir.entries()) {
     try {

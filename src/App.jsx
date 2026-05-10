@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { parseTask, parseProperty, parseProject, parseDailyNote, readMdFiles, readDirNames, readImageFiles } from './utils/parser.js';
+import { parseTask, parseProperty, parseProject, parseDailyNote, parsePerson, readMdFiles, readDirNames, readImageFiles } from './utils/parser.js';
 import { idbGet, idbSet, idbDel, lsGet, lsSet, lsDel } from './utils/storage.js';
 import { fmt, tod, isToday, isOver, longDate, appendNoteToMd, appendPropertyCommentToMd, appendDailySectionEntry, appendDailyTimeClockEvent, buildDailyNoteMd, buildTrackerRow, appendTrackerRow, buildMeetingMd, buildNewTaskMd, buildNewPropertyMd, buildNewProjectMd, buildNewPersonMd, finishRecurrentTaskInstance, markTaskDone, postponeTaskDates, replaceDailyTimeClockRows, setDailyWorkStatus, setPropertyCover, touchDateModified, updateTaskDates } from './utils/formatter.js';
 
@@ -97,6 +97,23 @@ function taskDescriptionText(raw = '') {
     .split(/\n### (?:\[\[)?(?:\d{4}-\d{2}-\d{2}|\d{1,2}\/\d{1,2}\/\d{4})/)[0]
     .replace(/^#\s+.+\n?/, '')
     .trim();
+}
+
+function noteBodyText(raw = '') {
+  return raw
+    .replace(/^---\n[\s\S]*?\n---\n?/, '')
+    .replace(/^#\s+.+\n?/, '')
+    .trim();
+}
+
+function groupByInitial(items) {
+  return items.reduce((groups, item) => {
+    const first = (item.title || item.filename || '#').trim().charAt(0).toUpperCase();
+    const key = /[A-Z]/.test(first) ? first : '#';
+    groups[key] = groups[key] || [];
+    groups[key].push(item);
+    return groups;
+  }, {});
 }
 
 function MarkdownBody({ children }) {
@@ -439,6 +456,12 @@ export default function App() {
   const [projectDraft,   setProjectDraft]   = useState('');
   const [newProjectOpen, setNewProjectOpen] = useState(false);
 
+  // People library state
+  const [people,        setPeople]        = useState([]);
+  const [personHandles, setPersonHandles] = useState({});
+  const [personSel,     setPersonSel]     = useState(null);
+  const [personDraft,   setPersonDraft]   = useState('');
+
   // â”€â”€ Daily note state â”€â”€
   const [dailyNote,   setDailyNote]   = useState(null);
   const [dailyHandle, setDailyHandle] = useState(null);
@@ -585,6 +608,11 @@ export default function App() {
     setProjectDraft(project?.raw || '');
   }, [projectSel, projects]);
 
+  useEffect(() => {
+    const person = people.find(p => p.id === personSel);
+    setPersonDraft(person?.raw || '');
+  }, [personSel, people]);
+
   const loadFiles = useCallback(async (dir, doneDir = null) => {
     try {
       const raw = [];
@@ -647,6 +675,20 @@ export default function App() {
       setProjectHandles(handles);
       setProjectSel(prev => prev && parsed.some(p => p.id === prev) ? prev : (parsed[0]?.id || null));
     } catch(e) { console.error('projects load failed', e); }
+  }, []);
+
+  const loadPeople = useCallback(async (dir) => {
+    try {
+      const raw = await readMdFiles(dir);
+      const parsed = raw.map(f => parsePerson(f.name, f.text))
+        .sort((a,b) => a.title.localeCompare(b.title));
+      setPeople(parsed);
+      setFolderStats(prev => ({ ...prev, people: raw.length }));
+      const handles = {};
+      raw.forEach(f => { handles[f.name] = f.handle; });
+      setPersonHandles(handles);
+      setPersonSel(prev => prev && parsed.some(p => p.id === prev) ? prev : (parsed[0]?.id || null));
+    } catch(e) { console.error('people load failed', e); }
   }, []);
 
   const readDailyNoteForDate = useCallback(async (dir, dateStr, create = false) => {
@@ -735,9 +777,10 @@ export default function App() {
     await loadRefs(liveDirs);
     if (liveDirs.projects) await loadProjects(liveDirs.projects);
     if (liveDirs.properties) await loadProperties(liveDirs.properties);
+    if (liveDirs.people) await loadPeople(liveDirs.people);
     if (liveDirs.attachments) await loadAttachmentImages(liveDirs.attachments);
     if (liveDirs.daily) await ensureDailyNote(liveDirs.daily);
-  }, [loadFiles, loadRefs, loadProjects, loadProperties, loadAttachmentImages, ensureDailyNote]);
+  }, [loadFiles, loadRefs, loadProjects, loadProperties, loadPeople, loadAttachmentImages, ensureDailyNote]);
 
   useEffect(() => {
     if (!dirs.tasks && !dirs.done && !dirs.projects && !dirs.properties && !dirs.daily && !dirs.attachments) return;
@@ -757,6 +800,7 @@ export default function App() {
     setTaskSearch('');
     setProjectSearch('');
     setPropertySearch('');
+    setPeopleSearch('');
     try {
       await loadAll(dirs);
       setWriteBackups((await idbGet(WRITE_BACKUPS_KEY)) || []);
@@ -786,6 +830,7 @@ export default function App() {
       else {
         if (key === 'projects') await loadProjects(dir);
         if (key === 'properties') await loadProperties(dir);
+        if (key === 'people') await loadPeople(dir);
         if (key === 'attachments') await loadAttachmentImages(dir);
         if (key === 'daily') await ensureDailyNote(dir);
         await loadRefs(next);
@@ -811,6 +856,7 @@ export default function App() {
         else {
           if (key === 'projects') await loadProjects(h);
           if (key === 'properties') await loadProperties(h);
+          if (key === 'people') await loadPeople(h);
           if (key === 'attachments') await loadAttachmentImages(h);
           if (key === 'daily') await ensureDailyNote(h);
           await loadRefs(next);
@@ -845,6 +891,7 @@ export default function App() {
     else if (key === 'done') await loadFiles(dirs.tasks, null);
     else if (key === 'projects') { setProjects([]); setProjectHandles({}); setProjectSel(null); setProjectDraft(''); }
     else if (key === 'properties') { setProperties([]); setPropertyHandles({}); setPropertySel(null); }
+    else if (key === 'people') { setPeople([]); setPersonHandles({}); setPersonSel(null); setPersonDraft(''); }
     else if (key === 'daily') { setDailyNote(null); setDailyHandle(null); setDailyInputs({ notes:'', reflections:'', brainDump:'' }); setWorkNotes({}); setWorkHandles({}); }
     else if (key === 'attachments') {
       Object.values(imageUrlsRef.current).forEach(URL.revokeObjectURL);
@@ -1201,12 +1248,32 @@ export default function App() {
       const content = buildNewPersonMd(form);
       const fh = await dirs.people.getFileHandle(filename, { create:true });
       await writeFile(fh, content);
+      await loadPeople(dirs.people);
       await loadRefs({ ...dirs, people: dirs.people });
+      setPersonSel(filename);
       setNewPersonOpen(false);
       setToast(`Created person "${form.name.trim()}"`);
     } catch(e) {
       console.error('create person failed', e);
       alert('Failed to create person: ' + e.message);
+    }
+  };
+
+  const savePerson = async () => {
+    if (!personSel) return;
+    const handle = personHandles[personSel];
+    if (!handle) return;
+    try {
+      const updated = touchDateModified(personDraft);
+      await writeFile(handle, updated);
+      const updatedPerson = parsePerson(personSel, updated);
+      setPeople(prev => prev.map(p => p.id === personSel ? updatedPerson : p).sort((a,b) => a.title.localeCompare(b.title)));
+      setPersonDraft(updated);
+      await loadRefs(dirs);
+      setToast(`Saved "${updatedPerson.title}"`);
+    } catch(e) {
+      console.error('save person failed', e);
+      alert('Failed to save person: ' + e.message);
     }
   };
 
@@ -1341,7 +1408,12 @@ export default function App() {
     if (!q) return true;
     return [p.title, p.filename, p.client, p.summary, p.status].filter(Boolean).some(v => v.toLowerCase().includes(q));
   });
-  const filteredPeople = refs.people.filter(p => !peopleSearch.trim() || p.toLowerCase().includes(peopleSearch.trim().toLowerCase()));
+  const filteredPeople = people.filter(p => {
+    const q = peopleSearch.trim().toLowerCase();
+    if (!q) return true;
+    return [p.title, p.filename, p.company, p.role, p.email].filter(Boolean).some(v => String(v).toLowerCase().includes(q));
+  });
+  const person = people.find(p => p.id === personSel);
   const tomorrow = addDays(tod(), 1);
   const completedToday = tasks.filter(t => (t.completedDate || '').slice(0, 10) === tod());
   const tomorrowTasks = openTasks.filter(t => t.due === tomorrow || t.scheduled === tomorrow).sort(byOldestCreated);
@@ -1350,7 +1422,7 @@ export default function App() {
   const healthWarnings = diagnostics.issues.filter(i => i.level === 'warning').length;
   const healthBadges = healthErrors + healthWarnings;
   const headerLabel = view === 'mission' ? 'MISSION CONTROL' : view === 'tasks' ? "TODAY'S TOTAL" : view === 'projects' ? 'PROJECT LIBRARY' : view === 'properties' ? 'PROPERTY LIBRARY' : view === 'people' ? 'PEOPLE' : 'VAULT HEALTH';
-  const headerMetric = view === 'mission' ? missionToday.length + missionOverdue.length + missionRecurrent.length : view === 'tasks' ? fmt(totalToday) : view === 'projects' ? projects.length : view === 'properties' ? properties.length : view === 'people' ? refs.people.length : diagnostics.issues.length;
+  const headerMetric = view === 'mission' ? missionToday.length + missionOverdue.length + missionRecurrent.length : view === 'tasks' ? fmt(totalToday) : view === 'projects' ? projects.length : view === 'properties' ? properties.length : view === 'people' ? people.length : diagnostics.issues.length;
   const headerDetail = view === 'mission'
     ? `${missionToday.length} today · ${missionOverdue.length} overdue · ${missionRecurrent.length} recurrent · ${dirs.daily ? 'daily on' : 'daily off'}`
     : view === 'tasks'
@@ -1775,7 +1847,18 @@ export default function App() {
         newPersonOpen ? (
           <NewPersonPanel onCancel={()=>setNewPersonOpen(false)} onCreate={createPerson} refs={refs} hasPeopleFolder={!!dirs.people} onConfigure={()=>setFolderSetupOpen(true)}/>
         ) : (
-          <PeoplePanel people={filteredPeople} hasPeopleFolder={!!dirs.people} onNewPerson={()=>setNewPersonOpen(true)} onConfigure={()=>setFolderSetupOpen(true)}/>
+          <PeoplePanel
+            people={filteredPeople}
+            selected={person}
+            selectedId={personSel}
+            draft={personDraft}
+            setDraft={setPersonDraft}
+            onSelect={setPersonSel}
+            onSave={savePerson}
+            hasPeopleFolder={!!dirs.people}
+            onNewPerson={()=>setNewPersonOpen(true)}
+            onConfigure={()=>setFolderSetupOpen(true)}
+          />
         )
       ) : view === 'health' ? (
         <HealthPanel diagnostics={diagnostics} dirs={dirs} backups={writeBackups} onForceSync={forceSyncAll} syncBusy={syncBusy} onConfigure={()=>setFolderSetupOpen(true)}/>
@@ -1907,7 +1990,7 @@ export default function App() {
   );
 }
 
-function PeoplePanel({ people, hasPeopleFolder, onNewPerson, onConfigure }) {
+function PeoplePanel({ people, selected, selectedId, draft, setDraft, onSelect, onSave, hasPeopleFolder, onNewPerson, onConfigure }) {
   if (!hasPeopleFolder) {
     return (
       <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', color:'#475569', fontSize:13 }}>
@@ -1916,25 +1999,65 @@ function PeoplePanel({ people, hasPeopleFolder, onNewPerson, onConfigure }) {
     );
   }
 
+  const groups = groupByInitial(people);
+  const letters = Object.keys(groups).sort();
+
   return (
-    <div style={{ flex:1, display:'flex', flexDirection:'column', overflow:'hidden' }}>
-      <div style={{ padding:'22px 30px 16px', borderBottom:'1px solid rgba(255,255,255,0.06)', flexShrink:0, display:'flex', justifyContent:'space-between', alignItems:'center', gap:18 }}>
-        <div>
-          <div style={{ fontSize:10, color:'#a78bfa', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:8 }}>People</div>
-          <h2 style={{ margin:0, fontSize:19, fontWeight:700, color:'#f1f5f9' }}>People library</h2>
-        </div>
-        <button onClick={onNewPerson} style={{ padding:'9px 16px', borderRadius:10, border:'none', cursor:'pointer', fontWeight:800, fontSize:13, fontFamily:'inherit', background:'linear-gradient(135deg,#7c3aed,#3b82f6)', color:'#fff' }}>+ New Person</button>
+    <div style={{ flex:1, display:'grid', gridTemplateColumns:'minmax(270px, 0.34fr) minmax(520px, 1fr)', minHeight:0, overflow:'hidden' }}>
+      <div style={{ borderRight:'1px solid rgba(255,255,255,0.06)', overflowY:'auto', padding:'18px 16px' }}>
+        <button onClick={onNewPerson} style={{ width:'100%', padding:'9px 12px', borderRadius:9, border:'none', cursor:'pointer', fontWeight:800, fontSize:12, fontFamily:'inherit', background:'linear-gradient(135deg,#7c3aed,#3b82f6)', color:'#fff', marginBottom:12 }}>+ New Person</button>
+        {!people.length && <div style={{ color:'#475569', textAlign:'center', paddingTop:35, fontSize:12 }}>No people found</div>}
+        {letters.map(letter => (
+          <div key={letter} style={{ marginBottom:12 }}>
+            <div style={{ position:'sticky', top:-18, zIndex:1, padding:'7px 2px 6px', background:'#09090e', borderBottom:'1px solid rgba(255,255,255,0.06)', fontSize:11, color:'#a78bfa', fontWeight:900, letterSpacing:'0.12em' }}>{letter}</div>
+            {groups[letter].map(p => (
+              <button key={p.id} onClick={()=>onSelect(p.id)} style={{ width:'100%', textAlign:'left', padding:'10px 11px', marginTop:6, borderRadius:9, border:`1px solid ${selectedId===p.id?'rgba(124,58,237,0.45)':'rgba(255,255,255,0.05)'}`, background:selectedId===p.id?'rgba(124,58,237,0.1)':'rgba(255,255,255,0.02)', color:'#e2e8f0', cursor:'pointer', fontFamily:'inherit' }}>
+                <div style={{ fontSize:13, fontWeight:800, lineHeight:1.3 }}>{p.title}</div>
+                <div style={{ fontSize:10, color:'#64748b', marginTop:4 }}>{p.company || p.role || p.filename}</div>
+              </button>
+            ))}
+          </div>
+        ))}
       </div>
-      <div style={{ flex:1, overflowY:'auto', padding:'20px 30px' }}>
-        <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(180px,1fr))', gap:10 }}>
-          {people.map(name => (
-            <div key={name} style={{ borderRadius:8, border:'1px solid rgba(255,255,255,0.06)', background:'rgba(255,255,255,0.025)', padding:'13px 14px' }}>
-              <div style={{ fontSize:14, fontWeight:800, color:'#f1f5f9', lineHeight:1.3 }}>{name}</div>
-              <div style={{ fontSize:10, color:'#64748b', marginTop:5 }}>Available in Waiting for</div>
-            </div>
-          ))}
+
+      <div style={{ display:'flex', flexDirection:'column', minWidth:0, minHeight:0 }}>
+        <div style={{ padding:'20px 28px 14px', borderBottom:'1px solid rgba(255,255,255,0.06)', display:'flex', justifyContent:'space-between', gap:18, alignItems:'flex-start' }}>
+          <div style={{ minWidth:0 }}>
+            <div style={{ fontSize:10, color:'#a78bfa', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:7 }}>People</div>
+            <h2 style={{ margin:0, fontSize:20, color:'#f1f5f9' }}>{selected ? selected.title : 'Select a person'}</h2>
+            {selected && (
+              <div style={{ display:'flex', gap:8, flexWrap:'wrap', marginTop:7, color:'#64748b', fontSize:11 }}>
+                <span>{selected.filename}</span>
+                {selected.company && <span>Company: {selected.company}</span>}
+                {selected.role && <span>Role: {selected.role}</span>}
+                {selected.email && <span>{selected.email}</span>}
+              </div>
+            )}
+          </div>
+          <button onClick={onSave} disabled={!selected} style={{ padding:'9px 18px', borderRadius:10, border:'none', cursor:selected?'pointer':'not-allowed', fontWeight:800, fontSize:13, fontFamily:'inherit', background:'linear-gradient(135deg,#7c3aed,#3b82f6)', color:'#fff', opacity:selected?1:0.35 }}>Save</button>
         </div>
-        {!people.length && <div style={{ color:'#334155', textAlign:'center', paddingTop:80, fontSize:13 }}>No people found yet</div>}
+        {selected ? (
+          <div style={{ flex:1, minHeight:0, display:'grid', gridTemplateColumns:'minmax(300px, 0.45fr) minmax(360px, 0.55fr)', overflow:'hidden' }}>
+            <aside style={{ minWidth:0, overflowY:'auto', padding:'18px 22px', borderRight:'1px solid rgba(255,255,255,0.06)' }}>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline', gap:12, marginBottom:12 }}>
+                <h3 style={{ margin:0, fontSize:14, color:'#f1f5f9' }}>Reader</h3>
+                <span style={{ fontSize:10, color:'#475569', fontWeight:800 }}>{selected.filename}</span>
+              </div>
+              <div style={{ borderRadius:10, border:'1px solid rgba(255,255,255,0.06)', background:'rgba(255,255,255,0.025)', padding:'14px 16px', minHeight:220 }}>
+                <MarkdownBody>{noteBodyText(draft)}</MarkdownBody>
+              </div>
+            </aside>
+            <div style={{ minWidth:0, display:'flex', flexDirection:'column', overflow:'hidden' }}>
+              <div style={{ padding:'18px 22px 10px', flexShrink:0 }}>
+                <h3 style={{ margin:0, fontSize:14, color:'#f1f5f9' }}>Markdown</h3>
+                <div style={{ fontSize:11, color:'#64748b', marginTop:4 }}>Edit the person file directly. Save writes back to Obsidian.</div>
+              </div>
+              <textarea value={draft} onChange={e=>setDraft(e.target.value)} spellCheck={false} style={{ flex:1, width:'100%', resize:'none', padding:'0 22px 18px', background:'rgba(255,255,255,0.025)', border:'none', color:'#e2e8f0', outline:'none', fontFamily:'ui-monospace, SFMono-Regular, Consolas, monospace', fontSize:13, lineHeight:1.65 }}/>
+            </div>
+          </div>
+        ) : (
+          <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', color:'#334155', fontSize:13 }}>Select or create a person</div>
+        )}
       </div>
     </div>
   );
@@ -1967,13 +2090,21 @@ function HealthPanel({ diagnostics, dirs, backups, onForceSync, syncBusy, onConf
         <section style={{ borderRadius:8, border:'1px solid rgba(255,255,255,0.06)', background:'rgba(255,255,255,0.025)', padding:'14px', marginBottom:14 }}>
           <h3 style={{ margin:'0 0 10px', fontSize:14, color:'#f1f5f9' }}>Issues</h3>
           {!diagnostics.issues.length && <div style={{ color:'#10b981', fontSize:13 }}>No obvious issues found.</div>}
-          {diagnostics.issues.map((issue, i) => (
-            <div key={i} style={{ padding:'10px 11px', marginBottom:7, borderRadius:8, background:'rgba(255,255,255,0.025)', border:`1px solid ${issueColor(issue)}33` }}>
-              <div style={{ fontSize:12, color:issueColor(issue), fontWeight:850, textTransform:'uppercase' }}>{issue.level}</div>
-              <div style={{ fontSize:13, color:'#e2e8f0', marginTop:4 }}>{issue.text}</div>
-              {issue.detail && <div style={{ fontSize:11, color:'#64748b', marginTop:4, overflowWrap:'anywhere' }}>{issue.detail}</div>}
-            </div>
-          ))}
+          {diagnostics.issues.map((issue, i) => {
+            const folderIssue = /folder|connected/i.test(issue.text);
+            return (
+              <div key={i} style={{ padding:'10px 11px', marginBottom:7, borderRadius:8, background:'rgba(255,255,255,0.025)', border:`1px solid ${issueColor(issue)}33`, display:'flex', justifyContent:'space-between', gap:12, alignItems:'flex-start' }}>
+                <div style={{ minWidth:0 }}>
+                  <div style={{ fontSize:12, color:issueColor(issue), fontWeight:850, textTransform:'uppercase' }}>{issue.level}</div>
+                  <div style={{ fontSize:13, color:'#e2e8f0', marginTop:4 }}>{issue.text}</div>
+                  {issue.detail && <div style={{ fontSize:11, color:'#64748b', marginTop:4, overflowWrap:'anywhere' }}>{issue.detail}</div>}
+                </div>
+                <button onClick={folderIssue ? onConfigure : onForceSync} style={{ padding:'6px 9px', borderRadius:8, border:'1px solid rgba(255,255,255,0.08)', background:'rgba(255,255,255,0.035)', color:folderIssue?'#c4b5fd':'#94a3b8', cursor:'pointer', fontWeight:800, fontSize:11, fontFamily:'inherit', flexShrink:0 }}>
+                  {folderIssue ? 'Fix' : 'Recheck'}
+                </button>
+              </div>
+            );
+          })}
         </section>
         <section style={{ borderRadius:8, border:'1px solid rgba(255,255,255,0.06)', background:'rgba(255,255,255,0.025)', padding:'14px' }}>
           <h3 style={{ margin:'0 0 10px', fontSize:14, color:'#f1f5f9' }}>Recent Local Backups</h3>
