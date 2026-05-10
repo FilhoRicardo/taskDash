@@ -1420,7 +1420,13 @@ export default function App() {
   const tomorrow = addDays(tod(), 1);
   const completedToday = tasks.filter(t => (t.completedDate || '').slice(0, 10) === tod());
   const tomorrowTasks = openTasks.filter(t => t.due === tomorrow || t.scheduled === tomorrow).sort(byOldestCreated);
-  const vaultTotals = { tasks: tasks.length, projects: projects.length, properties: properties.length, people: people.length };
+  const vaultTotals = {
+    tasksOpen: openTasks.length,
+    tasksFinished: tasks.filter(isClosedTask).length,
+    projects: projects.length,
+    properties: properties.length,
+    people: people.length,
+  };
   const diagnostics = buildDiagnostics({ tasks, projects, properties, refs, dirs, folderStats, backups:writeBackups });
   const healthErrors = diagnostics.issues.filter(i => i.level === 'error').length;
   const healthWarnings = diagnostics.issues.filter(i => i.level === 'warning').length;
@@ -2127,7 +2133,7 @@ function HealthPanel({ diagnostics, dirs, backups, onForceSync, syncBusy, onConf
   );
 }
 
-function MissionControlPanel({ today, overdue, recurrent, selectedId, liveId, getTime, onSelectTask, onStart, onStop, onNewTask, dailyNote, dailyInputs, setDailyInputs, onAddDailyEntry, onTimeClockEvent, workDate, workMonth, workNotes, onSelectWorkDate, onWorkMonthChange, onSaveTimeClockRows, onWorkStatusChange, hasDailyFolder, onConfigure, completedToday = [], tomorrowTasks = [], weekDates: currentWeekDates = [], vaultTotals = { tasks:0, projects:0, properties:0, people:0 } }) {
+function MissionControlPanel({ today, overdue, recurrent, selectedId, liveId, getTime, onSelectTask, onStart, onStop, onNewTask, dailyNote, dailyInputs, setDailyInputs, onAddDailyEntry, onTimeClockEvent, workDate, workMonth, workNotes, onSelectWorkDate, onWorkMonthChange, onSaveTimeClockRows, onWorkStatusChange, hasDailyFolder, onConfigure, completedToday = [], tomorrowTasks = [], weekDates: currentWeekDates = [], vaultTotals = { tasksOpen:0, tasksFinished:0, projects:0, properties:0, people:0 } }) {
   const renderTask = t => {
     const running = liveId === t.id;
     return (
@@ -2168,10 +2174,11 @@ function MissionControlPanel({ today, overdue, recurrent, selectedId, liveId, ge
             <h2 style={{ margin:0, fontSize:20, fontWeight:750, color:'#f1f5f9' }}>{longDate(new Date())}</h2>
             <div style={{ display:'flex', gap:7, flexWrap:'wrap' }}>
               {[
-                ['☑', 'Tasks', vaultTotals.tasks, '#fbbf24'],
+                ['☑', 'Open', vaultTotals.tasksOpen, '#fbbf24'],
+                ['✓', 'Finished', vaultTotals.tasksFinished, '#10b981'],
                 ['◆', 'Projects', vaultTotals.projects, '#818cf8'],
                 ['⌂', 'Properties', vaultTotals.properties, '#38bdf8'],
-                ['👤', 'People', vaultTotals.people, '#10b981'],
+                ['👤', 'People', vaultTotals.people, '#14b8a6'],
               ].map(([icon, label, count, color]) => (
                 <span key={label} title={`Total ${label.toLowerCase()}`} style={{ display:'inline-flex', alignItems:'center', gap:6, minHeight:26, padding:'4px 8px', borderRadius:8, border:`1px solid ${color}33`, background:`${color}12`, color:'#cbd5e1', fontSize:11, fontWeight:800, lineHeight:1, fontVariantNumeric:'tabular-nums' }}>
                   <span style={{ color, fontSize:13, lineHeight:1 }}>{icon}</span>
@@ -2368,7 +2375,8 @@ function WorkHoursPanel({ selectedDate, selectedNote, notes, onSaveRows, onStatu
   const week = weekDates(selectedDate);
   const weekStats = week.map(dateStr => ({ dateStr, ...workStats(notes[dateStr]) }));
   const weekTotalMinutes = weekStats.reduce((sum, day) => sum + day.totalMinutes, 0);
-  const targetTop = `${100 - (TARGET_WORK_MINUTES / WORK_CHART_MAX_MINUTES) * 100}%`;
+  const chartMaxMinutes = Math.max(WORK_CHART_MAX_MINUTES, TARGET_WORK_MINUTES, ...weekStats.map(day => day.totalMinutes));
+  const targetBottom = `${Math.min(100, (TARGET_WORK_MINUTES / chartMaxMinutes) * 100)}%`;
 
   useEffect(() => {
     setDraft(timeDraftFromRows(selectedNote?.timeClock || []));
@@ -2391,22 +2399,25 @@ function WorkHoursPanel({ selectedDate, selectedNote, notes, onSaveRows, onStatu
         </div>
       </div>
 
-      <div style={{ height:145, position:'relative', borderRadius:8, border:'1px solid rgba(255,255,255,0.05)', background:'rgba(15,23,42,0.55)', padding:'15px 12px 24px', marginBottom:12 }}>
-        <div style={{ position:'absolute', left:10, right:10, top:targetTop, borderTop:'1px dashed rgba(251,191,36,0.9)' }} />
-        <div style={{ position:'absolute', right:12, top:`calc(${targetTop} - 9px)`, fontSize:9, color:'#fbbf24', background:'#0f172a', padding:'1px 4px' }}>435 min</div>
-        <div style={{ height:'100%', display:'grid', gridTemplateColumns:'repeat(5,1fr)', gap:10, alignItems:'end' }}>
+      <div style={{ height:155, position:'relative', borderRadius:8, border:'1px solid rgba(255,255,255,0.05)', background:'rgba(15,23,42,0.55)', padding:'14px 12px 26px', marginBottom:12 }}>
+        <div style={{ position:'relative', height:'100%' }}>
+          <div style={{ position:'absolute', left:0, right:0, bottom:targetBottom, borderTop:'1px dashed rgba(251,191,36,0.9)', zIndex:2 }} />
+          <div style={{ position:'absolute', right:0, bottom:targetBottom, transform:'translateY(50%)', fontSize:9, color:'#fbbf24', background:'#0f172a', padding:'1px 4px', zIndex:3 }}>435 min</div>
+          <div style={{ height:'100%', display:'grid', gridTemplateColumns:'repeat(5,1fr)', gap:10, alignItems:'stretch' }}>
           {weekStats.map(day => {
-            const pct = Math.min(100, (day.totalMinutes / WORK_CHART_MAX_MINUTES) * 100);
+            const pct = Math.min(100, (day.totalMinutes / chartMaxMinutes) * 100);
+            const barHeight = day.totalMinutes > 0 ? Math.max(3, pct) : 0;
             const isSelected = day.dateStr === selectedDate;
             const isLeave = day.status && day.status !== 'workday';
             return (
-              <div key={day.dateStr} style={{ minWidth:0, height:'100%', display:'flex', flexDirection:'column', justifyContent:'flex-end', alignItems:'center', gap:5 }}>
-                <div style={{ fontSize:9, color:isSelected?'#c4b5fd':'#64748b', fontWeight:800 }}>{formatMinutes(day.totalMinutes)}</div>
-                <div style={{ width:'70%', height:`${Math.max(4, pct)}%`, borderRadius:'7px 7px 3px 3px', background:isLeave?'rgba(56,189,248,0.38)':day.totalMinutes >= TARGET_WORK_MINUTES?'linear-gradient(180deg,#34d399,#10b981)':'linear-gradient(180deg,#fbbf24,#7c3aed)', border:isSelected?'1px solid rgba(196,181,253,0.85)':'1px solid rgba(255,255,255,0.08)' }} />
-                <div style={{ fontSize:10, color:isSelected?'#f1f5f9':'#475569', fontWeight:800 }}>{dateFromStr(day.dateStr).toLocaleDateString('en-US', { weekday:'short' })}</div>
+              <div key={day.dateStr} style={{ minWidth:0, height:'100%', position:'relative' }}>
+                <div style={{ position:'absolute', left:0, right:0, bottom:`calc(${barHeight}% + 5px)`, textAlign:'center', fontSize:9, color:isSelected?'#c4b5fd':'#64748b', fontWeight:800 }}>{formatMinutes(day.totalMinutes)}</div>
+                <div style={{ position:'absolute', left:'15%', right:'15%', bottom:0, height:`${barHeight}%`, borderRadius:'7px 7px 3px 3px', background:isLeave?'rgba(56,189,248,0.38)':day.totalMinutes >= TARGET_WORK_MINUTES?'linear-gradient(180deg,#34d399,#10b981)':'linear-gradient(180deg,#fbbf24,#7c3aed)', border:isSelected?'1px solid rgba(196,181,253,0.85)':'1px solid rgba(255,255,255,0.08)' }} />
+                <div style={{ position:'absolute', left:0, right:0, bottom:-21, textAlign:'center', fontSize:10, color:isSelected?'#f1f5f9':'#475569', fontWeight:800 }}>{dateFromStr(day.dateStr).toLocaleDateString('en-US', { weekday:'short' })}</div>
               </div>
             );
           })}
+          </div>
         </div>
       </div>
 
