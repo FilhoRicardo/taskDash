@@ -95,9 +95,11 @@ function taskDescriptionText(raw = '') {
   const withoutFrontmatter = String(raw || '')
     .replace(/\r\n/g, '\n')
     .replace(/^---\n[\s\S]*?\n---\n?/, '');
-  return withoutFrontmatter
-    .split(/(?:^|\n)(?:---|___)\s*(?=\n|$)/)[0]
+  const wrappedDescription = withoutFrontmatter.match(/^\s*(?:---|___)\s*\n([\s\S]*?)\n(?:---|___)\s*(?=\n|$)/);
+  const body = wrappedDescription ? wrappedDescription[1] : withoutFrontmatter;
+  return body
     .split(/\n### (?:\[\[)?(?:\d{4}-\d{2}-\d{2}|\d{1,2}\/\d{1,2}\/\d{4})/)[0]
+    .replace(/^#{1,6}\s+Task descri(?:p)?tion\s*\n?/i, '')
     .replace(/^#\s+.+\n?/, '')
     .trim();
 }
