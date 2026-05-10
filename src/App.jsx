@@ -92,8 +92,11 @@ function parseLogText(text) {
 }
 
 function taskDescriptionText(raw = '') {
-  return raw
-    .replace(/^---\n[\s\S]*?\n---\n?/, '')
+  const withoutFrontmatter = String(raw || '')
+    .replace(/\r\n/g, '\n')
+    .replace(/^---\n[\s\S]*?\n---\n?/, '');
+  return withoutFrontmatter
+    .split(/(?:^|\n)(?:---|___)\s*(?=\n|$)/)[0]
     .split(/\n### (?:\[\[)?(?:\d{4}-\d{2}-\d{2}|\d{1,2}\/\d{1,2}\/\d{4})/)[0]
     .replace(/^#\s+.+\n?/, '')
     .trim();
@@ -2015,17 +2018,17 @@ function PeoplePanel({ people, selected, selectedId, draft, setDraft, onSelect, 
   const letters = Object.keys(groups).sort();
 
   return (
-    <div style={{ flex:1, display:'grid', gridTemplateColumns:'minmax(270px, 0.34fr) minmax(520px, 1fr)', minHeight:0, overflow:'hidden' }}>
-      <div style={{ borderRight:'1px solid rgba(255,255,255,0.06)', overflowY:'auto', padding:'18px 16px' }}>
-        <button onClick={onNewPerson} style={{ width:'100%', padding:'9px 12px', borderRadius:9, border:'none', cursor:'pointer', fontWeight:800, fontSize:12, fontFamily:'inherit', background:'linear-gradient(135deg,#7c3aed,#3b82f6)', color:'#fff', marginBottom:12 }}>+ New Person</button>
+    <div style={{ flex:1, display:'grid', gridTemplateColumns:'minmax(230px, 0.28fr) minmax(560px, 1fr)', minHeight:0, overflow:'hidden' }}>
+      <div style={{ borderRight:'1px solid rgba(255,255,255,0.06)', overflowY:'auto', padding:'14px 12px' }}>
+        <button onClick={onNewPerson} style={{ width:'100%', padding:'8px 10px', borderRadius:8, border:'none', cursor:'pointer', fontWeight:800, fontSize:12, fontFamily:'inherit', background:'linear-gradient(135deg,#7c3aed,#3b82f6)', color:'#fff', marginBottom:10 }}>+ New Person</button>
         {!people.length && <div style={{ color:'#475569', textAlign:'center', paddingTop:35, fontSize:12 }}>No people found</div>}
         {letters.map(letter => (
-          <div key={letter} style={{ marginBottom:12 }}>
-            <div style={{ position:'sticky', top:-18, zIndex:1, padding:'7px 2px 6px', background:'#09090e', borderBottom:'1px solid rgba(255,255,255,0.06)', fontSize:11, color:'#a78bfa', fontWeight:900, letterSpacing:'0.12em' }}>{letter}</div>
+          <div key={letter} style={{ marginBottom:8 }}>
+            <div style={{ position:'sticky', top:-14, zIndex:1, padding:'6px 2px 5px', background:'#09090e', borderBottom:'1px solid rgba(255,255,255,0.06)', fontSize:10, color:'#a78bfa', fontWeight:900, letterSpacing:'0.12em' }}>{letter}</div>
             {groups[letter].map(p => (
-              <button key={p.id} onClick={()=>onSelect(p.id)} style={{ width:'100%', textAlign:'left', padding:'10px 11px', marginTop:6, borderRadius:9, border:`1px solid ${selectedId===p.id?'rgba(124,58,237,0.45)':'rgba(255,255,255,0.05)'}`, background:selectedId===p.id?'rgba(124,58,237,0.1)':'rgba(255,255,255,0.02)', color:'#e2e8f0', cursor:'pointer', fontFamily:'inherit' }}>
+              <button key={p.id} onClick={()=>onSelect(p.id)} style={{ width:'100%', textAlign:'left', padding:'8px 10px', marginTop:4, borderRadius:8, border:`1px solid ${selectedId===p.id?'rgba(124,58,237,0.45)':'transparent'}`, background:selectedId===p.id?'rgba(124,58,237,0.12)':'transparent', color:'#e2e8f0', cursor:'pointer', fontFamily:'inherit' }}>
                 <div style={{ fontSize:13, fontWeight:800, lineHeight:1.3 }}>{p.title}</div>
-                <div style={{ fontSize:10, color:'#64748b', marginTop:4 }}>{p.company || p.role || p.filename}</div>
+                {(p.company || p.role) && <div style={{ fontSize:10, color:'#64748b', marginTop:3, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{p.company || p.role}</div>}
               </button>
             ))}
           </div>
@@ -2033,15 +2036,14 @@ function PeoplePanel({ people, selected, selectedId, draft, setDraft, onSelect, 
       </div>
 
       <div style={{ display:'flex', flexDirection:'column', minWidth:0, minHeight:0 }}>
-        <div style={{ padding:'20px 28px 14px', borderBottom:'1px solid rgba(255,255,255,0.06)', display:'flex', justifyContent:'space-between', gap:18, alignItems:'flex-start' }}>
+        <div style={{ padding:'18px 28px 14px', borderBottom:'1px solid rgba(255,255,255,0.06)', display:'flex', justifyContent:'space-between', gap:18, alignItems:'flex-start' }}>
           <div style={{ minWidth:0 }}>
             <div style={{ fontSize:10, color:'#a78bfa', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:7 }}>People</div>
             <h2 style={{ margin:0, fontSize:20, color:'#f1f5f9' }}>{selected ? selected.title : 'Select a person'}</h2>
             {selected && (
-              <div style={{ display:'flex', gap:8, flexWrap:'wrap', marginTop:7, color:'#64748b', fontSize:11 }}>
-                <span>{selected.filename}</span>
-                {selected.company && <span>Company: {selected.company}</span>}
-                {selected.role && <span>Role: {selected.role}</span>}
+              <div style={{ display:'flex', gap:10, flexWrap:'wrap', marginTop:7, color:'#64748b', fontSize:11 }}>
+                {selected.company && <span>{selected.company}</span>}
+                {selected.role && <span>{selected.role}</span>}
                 {selected.email && <span>{selected.email}</span>}
               </div>
             )}
@@ -2049,23 +2051,12 @@ function PeoplePanel({ people, selected, selectedId, draft, setDraft, onSelect, 
           <button onClick={onSave} disabled={!selected} style={{ padding:'9px 18px', borderRadius:10, border:'none', cursor:selected?'pointer':'not-allowed', fontWeight:800, fontSize:13, fontFamily:'inherit', background:'linear-gradient(135deg,#7c3aed,#3b82f6)', color:'#fff', opacity:selected?1:0.35 }}>Save</button>
         </div>
         {selected ? (
-          <div style={{ flex:1, minHeight:0, display:'grid', gridTemplateColumns:'minmax(300px, 0.45fr) minmax(360px, 0.55fr)', overflow:'hidden' }}>
-            <aside style={{ minWidth:0, overflowY:'auto', padding:'18px 22px', borderRight:'1px solid rgba(255,255,255,0.06)' }}>
-              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline', gap:12, marginBottom:12 }}>
-                <h3 style={{ margin:0, fontSize:14, color:'#f1f5f9' }}>Reader</h3>
-                <span style={{ fontSize:10, color:'#475569', fontWeight:800 }}>{selected.filename}</span>
-              </div>
-              <div style={{ borderRadius:10, border:'1px solid rgba(255,255,255,0.06)', background:'rgba(255,255,255,0.025)', padding:'14px 16px', minHeight:220 }}>
-                <MarkdownBody>{noteBodyText(draft)}</MarkdownBody>
-              </div>
-            </aside>
-            <div style={{ minWidth:0, display:'flex', flexDirection:'column', overflow:'hidden' }}>
-              <div style={{ padding:'18px 22px 10px', flexShrink:0 }}>
-                <h3 style={{ margin:0, fontSize:14, color:'#f1f5f9' }}>Markdown</h3>
-                <div style={{ fontSize:11, color:'#64748b', marginTop:4 }}>Edit the person file directly. Save writes back to Obsidian.</div>
-              </div>
-              <textarea value={draft} onChange={e=>setDraft(e.target.value)} spellCheck={false} style={{ flex:1, width:'100%', resize:'none', padding:'0 22px 18px', background:'rgba(255,255,255,0.025)', border:'none', color:'#e2e8f0', outline:'none', fontFamily:'ui-monospace, SFMono-Regular, Consolas, monospace', fontSize:13, lineHeight:1.65 }}/>
+          <div style={{ flex:1, minHeight:0, display:'flex', flexDirection:'column', overflow:'hidden' }}>
+            <div style={{ padding:'16px 28px 10px', flexShrink:0, display:'flex', justifyContent:'space-between', gap:12, alignItems:'baseline' }}>
+              <h3 style={{ margin:0, fontSize:14, color:'#f1f5f9' }}>Notes</h3>
+              <span style={{ fontSize:10, color:'#475569', fontWeight:800 }}>{selected.filename}</span>
             </div>
+            <textarea value={draft} onChange={e=>setDraft(e.target.value)} spellCheck={false} style={{ flex:1, width:'100%', resize:'none', padding:'8px 28px 22px', background:'rgba(255,255,255,0.02)', border:'none', color:'#e2e8f0', outline:'none', fontFamily:'ui-monospace, SFMono-Regular, Consolas, monospace', fontSize:13, lineHeight:1.65 }}/>
           </div>
         ) : (
           <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', color:'#334155', fontSize:13 }}>Select or create a person</div>
@@ -2202,19 +2193,19 @@ function MissionControlPanel({ today, overdue, recurrent, selectedId, liveId, ge
               <h3 style={{ margin:0, fontSize:14, color:'#f1f5f9' }}>Time Clock</h3>
               <div style={{ fontSize:11, color:'#64748b', marginTop:3 }}>Stored in today's daily note</div>
             </div>
-            <div style={{ display:'flex', gap:8, flexWrap:'wrap', justifyContent:'flex-end' }}>
-              {[
-                ['Clock in', 'IN', '#10b981'],
-                ['Clock out', 'OUT', '#f87171'],
-                ['Break start', 'BR', '#fbbf24'],
-                ['Break finish', 'GO', '#818cf8'],
-              ].map(([event, icon, color]) => (
-                <button key={event} onClick={()=>onTimeClockEvent(event)} disabled={!hasDailyFolder}
-                  style={{ padding:'8px 11px', borderRadius:9, border:`1px solid ${hasDailyFolder ? color : 'rgba(255,255,255,0.08)'}`, cursor:hasDailyFolder?'pointer':'not-allowed', fontWeight:800, fontSize:12, fontFamily:'inherit', background:'rgba(255,255,255,0.025)', color:hasDailyFolder?color:'#475569', opacity:hasDailyFolder?1:0.45 }}>
-                  <span style={{ display:'inline-flex', alignItems:'center', justifyContent:'center', width:20, height:20, marginRight:7, borderRadius:7, background:hasDailyFolder?`${color}22`:'rgba(255,255,255,0.04)', border:`1px solid ${hasDailyFolder ? color : 'rgba(255,255,255,0.08)'}`, fontSize:8, fontWeight:900, verticalAlign:'middle' }}>{icon}</span>{event}
-                </button>
-              ))}
-            </div>
+          </div>
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(4,minmax(0,1fr))', gap:6, marginBottom:10 }}>
+            {[
+              ['Clock in', 'IN', '#10b981'],
+              ['Clock out', 'OUT', '#f87171'],
+              ['Break start', 'BR', '#fbbf24'],
+              ['Break finish', 'GO', '#818cf8'],
+            ].map(([event, icon, color]) => (
+              <button key={event} onClick={()=>onTimeClockEvent(event)} disabled={!hasDailyFolder} title={event}
+                style={{ minWidth:0, padding:'6px 5px', borderRadius:8, border:`1px solid ${hasDailyFolder ? color : 'rgba(255,255,255,0.08)'}`, cursor:hasDailyFolder?'pointer':'not-allowed', fontWeight:800, fontSize:10, fontFamily:'inherit', background:'rgba(255,255,255,0.025)', color:hasDailyFolder?color:'#475569', opacity:hasDailyFolder?1:0.45, whiteSpace:'nowrap' }}>
+                <span style={{ display:'inline-flex', alignItems:'center', justifyContent:'center', width:16, height:16, marginRight:4, borderRadius:5, background:hasDailyFolder?`${color}22`:'rgba(255,255,255,0.04)', border:`1px solid ${hasDailyFolder ? color : 'rgba(255,255,255,0.08)'}`, fontSize:7, fontWeight:900, verticalAlign:'middle' }}>{icon}</span>{event}
+              </button>
+            ))}
           </div>
           <div style={{ display:'flex', gap:7, flexWrap:'wrap' }}>
             {(dailyNote?.timeClock || []).slice(-5).map((row, i) => (
