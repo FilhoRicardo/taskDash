@@ -247,7 +247,7 @@ async function uniqueFileNameInDir(dir, preferredName) {
 const inputBase = {
   width:'100%', padding:'8px 11px', borderRadius:8,
   background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.1)',
-  color:'#e2e8f0', fontSize:13, outline:'none', fontFamily:'inherit',
+  color:'#e2e8f0', fontSize:13, outline:'none', fontFamily:'inherit', colorScheme:'dark',
 };
 const labelBase = { fontSize:10, color:'#64748b', fontWeight:700, letterSpacing:'0.08em', textTransform:'uppercase', display:'block', marginBottom:5 };
 

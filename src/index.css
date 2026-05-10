@@ -11,6 +11,35 @@ body {
 ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 4px; }
 input::placeholder { color: #475569; }
 button { font-family: inherit; }
+input,
+textarea,
+select {
+  color-scheme: dark;
+}
+select {
+  background-color: #11111a;
+  color: #e2e8f0;
+}
+select option,
+select optgroup {
+  background-color: #11111a;
+  color: #e2e8f0;
+}
+select option:checked {
+  background-color: #312e81;
+  color: #f8fafc;
+}
+select:disabled,
+input:disabled,
+textarea:disabled {
+  color: #64748b;
+  -webkit-text-fill-color: #64748b;
+}
+input[type="date"]::-webkit-calendar-picker-indicator,
+input[type="time"]::-webkit-calendar-picker-indicator {
+  filter: invert(72%) sepia(16%) saturate(458%) hue-rotate(176deg);
+  opacity: 0.8;
+}
 .markdown-body {
   color: #cbd5e1;
   font-size: 13px;
