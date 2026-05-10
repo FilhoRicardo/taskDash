@@ -1377,6 +1377,9 @@ export default function App() {
   const live      = timer?.taskId===sel;
   const totalToday = [...tasks.map(t=>t.id),'__email__','__meeting__','__adhoc__'].reduce((a,id)=>a+getTime(id),0);
   const dueColor  = due => isOver(due)?'#ef4444':isToday(due)?'#f59e0b':'#475569';
+  const isClosedTask = t => t.archived || t.status === 'done';
+  const isOpenTask = t => !isClosedTask(t);
+  const isOverdueTask = t => isOpenTask(t) && isOver(t.due);
   const syncLabel = lastSync ? `Synced ${new Date(lastSync).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}` : 'Not synced';
   const taskTitleCounts = tasks.reduce((acc, t) => {
     const key = (t.title || '').trim().toLowerCase();
@@ -1384,8 +1387,8 @@ export default function App() {
     return acc;
   }, {});
   const filtered  = tasks
-    .filter(t => filt === 'done' ? (t.archived || t.status === 'done') : !t.archived)
-    .filter(t => filt==='today'?isToday(t.due):filt==='overdue'?isOver(t.due):true)
+    .filter(t => filt === 'done' ? isClosedTask(t) : isOpenTask(t))
+    .filter(t => filt==='today'?isToday(t.due):filt==='overdue'?isOverdueTask(t):true)
     .filter(t => {
       const q = taskSearch.trim().toLowerCase();
       if (!q) return true;
@@ -1393,10 +1396,10 @@ export default function App() {
         .filter(Boolean)
         .some(v => String(v).toLowerCase().includes(q));
     });
-  const openTasks = tasks.filter(t => !t.archived && t.status !== 'done');
+  const openTasks = tasks.filter(isOpenTask);
   const byOldestCreated = (a, b) => (a.dateCreated || '9999').localeCompare(b.dateCreated || '9999') || a.title.localeCompare(b.title);
   const missionToday = openTasks.filter(t => !t.recurrent && (isToday(t.due) || isToday(t.scheduled))).sort(byOldestCreated);
-  const missionOverdue = openTasks.filter(t => isOver(t.due)).sort(byOldestCreated);
+  const missionOverdue = tasks.filter(isOverdueTask).sort(byOldestCreated);
   const missionRecurrent = openTasks.filter(t => t.recurrent && !isOver(t.due) && (isToday(t.due) || isToday(t.scheduled))).sort(byOldestCreated);
   const filteredProperties = properties.filter(p => {
     const q = propertySearch.trim().toLowerCase();
@@ -1426,7 +1429,7 @@ export default function App() {
   const headerDetail = view === 'mission'
     ? `${missionToday.length} today · ${missionOverdue.length} overdue · ${missionRecurrent.length} recurrent · ${dirs.daily ? 'daily on' : 'daily off'}`
     : view === 'tasks'
-      ? `${tasks.filter(t=>!t.archived).length} tasks · ${Object.values(refs).reduce((a,r)=>a+r.length,0)} refs`
+      ? `${openTasks.length} open tasks · ${Object.values(refs).reduce((a,r)=>a+r.length,0)} refs`
       : view === 'projects'
         ? `${dirs.projects ? dirs.projects.name : 'No folder'} · editable`
         : view === 'properties'
