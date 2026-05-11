@@ -3,7 +3,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { parseTask, parseProperty, parseProject, parseDailyNote, parsePerson, readMdFiles, readDirNames, readImageFiles } from './utils/parser.js';
 import { idbGet, idbSet, idbDel, lsGet, lsSet, lsDel } from './utils/storage.js';
-import { fmt, tod, isToday, isOver, longDate, appendNoteToMd, appendPropertyCommentToMd, appendDailySectionEntry, appendDailyTimeClockEvent, buildDailyNoteMd, buildTrackerRow, appendTrackerRow, buildMeetingMd, buildNewTaskMd, buildNewPropertyMd, buildNewProjectMd, buildNewPersonMd, finishRecurrentTaskInstance, markTaskDone, postponeTaskDates, replaceDailyTimeClockRows, setDailyWorkStatus, setPropertyCover, touchDateModified, updateTaskDates } from './utils/formatter.js';
+import { fmt, tod, isToday, isOver, longDate, appendNoteToMd, appendPropertyCommentToMd, updateCommentLog, deleteCommentLog, appendDailySectionEntry, appendDailyTimeClockEvent, buildDailyNoteMd, buildTrackerRow, appendTrackerRow, buildMeetingMd, buildNewTaskMd, buildNewPropertyMd, buildNewProjectMd, buildNewPersonMd, finishRecurrentTaskInstance, markTaskDone, postponeTaskDates, replaceDailyTimeClockRows, setDailyWorkStatus, setPropertyCover, touchDateModified, updateTaskDates } from './utils/formatter.js';
 
 const REFRESH_MS  = 5 * 60 * 1000;
 const WARN_MS     = 60 * 60 * 1000;
@@ -91,6 +91,12 @@ function parseLogText(text) {
   return m ? { time:m[1], body:m[2] } : { time:null, body:text };
 }
 
+function logOccurrence(logs, index) {
+  const target = logs[index];
+  if (!target) return 0;
+  return logs.slice(0, index).filter(l => l.date === target.date && l.text === target.text).length;
+}
+
 function taskDescriptionText(raw = '') {
   const withoutFrontmatter = String(raw || '')
     .replace(/\r\n/g, '\n')
@@ -128,6 +134,44 @@ function MarkdownBody({ children }) {
     <ReactMarkdown remarkPlugins={[remarkGfm]} className="markdown-body">
       {text}
     </ReactMarkdown>
+  );
+}
+
+function CommentCard({ log, index, onSave, onDelete }) {
+  const { time, body } = parseLogText(log.text);
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(body);
+
+  useEffect(() => {
+    setDraft(body);
+    setEditing(false);
+  }, [body, log.date, log.text]);
+
+  return (
+    <div style={{ marginBottom:8, padding:'11px 14px', borderRadius:10, background:'rgba(124,58,237,0.07)', border:'1px solid rgba(124,58,237,0.15)' }}>
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:10, marginBottom:5 }}>
+        <div style={{ fontSize:10, color:'#7c3aed', fontWeight:700 }}>{log.date}{time?` · ${time}`:''}</div>
+        <div style={{ display:'flex', gap:6 }}>
+          {editing ? (
+            <>
+              <button onClick={()=>{ setDraft(body); setEditing(false); }} style={{ padding:'4px 8px', borderRadius:7, border:'1px solid rgba(255,255,255,0.08)', background:'rgba(255,255,255,0.03)', color:'#94a3b8', cursor:'pointer', fontSize:10, fontWeight:800, fontFamily:'inherit' }}>Cancel</button>
+              <button onClick={()=>onSave(index, draft)} disabled={!draft.trim()} style={{ padding:'4px 8px', borderRadius:7, border:'none', background:'rgba(16,185,129,0.14)', color:'#10b981', cursor:draft.trim()?'pointer':'not-allowed', opacity:draft.trim()?1:0.4, fontSize:10, fontWeight:800, fontFamily:'inherit' }}>Save</button>
+            </>
+          ) : (
+            <>
+              <button onClick={()=>setEditing(true)} style={{ padding:'4px 8px', borderRadius:7, border:'1px solid rgba(255,255,255,0.08)', background:'rgba(255,255,255,0.03)', color:'#c4b5fd', cursor:'pointer', fontSize:10, fontWeight:800, fontFamily:'inherit' }}>Edit</button>
+              <button onClick={()=>onDelete(index)} style={{ padding:'4px 8px', borderRadius:7, border:'1px solid rgba(239,68,68,0.2)', background:'rgba(239,68,68,0.08)', color:'#f87171', cursor:'pointer', fontSize:10, fontWeight:800, fontFamily:'inherit' }}>Delete</button>
+            </>
+          )}
+        </div>
+      </div>
+      {editing ? (
+        <textarea value={draft} onChange={e=>setDraft(e.target.value)} rows={3}
+          style={{ width:'100%', boxSizing:'border-box', padding:'8px 10px', borderRadius:8, resize:'vertical', background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.09)', color:'#e2e8f0', fontSize:13, lineHeight:1.5, outline:'none', fontFamily:'inherit' }}/>
+      ) : (
+        <div style={{ fontSize:13, lineHeight:1.55 }}>{body}</div>
+      )}
+    </div>
   );
 }
 
@@ -1011,6 +1055,45 @@ export default function App() {
     setNote('');
   };
 
+  const editTaskComment = async (index, nextBody) => {
+    const task = tasks.find(t => t.id === sel);
+    const log = task?.logs?.[index];
+    const handle = sel ? taskHandles[sel] : null;
+    if (!task || !log || !handle || !nextBody.trim()) return;
+
+    try {
+      const { time } = parseLogText(log.text);
+      const nextText = time ? `[${time}] ${nextBody.trim()}` : nextBody.trim();
+      const latest = await readHandleText(handle);
+      const updated = touchDateModified(updateCommentLog(latest, log.date, log.text, logOccurrence(task.logs, index), nextText));
+      await writeFile(handle, updated);
+      setTasks(prev => prev.map(t => t.id === sel ? parseTask(t.id, updated) : t));
+      setToast('Updated task comment');
+    } catch(e) {
+      console.error('task comment edit failed', e);
+      alert('Failed to edit task comment: ' + e.message);
+    }
+  };
+
+  const deleteTaskComment = async (index) => {
+    const task = tasks.find(t => t.id === sel);
+    const log = task?.logs?.[index];
+    const handle = sel ? taskHandles[sel] : null;
+    if (!task || !log || !handle) return;
+    if (!confirm('Delete this task comment?')) return;
+
+    try {
+      const latest = await readHandleText(handle);
+      const updated = touchDateModified(deleteCommentLog(latest, log.date, log.text, logOccurrence(task.logs, index)));
+      await writeFile(handle, updated);
+      setTasks(prev => prev.map(t => t.id === sel ? parseTask(t.id, updated) : t));
+      setToast('Deleted task comment');
+    } catch(e) {
+      console.error('task comment delete failed', e);
+      alert('Failed to delete task comment: ' + e.message);
+    }
+  };
+
   // ── New task creation ──
   const createTask = async (form) => {
     if (!dirs.tasks || !form.title.trim()) return;
@@ -1131,6 +1214,47 @@ export default function App() {
     } catch(e) {
       console.error('property comment write failed', e);
       alert('Failed to add property comment: ' + e.message);
+    }
+  };
+
+  const editPropertyComment = async (index, nextBody) => {
+    const property = properties.find(p => p.id === propertySel);
+    const log = property?.comments?.[index];
+    const handle = propertySel ? propertyHandles[propertySel] : null;
+    if (!property || !log || !handle || !nextBody.trim()) return;
+
+    try {
+      const { time } = parseLogText(log.text);
+      const nextText = time ? `[${time}] ${nextBody.trim()}` : nextBody.trim();
+      const latest = await readHandleText(handle);
+      const updated = touchDateModified(updateCommentLog(latest, log.date, log.text, logOccurrence(property.comments, index), nextText));
+      await writeFile(handle, updated);
+      const updatedProperty = parseProperty(property.id, updated);
+      setProperties(prev => prev.map(p => p.id === propertySel ? updatedProperty : p));
+      setToast('Updated property comment');
+    } catch(e) {
+      console.error('property comment edit failed', e);
+      alert('Failed to edit property comment: ' + e.message);
+    }
+  };
+
+  const deletePropertyComment = async (index) => {
+    const property = properties.find(p => p.id === propertySel);
+    const log = property?.comments?.[index];
+    const handle = propertySel ? propertyHandles[propertySel] : null;
+    if (!property || !log || !handle) return;
+    if (!confirm('Delete this property comment?')) return;
+
+    try {
+      const latest = await readHandleText(handle);
+      const updated = touchDateModified(deleteCommentLog(latest, log.date, log.text, logOccurrence(property.comments, index)));
+      await writeFile(handle, updated);
+      const updatedProperty = parseProperty(property.id, updated);
+      setProperties(prev => prev.map(p => p.id === propertySel ? updatedProperty : p));
+      setToast('Deleted property comment');
+    } catch(e) {
+      console.error('property comment delete failed', e);
+      alert('Failed to delete property comment: ' + e.message);
     }
   };
 
@@ -1853,6 +1977,8 @@ export default function App() {
           comment={propertyComment}
           setComment={setPropertyComment}
           onAddComment={addPropertyComment}
+          onEditComment={editPropertyComment}
+          onDeleteComment={deletePropertyComment}
           onNewProperty={()=>setNewPropertyOpen(true)}
           onUploadCover={uploadPropertyCover}
           hasPropertiesFolder={!!dirs.properties}
@@ -1981,15 +2107,9 @@ export default function App() {
                   <div style={{ fontSize:28, marginBottom:10 }}>📝</div>Notes you add here write directly to your .md file
                 </div>
               )}
-              {task.logs.map((l, i) => {
-                const { time, body } = parseLogText(l.text);
-                return (
-                  <div key={i} style={{ marginBottom:8, padding:'11px 14px', borderRadius:10, background:'rgba(124,58,237,0.07)', border:'1px solid rgba(124,58,237,0.15)' }}>
-                    <div style={{ fontSize:10, color:'#7c3aed', marginBottom:5, fontWeight:700 }}>{l.date}{time?` · ${time}`:''}</div>
-                    <div style={{ fontSize:13, lineHeight:1.55 }}>{body}</div>
-                  </div>
-                );
-              })}
+              {task.logs.map((l, i) => (
+                <CommentCard key={`${l.date}-${i}-${l.text}`} log={l} index={i} onSave={editTaskComment} onDelete={deleteTaskComment} />
+              ))}
             </div>
             <aside style={{ minWidth:0, overflowY:'auto', padding:'18px 30px 18px 24px' }}>
               <div style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline', gap:12, marginBottom:12 }}>
@@ -2479,7 +2599,7 @@ function ProjectPanel({ projects, selected, selectedId, draft, setDraft, onSelec
   );
 }
 
-function PropertyPanel({ properties, selected, selectedId, images, onSelect, comment, setComment, onAddComment, onNewProperty, onUploadCover, hasPropertiesFolder, hasAttachmentsFolder, onConfigure }) {
+function PropertyPanel({ properties, selected, selectedId, images, onSelect, comment, setComment, onAddComment, onEditComment, onDeleteComment, onNewProperty, onUploadCover, hasPropertiesFolder, hasAttachmentsFolder, onConfigure }) {
   const coverInputRef = useRef(null);
   const imageFor = p => p?.coverName ? images[p.coverName.toLowerCase()] : null;
   if (!hasPropertiesFolder) {
@@ -2566,15 +2686,9 @@ function PropertyPanel({ properties, selected, selectedId, images, onSelect, com
               </div>
 
               {!selected.comments.length && <div style={{ color:'#334155', textAlign:'center', padding:'40px 0', fontSize:13 }}>No property comments yet</div>}
-              {selected.comments.map((l, i) => {
-                const { time, body } = parseLogText(l.text);
-                return (
-                  <div key={`${l.date}-${i}`} style={{ marginBottom:8, padding:'11px 14px', borderRadius:10, background:'rgba(124,58,237,0.07)', border:'1px solid rgba(124,58,237,0.15)' }}>
-                    <div style={{ fontSize:10, color:'#7c3aed', marginBottom:5, fontWeight:700 }}>{l.date}{time?` · ${time}`:''}</div>
-                    <div style={{ fontSize:13, lineHeight:1.55 }}>{body}</div>
-                  </div>
-                );
-              })}
+              {selected.comments.map((l, i) => (
+                <CommentCard key={`${l.date}-${i}-${l.text}`} log={l} index={i} onSave={onEditComment} onDelete={onDeleteComment} />
+              ))}
             </div>
           )}
         </div>

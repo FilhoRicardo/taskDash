@@ -106,6 +106,45 @@ export function appendPropertyCommentToMd(raw, commentText) {
   return raw.slice(0, sectionStart) + appendNoteToMd(raw.slice(sectionStart), commentText);
 }
 
+function replaceLogLine(raw, targetDate, targetText, occurrence = 0, nextText = null) {
+  const headers = dateHeaders(raw);
+  let seen = 0;
+
+  for (let i = 0; i < headers.length; i++) {
+    const header = headers[i];
+    if (header.date !== targetDate) continue;
+
+    const sectionEnd = headers[i + 1]?.start ?? raw.length;
+    const section = raw.slice(header.end, sectionEnd);
+    const rx = /^Log: ([^\n]+)/gm;
+    let match;
+
+    while ((match = rx.exec(section)) !== null) {
+      if (match[1].trim() !== targetText) continue;
+      if (seen !== occurrence) {
+        seen += 1;
+        continue;
+      }
+
+      const lineStart = header.end + match.index;
+      const lineEnd = lineStart + match[0].length;
+      const replacement = nextText === null ? '' : `Log: ${nextText.trim()}`;
+      return `${raw.slice(0, lineStart)}${replacement}${raw.slice(lineEnd)}`;
+    }
+  }
+
+  return raw;
+}
+
+export function updateCommentLog(raw, targetDate, targetText, occurrence, nextText) {
+  if (!nextText?.trim()) return raw;
+  return replaceLogLine(raw, targetDate, targetText, occurrence, nextText);
+}
+
+export function deleteCommentLog(raw, targetDate, targetText, occurrence) {
+  return replaceLogLine(raw, targetDate, targetText, occurrence, null);
+}
+
 // ── Time tracker row ──────────────────────────────────────
 export function buildDailyNoteMd(dateStr = tod()) {
   const date = new Date(`${dateStr}T12:00:00`);
