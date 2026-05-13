@@ -23,6 +23,7 @@ const REF_KEYS = ['projects','properties','clients','people'];
 const FOLDER_SETUP_SEEN = 'folderSetupV2Seen';
 const WRITE_BACKUPS_KEY = 'taskdashWriteBackups';
 const SAVED_FILTERS_KEY = 'taskdashSavedFilters';
+const FOLDER_LABELS = Object.fromEntries(FOLDER_DEFS.map(def => [def.key, def.label]));
 
 const STATUS_COLORS = {
   done:          { bg:'rgba(16,185,129,0.12)',  color:'#10b981' },
@@ -224,7 +225,17 @@ function parseQuickCaptureText(text) {
   };
 }
 
-function buildDiagnostics({ tasks, projects, properties, refs, dirs, folderStats, backups }) {
+async function checkFolderAvailable(handle) {
+  try {
+    const iterator = handle.entries();
+    await iterator.next();
+    return null;
+  } catch(e) {
+    return e;
+  }
+}
+
+function buildDiagnostics({ tasks, projects, properties, refs, dirs, folderStats, folderIssues, backups }) {
   const issues = [];
   const duplicateGroups = Object.values(tasks.reduce((acc, t) => {
     const key = (t.title || '').trim().toLowerCase();
@@ -247,6 +258,13 @@ function buildDiagnostics({ tasks, projects, properties, refs, dirs, folderStats
   if (!dirs.tasks) issues.push({ level:'error', text:'Tasks folder is not connected.', detail:'TaskDash needs this to be your mission control.' });
   if (!dirs.daily) issues.push({ level:'warning', text:'Daily Notes folder is not connected.', detail:'Time tracking and daily review need it.' });
   if (!dirs.people) issues.push({ level:'info', text:'People folder is not connected.', detail:'People autocomplete and person creation are limited.' });
+  Object.entries(folderIssues || {}).forEach(([key, issue]) => {
+    issues.push({
+      level: key === 'tasks' ? 'error' : 'warning',
+      text: `${FOLDER_LABELS[key] || key} folder is unavailable.`,
+      detail: `${issue.name || 'Saved folder'} may have been moved, renamed, or deleted. Reconnect it in Configure folders.`,
+    });
+  });
 
   return {
     issues,
@@ -486,6 +504,7 @@ export default function App() {
   const [refs, setRefs] = useState({ projects:[], properties:[], clients:[], people:[] });
   const [view, setView] = useState('mission');
   const [folderStats, setFolderStats] = useState({});
+  const [folderIssues, setFolderIssues] = useState({});
   const [writeBackups, setWriteBackups] = useState([]);
   const [savedFilters, setSavedFilters] = useState([]);
 
@@ -821,15 +840,67 @@ export default function App() {
     setFolderStats(prev => ({ ...prev, refs: Object.fromEntries(Object.entries(out).map(([k, v]) => [k, v.length])) }));
   }, []);
 
+  const clearUnavailableFolderData = useCallback((keys) => {
+    if (keys.includes('tasks')) { setTasks([]); setTaskHandles({}); setTrackerHandle(null); setSel(null); }
+    if (keys.includes('done')) setTasks(prev => prev.filter(t => !String(t.id).startsWith('__done__/')));
+    if (keys.includes('projects')) { setProjects([]); setProjectHandles({}); setProjectSel(null); setProjectDraft(''); }
+    if (keys.includes('properties')) { setProperties([]); setPropertyHandles({}); setPropertySel(null); }
+    if (keys.includes('people')) { setPeople([]); setPersonHandles({}); setPersonSel(null); setPersonDraft(''); }
+    if (keys.includes('daily')) { setDailyNote(null); setDailyHandle(null); setDailyInputs({ notes:'', reflections:'', brainDump:'' }); setWorkNotes({}); setWorkHandles({}); }
+    if (keys.includes('attachments')) {
+      Object.values(imageUrlsRef.current).forEach(URL.revokeObjectURL);
+      imageUrlsRef.current = {};
+      setPropertyImages({});
+    }
+    setRefs(prev => {
+      const next = { ...prev };
+      keys.filter(k => REF_KEYS.includes(k)).forEach(k => { next[k] = []; });
+      return next;
+    });
+  }, []);
+
   const loadAll = useCallback(async (liveDirs) => {
-    if (liveDirs.tasks || liveDirs.done) await loadFiles(liveDirs.tasks, liveDirs.done);
-    await loadRefs(liveDirs);
-    if (liveDirs.projects) await loadProjects(liveDirs.projects);
-    if (liveDirs.properties) await loadProperties(liveDirs.properties);
-    if (liveDirs.people) await loadPeople(liveDirs.people);
-    if (liveDirs.attachments) await loadAttachmentImages(liveDirs.attachments);
-    if (liveDirs.daily) await ensureDailyNote(liveDirs.daily);
-  }, [loadFiles, loadRefs, loadProjects, loadProperties, loadPeople, loadAttachmentImages, ensureDailyNote]);
+    const available = {};
+    const unavailable = {};
+
+    for (const [key, handle] of Object.entries(liveDirs || {})) {
+      if (!handle) continue;
+      const error = await checkFolderAvailable(handle);
+      if (error) unavailable[key] = { name: handle.name, message: error.message || error.name || 'Folder unavailable' };
+      else available[key] = handle;
+    }
+
+    const unavailableKeys = Object.keys(unavailable);
+    setFolderIssues(prev => {
+      const next = { ...prev, ...unavailable };
+      Object.keys(available).forEach(key => { delete next[key]; });
+      return next;
+    });
+    if (unavailableKeys.length) {
+      setDirs(prev => {
+        const next = { ...prev };
+        unavailableKeys.forEach(key => { delete next[key]; });
+        return next;
+      });
+      setSavedDirs(prev => {
+        const next = { ...prev };
+        unavailableKeys.forEach(key => { delete next[key]; });
+        return next;
+      });
+      clearUnavailableFolderData(unavailableKeys);
+      await Promise.all(unavailableKeys.map(key => idbDel(`vault_${key}`)));
+      const labels = unavailableKeys.map(key => FOLDER_LABELS[key] || key).join(', ');
+      setToast(`${labels} folder ${unavailableKeys.length === 1 ? 'is' : 'are'} unavailable. Reconnect in Configure folders.`);
+    }
+
+    if (available.tasks) await loadFiles(available.tasks, available.done);
+    await loadRefs(available);
+    if (available.projects) await loadProjects(available.projects);
+    if (available.properties) await loadProperties(available.properties);
+    if (available.people) await loadPeople(available.people);
+    if (available.attachments) await loadAttachmentImages(available.attachments);
+    if (available.daily) await ensureDailyNote(available.daily);
+  }, [loadFiles, loadRefs, loadProjects, loadProperties, loadPeople, loadAttachmentImages, ensureDailyNote, clearUnavailableFolderData]);
 
   useEffect(() => {
     if (!dirs.tasks && !dirs.done && !dirs.projects && !dirs.properties && !dirs.daily && !dirs.attachments) return;
@@ -872,6 +943,7 @@ export default function App() {
       const next = { ...dirs, [key]: dir };
       setDirs(next);
       setSavedDirs(prev => { const c = {...prev}; delete c[key]; return c; });
+      setFolderIssues(prev => { const c = {...prev}; delete c[key]; return c; });
       if (key === 'tasks' || key === 'done') {
         setFolderSetupOpen(true);
         await loadFiles(next.tasks, next.done);
@@ -898,6 +970,7 @@ export default function App() {
         const next = { ...dirs, [key]: h };
         setDirs(next);
         setSavedDirs(prev => { const c = {...prev}; delete c[key]; return c; });
+        setFolderIssues(prev => { const c = {...prev}; delete c[key]; return c; });
         if (key === 'tasks' || key === 'done') {
           setFolderSetupOpen(true);
           await loadFiles(next.tasks, next.done);
@@ -927,6 +1000,7 @@ export default function App() {
     }
     setDirs(next);
     setSavedDirs({});
+    setFolderIssues({});
     await loadAll(next);
     if (next.tasks && REF_KEYS.every(k => !next[k])) setFolderSetupOpen(true);
     setSetupBusy(false);
@@ -936,6 +1010,7 @@ export default function App() {
     await idbDel(`vault_${key}`);
     setDirs(prev => { const c = {...prev}; delete c[key]; return c; });
     setSavedDirs(prev => { const c = {...prev}; delete c[key]; return c; });
+    setFolderIssues(prev => { const c = {...prev}; delete c[key]; return c; });
     if (key === 'tasks') { setTasks([]); setTaskHandles({}); setTrackerHandle(null); }
     else if (key === 'done') await loadFiles(dirs.tasks, null);
     else if (key === 'projects') { setProjects([]); setProjectHandles({}); setProjectSel(null); setProjectDraft(''); }
@@ -954,7 +1029,7 @@ export default function App() {
     if (!confirm('Forget all configured folders on this device?')) return;
     for (const def of FOLDER_DEFS) await idbDel(`vault_${def.key}`);
     lsDel(FOLDER_SETUP_SEEN);
-    setDirs({}); setSavedDirs({});
+    setDirs({}); setSavedDirs({}); setFolderIssues({});
     setTasks([]); setTaskHandles({}); setTrackerHandle(null);
     setProjects([]); setProjectHandles({}); setProjectSel(null); setProjectDraft('');
     setProperties([]); setPropertyHandles({}); setPropertySel(null);
@@ -1556,7 +1631,7 @@ export default function App() {
     properties: properties.length,
     people: people.length,
   };
-  const diagnostics = buildDiagnostics({ tasks, projects, properties, refs, dirs, folderStats, backups:writeBackups });
+  const diagnostics = buildDiagnostics({ tasks, projects, properties, refs, dirs, folderStats, folderIssues, backups:writeBackups });
   const healthErrors = diagnostics.issues.filter(i => i.level === 'error').length;
   const healthWarnings = diagnostics.issues.filter(i => i.level === 'warning').length;
   const healthBadges = healthErrors + healthWarnings;
