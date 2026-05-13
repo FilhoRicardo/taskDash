@@ -12,6 +12,7 @@ const WARN_CHK_MS = 30 * 1000;
 const FOLDER_DEFS = [
   { key:'tasks',      label:'Tasks',      mode:'readwrite', required:true,  desc:'Where your task .md files live (e.g. TaskNotes/Tasks)' },
   { key:'done',       label:'Done / Archive', mode:'readwrite', required:false, desc:'Optional folder for completed or archived task .md files' },
+  { key:'meetings',   label:'Meetings',   mode:'readwrite', required:false, desc:'Where meeting notes created by TaskDash should be saved' },
   { key:'projects',   label:'Projects',   mode:'readwrite', required:false, desc:'For project autocomplete and project editing' },
   { key:'properties', label:'Properties', mode:'readwrite', required:false, desc:'For building autocomplete and property comments' },
   { key:'clients',    label:'Clients',    mode:'read',      required:false, desc:'For client autocomplete' },
@@ -256,6 +257,7 @@ function buildDiagnostics({ tasks, projects, properties, refs, dirs, folderStats
   });
 
   if (!dirs.tasks) issues.push({ level:'error', text:'Tasks folder is not connected.', detail:'TaskDash needs this to be your mission control.' });
+  if (!dirs.meetings) issues.push({ level:'warning', text:'Meetings folder is not connected.', detail:'Meeting notes need a dedicated folder.' });
   if (!dirs.daily) issues.push({ level:'warning', text:'Daily Notes folder is not connected.', detail:'Time tracking and daily review need it.' });
   if (!dirs.people) issues.push({ level:'info', text:'People folder is not connected.', detail:'People autocomplete and person creation are limited.' });
   Object.entries(folderIssues || {}).forEach(([key, issue]) => {
@@ -846,6 +848,7 @@ export default function App() {
     if (keys.includes('projects')) { setProjects([]); setProjectHandles({}); setProjectSel(null); setProjectDraft(''); }
     if (keys.includes('properties')) { setProperties([]); setPropertyHandles({}); setPropertySel(null); }
     if (keys.includes('people')) { setPeople([]); setPersonHandles({}); setPersonSel(null); setPersonDraft(''); }
+    if (keys.includes('meetings')) { setMeetingOpen(false); setMeetingTitle(''); setMeetingNotes(''); meetingTitleRef.current = ''; meetingNotesRef.current = ''; meetingStartRef.current = null; }
     if (keys.includes('daily')) { setDailyNote(null); setDailyHandle(null); setDailyInputs({ notes:'', reflections:'', brainDump:'' }); setWorkNotes({}); setWorkHandles({}); }
     if (keys.includes('attachments')) {
       Object.values(imageUrlsRef.current).forEach(URL.revokeObjectURL);
@@ -1016,6 +1019,7 @@ export default function App() {
     else if (key === 'projects') { setProjects([]); setProjectHandles({}); setProjectSel(null); setProjectDraft(''); }
     else if (key === 'properties') { setProperties([]); setPropertyHandles({}); setPropertySel(null); }
     else if (key === 'people') { setPeople([]); setPersonHandles({}); setPersonSel(null); setPersonDraft(''); }
+    else if (key === 'meetings') { setMeetingOpen(false); setMeetingTitle(''); setMeetingNotes(''); meetingTitleRef.current = ''; meetingNotesRef.current = ''; meetingStartRef.current = null; }
     else if (key === 'daily') { setDailyNote(null); setDailyHandle(null); setDailyInputs({ notes:'', reflections:'', brainDump:'' }); setWorkNotes({}); setWorkHandles({}); }
     else if (key === 'attachments') {
       Object.values(imageUrlsRef.current).forEach(URL.revokeObjectURL);
@@ -1033,6 +1037,7 @@ export default function App() {
     setTasks([]); setTaskHandles({}); setTrackerHandle(null);
     setProjects([]); setProjectHandles({}); setProjectSel(null); setProjectDraft('');
     setProperties([]); setPropertyHandles({}); setPropertySel(null);
+    setMeetingOpen(false); setMeetingTitle(''); setMeetingNotes(''); meetingTitleRef.current = ''; meetingNotesRef.current = ''; meetingStartRef.current = null;
     setDailyNote(null); setDailyHandle(null); setDailyInputs({ notes:'', reflections:'', brainDump:'' }); setWorkNotes({}); setWorkHandles({});
     Object.values(imageUrlsRef.current).forEach(URL.revokeObjectURL);
     imageUrlsRef.current = {};
@@ -1069,7 +1074,10 @@ export default function App() {
   }, [timer, tasks, trackerHandle]);
 
   const saveMeetingFile = useCallback(async () => {
-    if (!dirs.tasks || !meetingStartRef.current) return;
+    if (!dirs.meetings || !meetingStartRef.current) {
+      if (!dirs.meetings) setToast('Pick a Meetings folder before saving meeting notes.');
+      return;
+    }
     const title     = meetingTitleRef.current.trim();
     const startTime = meetingStartRef.current;
     const endTime   = Date.now();
@@ -1077,20 +1085,25 @@ export default function App() {
     const filename  = `Meeting - ${tod()} - ${title || timeLabel}.md`;
     const content   = buildMeetingMd(title || `Meeting ${timeLabel}`, meetingNotesRef.current, startTime, endTime);
     try {
-      const fh = await dirs.tasks.getFileHandle(filename, { create:true });
+      const fh = await dirs.meetings.getFileHandle(filename, { create:true });
       await writeFile(fh, content);
-      await loadFiles(dirs.tasks, dirs.done);
+      setToast(`Saved meeting note "${filename.replace(/\.md$/i, '')}"`);
     } catch(e) { console.error('meeting save failed', e); }
-  }, [dirs.tasks, dirs.done, loadFiles]);
+  }, [dirs.meetings]);
 
   const start = useCallback(async (id) => {
-    if (meetingOpen) { await saveMeetingFile(); setMeetingOpen(false); }
     if (timer) await stop();
     const at = { taskId:id, start:Date.now() };
     setTimer(at); setSel(id); lsSet('activeTimer', at);
-  }, [timer, stop, meetingOpen, saveMeetingFile]);
+  }, [timer, stop]);
 
   const startMeeting = useCallback(async () => {
+    if (!dirs.meetings) {
+      setView('meetings');
+      setFolderSetupOpen(true);
+      setToast('Pick a Meetings folder before starting a meeting note.');
+      return;
+    }
     meetingTitleRef.current = ''; meetingNotesRef.current = '';
     meetingStartRef.current = Date.now();
     setMeetingTitle(''); setMeetingNotes('');
@@ -1098,13 +1111,14 @@ export default function App() {
     const at = { taskId:'__meeting__', start:Date.now() };
     setTimer(at); lsSet('activeTimer', at);
     setMeetingOpen(true);
-  }, [timer, stop]);
+    setView('meetings');
+  }, [dirs.meetings, timer, stop]);
 
   const stopMeeting = useCallback(async () => {
     await saveMeetingFile();
-    await stop();
+    if (timer?.taskId === '__meeting__') await stop();
     setMeetingOpen(false);
-  }, [saveMeetingFile, stop]);
+  }, [saveMeetingFile, stop, timer]);
 
   const startAdHoc = async () => {
     if (!adHocInput.trim()) return;
@@ -1635,19 +1649,21 @@ export default function App() {
   const healthErrors = diagnostics.issues.filter(i => i.level === 'error').length;
   const healthWarnings = diagnostics.issues.filter(i => i.level === 'warning').length;
   const healthBadges = healthErrors + healthWarnings;
-  const headerLabel = view === 'mission' ? 'MISSION CONTROL' : view === 'tasks' ? "TODAY'S TOTAL" : view === 'projects' ? 'PROJECT LIBRARY' : view === 'properties' ? 'PROPERTY LIBRARY' : view === 'people' ? 'PEOPLE' : 'VAULT HEALTH';
-  const headerMetric = view === 'mission' ? missionToday.length + missionOverdue.length + missionRecurrent.length : view === 'tasks' ? fmt(totalToday) : view === 'projects' ? projects.length : view === 'properties' ? properties.length : view === 'people' ? people.length : diagnostics.issues.length;
+  const headerLabel = view === 'mission' ? 'MISSION CONTROL' : view === 'tasks' ? "TODAY'S TOTAL" : view === 'meetings' ? 'MEETINGS' : view === 'projects' ? 'PROJECT LIBRARY' : view === 'properties' ? 'PROPERTY LIBRARY' : view === 'people' ? 'PEOPLE' : 'VAULT HEALTH';
+  const headerMetric = view === 'mission' ? missionToday.length + missionOverdue.length + missionRecurrent.length : view === 'tasks' ? fmt(totalToday) : view === 'meetings' ? (meetingOpen ? fmt(getTime('__meeting__')) : 'Ready') : view === 'projects' ? projects.length : view === 'properties' ? properties.length : view === 'people' ? people.length : diagnostics.issues.length;
   const headerDetail = view === 'mission'
     ? `${missionToday.length} today · ${missionOverdue.length} overdue · ${missionRecurrent.length} recurrent · ${dirs.daily ? 'daily on' : 'daily off'}`
     : view === 'tasks'
       ? `${openTasks.length} open tasks · ${Object.values(refs).reduce((a,r)=>a+r.length,0)} refs`
-      : view === 'projects'
-        ? `${dirs.projects ? dirs.projects.name : 'No folder'} · editable`
-        : view === 'properties'
-          ? `${dirs.properties ? dirs.properties.name : 'No folder'} · ${dirs.attachments ? 'covers on' : 'covers off'}`
-          : view === 'people'
-            ? `${dirs.people ? dirs.people.name : 'No folder'} · waiting-for source`
-            : `${healthErrors} errors · ${healthWarnings} warnings · ${writeBackups.length} backups`;
+      : view === 'meetings'
+        ? `${dirs.meetings ? dirs.meetings.name : 'No folder'} · ${meetingOpen ? 'meeting note open' : 'meeting notes'}`
+        : view === 'projects'
+          ? `${dirs.projects ? dirs.projects.name : 'No folder'} · editable`
+          : view === 'properties'
+            ? `${dirs.properties ? dirs.properties.name : 'No folder'} · ${dirs.attachments ? 'covers on' : 'covers off'}`
+            : view === 'people'
+              ? `${dirs.people ? dirs.people.name : 'No folder'} · waiting-for source`
+              : `${healthErrors} errors · ${healthWarnings} warnings · ${writeBackups.length} backups`;
 
   const btnPrimary = { padding:'13px 34px', borderRadius:12, border:'none', cursor:'pointer', fontWeight:700, fontSize:14, fontFamily:'inherit', background:'linear-gradient(135deg,#7c3aed,#3b82f6)', color:'#fff', boxShadow:'0 4px 24px rgba(124,58,237,0.45)' };
 
@@ -1768,9 +1784,9 @@ export default function App() {
             <div style={{ fontSize:10, color:'#475569', marginTop:2 }}>{headerDetail}</div>
           </div>
           <div style={{ display:'flex', gap:4, marginTop:10, padding:3, borderRadius:10, background:'rgba(255,255,255,0.03)', border:'1px solid rgba(255,255,255,0.06)' }}>
-            {['mission','tasks','projects','properties','people'].map(v => (
+            {['mission','tasks','meetings','projects','properties','people'].map(v => (
               <button key={v} onClick={()=>{ setView(v); setNewTaskOpen(false); setNewPropertyOpen(false); setNewProjectOpen(false); setNewPersonOpen(false); }} style={{ flex:1, padding:'6px 5px', borderRadius:8, border:'none', cursor:'pointer', fontWeight:700, fontSize:10, fontFamily:'inherit', textTransform:'capitalize', background:view===v?'rgba(124,58,237,0.2)':'transparent', color:view===v?'#c4b5fd':'#64748b' }}>
-                {v === 'mission' ? 'Today' : v}
+                {v === 'mission' ? 'Today' : v === 'meetings' ? 'Meet' : v}
               </button>
             ))}
           </div>
@@ -1781,7 +1797,6 @@ export default function App() {
             <div style={{ padding:'8px 10px', borderBottom:'1px solid rgba(255,255,255,0.06)' }}>
               <div style={{ fontSize:9, color:'#475569', fontWeight:700, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:6 }}>Quick Track</div>
               <QuickItem id="__email__"   label="📧 Email"   onStart={()=>start('__email__')} onStop={stop}/>
-              <QuickItem id="__meeting__" label="📅 Meeting" onStart={startMeeting}            onStop={stopMeeting}/>
 
               {timer?.taskId==='__adhoc__' ? (
                 <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'7px 10px', borderRadius:9, background:'rgba(16,185,129,0.08)', border:'1px solid rgba(16,185,129,0.25)', boxShadow:'0 0 12px rgba(16,185,129,0.15)' }}>
@@ -1810,10 +1825,10 @@ export default function App() {
             </div>
 
             <div style={{ padding:'8px 10px 4px', display:'flex', gap:6, alignItems:'center' }}>
-              <button onClick={()=>{ setMeetingOpen(false); setNewPersonOpen(false); setNewTaskOpen(true); }} style={{ flex:1, padding:'8px 10px', borderRadius:9, border:'none', cursor:'pointer', fontWeight:700, fontSize:12, fontFamily:'inherit', background:'linear-gradient(135deg,#7c3aed,#3b82f6)', color:'#fff', boxShadow:'0 2px 12px rgba(124,58,237,0.35)' }}>
+              <button onClick={()=>{ setNewPersonOpen(false); setNewTaskOpen(true); }} style={{ flex:1, padding:'8px 10px', borderRadius:9, border:'none', cursor:'pointer', fontWeight:700, fontSize:12, fontFamily:'inherit', background:'linear-gradient(135deg,#7c3aed,#3b82f6)', color:'#fff', boxShadow:'0 2px 12px rgba(124,58,237,0.35)' }}>
                 +  New Task
               </button>
-              <button onClick={()=>{ setMeetingOpen(false); setNewTaskOpen(false); setNewPersonOpen(true); }} title={dirs.people ? 'Add a person note' : 'Configure the People folder first'} style={{ padding:'8px 10px', borderRadius:9, border:'1px solid rgba(255,255,255,0.08)', cursor:'pointer', fontWeight:700, fontSize:12, fontFamily:'inherit', background:'rgba(255,255,255,0.035)', color:'#c4b5fd', opacity:dirs.people?1:0.65 }}>
+              <button onClick={()=>{ setNewTaskOpen(false); setNewPersonOpen(true); }} title={dirs.people ? 'Add a person note' : 'Configure the People folder first'} style={{ padding:'8px 10px', borderRadius:9, border:'1px solid rgba(255,255,255,0.08)', cursor:'pointer', fontWeight:700, fontSize:12, fontFamily:'inherit', background:'rgba(255,255,255,0.035)', color:'#c4b5fd', opacity:dirs.people?1:0.65 }}>
                 + Person
               </button>
             </div>
@@ -1867,6 +1882,21 @@ export default function App() {
                   </div>
                 );
               })}
+            </div>
+          </>
+        ) : view === 'meetings' ? (
+          <>
+            <div style={{ padding:'10px', borderBottom:'1px solid rgba(255,255,255,0.06)' }}>
+              <button onClick={meetingOpen ? stopMeeting : startMeeting} disabled={!dirs.meetings && !meetingOpen} style={{ width:'100%', padding:'9px 12px', borderRadius:9, border:'none', cursor:dirs.meetings || meetingOpen ? 'pointer' : 'not-allowed', fontWeight:800, fontSize:12, fontFamily:'inherit', background:meetingOpen ? 'rgba(239,68,68,0.1)' : 'linear-gradient(135deg,#7c3aed,#3b82f6)', color:meetingOpen ? '#f87171' : '#fff', opacity:dirs.meetings || meetingOpen ? 1 : 0.4 }}>
+                {meetingOpen ? 'Save & Stop Meeting' : '+ Start Meeting'}
+              </button>
+            </div>
+            <div style={{ padding:'12px 14px', borderBottom:'1px solid rgba(255,255,255,0.06)' }}>
+              <div style={{ fontSize:9, color:'#475569', fontWeight:800, textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:7 }}>Meeting folder</div>
+              <div style={{ fontSize:12, color:dirs.meetings ? '#94a3b8' : '#fbbf24', lineHeight:1.45 }}>{dirs.meetings ? dirs.meetings.name : 'Pick a Meetings folder before saving notes.'}</div>
+            </div>
+            <div style={{ flex:1, padding:'18px 14px', color:'#475569', fontSize:12, lineHeight:1.55 }}>
+              Meeting notes save as markdown files in the configured Meetings folder. You can switch to Tasks while a meeting note is open and come back here to continue writing.
             </div>
           </>
         ) : view === 'projects' ? (
@@ -1975,7 +2005,7 @@ export default function App() {
           </div>
         )}
 
-        {(view === 'tasks' || view === 'mission' || view === 'people' || view === 'health') && (
+        {(view === 'tasks' || view === 'mission' || view === 'meetings' || view === 'people' || view === 'health') && (
           <div style={{ padding:'6px 10px 9px', borderTop:'1px solid rgba(255,255,255,0.04)' }}>
             <button onClick={()=>setFolderSetupOpen(true)} style={{ width:'100%', padding:'5px 10px', background:'transparent', border:'none', color:'#334155', fontSize:10, cursor:'pointer', fontFamily:'inherit', textAlign:'center' }}>
               ⚙  Configure folders
@@ -2084,32 +2114,20 @@ export default function App() {
         <NewPersonPanel onCancel={()=>setNewPersonOpen(false)} onCreate={createPerson} refs={refs} hasPeopleFolder={!!dirs.people} onConfigure={()=>setFolderSetupOpen(true)}/>
       ) : newTaskOpen ? (
         <NewTaskPanel onCancel={()=>setNewTaskOpen(false)} onCreate={createTask} refs={refs}/>
-      ) : meetingOpen ? (
-        <div style={{ flex:1, display:'flex', flexDirection:'column', overflow:'hidden' }}>
-          <div style={{ padding:'22px 30px 20px', borderBottom:'1px solid rgba(255,255,255,0.06)', flexShrink:0 }}>
-            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:24 }}>
-              <div style={{ flex:1, minWidth:0 }}>
-                <div style={{ fontSize:10, color:'#10b981', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:10 }}>📅 Meeting in Progress</div>
-                <input value={meetingTitle} onChange={e => { setMeetingTitle(e.target.value); meetingTitleRef.current = e.target.value; }}
-                  placeholder="Meeting title…"
-                  style={{ width:'100%', padding:'6px 0', background:'transparent', border:'none', borderBottom:'2px solid rgba(255,255,255,0.1)', color:'#f1f5f9', fontSize:20, fontWeight:700, outline:'none', fontFamily:'inherit' }}/>
-              </div>
-              <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:10, flexShrink:0 }}>
-                <div style={{ fontSize:30, fontWeight:800, fontVariantNumeric:'tabular-nums', color:'#10b981', textShadow:'0 0 28px rgba(16,185,129,0.55)' }}>{fmt(getTime('__meeting__'))}</div>
-                <button onClick={stopMeeting} style={{ padding:'9px 20px', borderRadius:10, border:'1px solid rgba(239,68,68,0.3)', cursor:'pointer', fontWeight:700, fontSize:13, fontFamily:'inherit', background:'rgba(239,68,68,0.1)', color:'#f87171' }}>💾 Save & Stop</button>
-              </div>
-            </div>
-          </div>
-          <div style={{ flex:1, padding:'20px 30px', display:'flex', flexDirection:'column', gap:8 }}>
-            <div style={{ fontSize:10, color:'#475569', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.1em' }}>Notes</div>
-            <textarea value={meetingNotes} onChange={e => { setMeetingNotes(e.target.value); meetingNotesRef.current = e.target.value; }}
-              placeholder="Type your meeting notes here… markdown supported"
-              style={{ flex:1, padding:'14px', borderRadius:10, resize:'none', background:'rgba(255,255,255,0.03)', border:'1px solid rgba(255,255,255,0.08)', color:'#e2e8f0', fontSize:13, lineHeight:1.7, outline:'none', fontFamily:'inherit' }}/>
-            <div style={{ fontSize:11, color:'#334155' }}>
-              Will save as: Meeting - {tod()} - {meetingTitle.trim() || new Date(meetingStartRef.current||Date.now()).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',hour12:false}).replace(':','')}.md
-            </div>
-          </div>
-        </div>
+      ) : view === 'meetings' ? (
+        <MeetingPanel
+          meetingOpen={meetingOpen}
+          meetingTitle={meetingTitle}
+          meetingNotes={meetingNotes}
+          setMeetingTitle={value => { setMeetingTitle(value); meetingTitleRef.current = value; }}
+          setMeetingNotes={value => { setMeetingNotes(value); meetingNotesRef.current = value; }}
+          elapsed={getTime('__meeting__')}
+          onStart={startMeeting}
+          onStop={stopMeeting}
+          hasMeetingsFolder={!!dirs.meetings}
+          onConfigure={()=>setFolderSetupOpen(true)}
+          meetingStart={meetingStartRef.current}
+        />
 
       ) : !task ? (
         <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', color:'#334155', fontSize:13 }}>← Select a task</div>
@@ -2258,6 +2276,59 @@ function PeoplePanel({ people, selected, selectedId, draft, setDraft, onSelect, 
         ) : (
           <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', color:'#334155', fontSize:13 }}>Select or create a person</div>
         )}
+      </div>
+    </div>
+  );
+}
+
+function MeetingPanel({ meetingOpen, meetingTitle, meetingNotes, setMeetingTitle, setMeetingNotes, elapsed, onStart, onStop, hasMeetingsFolder, onConfigure, meetingStart }) {
+  const timeLabel = new Date(meetingStart || Date.now()).toLocaleTimeString([], { hour:'2-digit', minute:'2-digit', hour12:false }).replace(':','');
+  const filename = `Meeting - ${tod()} - ${meetingTitle.trim() || timeLabel}.md`;
+
+  if (!hasMeetingsFolder) {
+    return (
+      <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', color:'#475569', fontSize:13 }}>
+        <button onClick={onConfigure} style={{ padding:'10px 18px', borderRadius:10, border:'none', cursor:'pointer', fontWeight:700, fontSize:13, fontFamily:'inherit', background:'linear-gradient(135deg,#7c3aed,#3b82f6)', color:'#fff' }}>Configure Meetings folder</button>
+      </div>
+    );
+  }
+
+  if (!meetingOpen) {
+    return (
+      <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', padding:30 }}>
+        <div style={{ width:'min(520px,100%)', borderRadius:10, border:'1px solid rgba(255,255,255,0.06)', background:'rgba(255,255,255,0.025)', padding:24, textAlign:'center' }}>
+          <div style={{ fontSize:10, color:'#10b981', fontWeight:800, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:10 }}>Meetings</div>
+          <h2 style={{ margin:'0 0 16px', fontSize:22, color:'#f1f5f9' }}>Meeting notes</h2>
+          <button onClick={onStart} style={{ padding:'10px 18px', borderRadius:10, border:'none', cursor:'pointer', fontWeight:800, fontSize:13, fontFamily:'inherit', background:'linear-gradient(135deg,#7c3aed,#3b82f6)', color:'#fff' }}>+ Start Meeting</button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ flex:1, display:'flex', flexDirection:'column', overflow:'hidden' }}>
+      <div style={{ padding:'22px 30px 20px', borderBottom:'1px solid rgba(255,255,255,0.06)', flexShrink:0 }}>
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:24 }}>
+          <div style={{ flex:1, minWidth:0 }}>
+            <div style={{ fontSize:10, color:'#10b981', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:10 }}>Meeting in Progress</div>
+            <input value={meetingTitle} onChange={e => setMeetingTitle(e.target.value)}
+              placeholder="Meeting title..."
+              style={{ width:'100%', padding:'6px 0', background:'transparent', border:'none', borderBottom:'2px solid rgba(255,255,255,0.1)', color:'#f1f5f9', fontSize:20, fontWeight:700, outline:'none', fontFamily:'inherit' }}/>
+          </div>
+          <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:10, flexShrink:0 }}>
+            <div style={{ fontSize:30, fontWeight:800, fontVariantNumeric:'tabular-nums', color:'#10b981', textShadow:'0 0 28px rgba(16,185,129,0.55)' }}>{fmt(elapsed)}</div>
+            <button onClick={onStop} style={{ padding:'9px 20px', borderRadius:10, border:'1px solid rgba(239,68,68,0.3)', cursor:'pointer', fontWeight:700, fontSize:13, fontFamily:'inherit', background:'rgba(239,68,68,0.1)', color:'#f87171' }}>Save & Stop</button>
+          </div>
+        </div>
+      </div>
+      <div style={{ flex:1, padding:'20px 30px', display:'flex', flexDirection:'column', gap:8 }}>
+        <div style={{ fontSize:10, color:'#475569', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.1em' }}>Notes</div>
+        <textarea value={meetingNotes} onChange={e => setMeetingNotes(e.target.value)}
+          placeholder="Type your meeting notes here... markdown supported"
+          style={{ flex:1, padding:'14px', borderRadius:10, resize:'none', background:'rgba(255,255,255,0.03)', border:'1px solid rgba(255,255,255,0.08)', color:'#e2e8f0', fontSize:13, lineHeight:1.7, outline:'none', fontFamily:'inherit' }}/>
+        <div style={{ fontSize:11, color:'#334155' }}>
+          Will save as: {filename}
+        </div>
       </div>
     </div>
   );
