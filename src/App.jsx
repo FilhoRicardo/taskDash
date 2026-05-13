@@ -563,6 +563,7 @@ export default function App() {
   const [meetingOpen,   setMeetingOpen]   = useState(false);
   const [meetingTitle,  setMeetingTitle]  = useState('');
   const [meetingNotes,  setMeetingNotes]  = useState('');
+  const [meetingLinks,  setMeetingLinks]  = useState({ clients:[], properties:[], tasks:[], people:[] });
   const [newTaskOpen,   setNewTaskOpen]   = useState(false);
   const [newPropertyOpen, setNewPropertyOpen] = useState(false);
   const [newPersonOpen, setNewPersonOpen] = useState(false);
@@ -848,7 +849,7 @@ export default function App() {
     if (keys.includes('projects')) { setProjects([]); setProjectHandles({}); setProjectSel(null); setProjectDraft(''); }
     if (keys.includes('properties')) { setProperties([]); setPropertyHandles({}); setPropertySel(null); }
     if (keys.includes('people')) { setPeople([]); setPersonHandles({}); setPersonSel(null); setPersonDraft(''); }
-    if (keys.includes('meetings')) { setMeetingOpen(false); setMeetingTitle(''); setMeetingNotes(''); meetingTitleRef.current = ''; meetingNotesRef.current = ''; meetingStartRef.current = null; }
+    if (keys.includes('meetings')) { setMeetingOpen(false); setMeetingTitle(''); setMeetingNotes(''); setMeetingLinks({ clients:[], properties:[], tasks:[], people:[] }); meetingTitleRef.current = ''; meetingNotesRef.current = ''; meetingStartRef.current = null; }
     if (keys.includes('daily')) { setDailyNote(null); setDailyHandle(null); setDailyInputs({ notes:'', reflections:'', brainDump:'' }); setWorkNotes({}); setWorkHandles({}); }
     if (keys.includes('attachments')) {
       Object.values(imageUrlsRef.current).forEach(URL.revokeObjectURL);
@@ -1019,7 +1020,7 @@ export default function App() {
     else if (key === 'projects') { setProjects([]); setProjectHandles({}); setProjectSel(null); setProjectDraft(''); }
     else if (key === 'properties') { setProperties([]); setPropertyHandles({}); setPropertySel(null); }
     else if (key === 'people') { setPeople([]); setPersonHandles({}); setPersonSel(null); setPersonDraft(''); }
-    else if (key === 'meetings') { setMeetingOpen(false); setMeetingTitle(''); setMeetingNotes(''); meetingTitleRef.current = ''; meetingNotesRef.current = ''; meetingStartRef.current = null; }
+    else if (key === 'meetings') { setMeetingOpen(false); setMeetingTitle(''); setMeetingNotes(''); setMeetingLinks({ clients:[], properties:[], tasks:[], people:[] }); meetingTitleRef.current = ''; meetingNotesRef.current = ''; meetingStartRef.current = null; }
     else if (key === 'daily') { setDailyNote(null); setDailyHandle(null); setDailyInputs({ notes:'', reflections:'', brainDump:'' }); setWorkNotes({}); setWorkHandles({}); }
     else if (key === 'attachments') {
       Object.values(imageUrlsRef.current).forEach(URL.revokeObjectURL);
@@ -1037,7 +1038,7 @@ export default function App() {
     setTasks([]); setTaskHandles({}); setTrackerHandle(null);
     setProjects([]); setProjectHandles({}); setProjectSel(null); setProjectDraft('');
     setProperties([]); setPropertyHandles({}); setPropertySel(null);
-    setMeetingOpen(false); setMeetingTitle(''); setMeetingNotes(''); meetingTitleRef.current = ''; meetingNotesRef.current = ''; meetingStartRef.current = null;
+    setMeetingOpen(false); setMeetingTitle(''); setMeetingNotes(''); setMeetingLinks({ clients:[], properties:[], tasks:[], people:[] }); meetingTitleRef.current = ''; meetingNotesRef.current = ''; meetingStartRef.current = null;
     setDailyNote(null); setDailyHandle(null); setDailyInputs({ notes:'', reflections:'', brainDump:'' }); setWorkNotes({}); setWorkHandles({});
     Object.values(imageUrlsRef.current).forEach(URL.revokeObjectURL);
     imageUrlsRef.current = {};
@@ -1083,13 +1084,13 @@ export default function App() {
     const endTime   = Date.now();
     const timeLabel = new Date(startTime).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',hour12:false}).replace(':','');
     const filename  = `Meeting - ${tod()} - ${title || timeLabel}.md`;
-    const content   = buildMeetingMd(title || `Meeting ${timeLabel}`, meetingNotesRef.current, startTime, endTime);
+    const content   = buildMeetingMd(title || `Meeting ${timeLabel}`, meetingNotesRef.current, startTime, endTime, meetingLinks);
     try {
       const fh = await dirs.meetings.getFileHandle(filename, { create:true });
       await writeFile(fh, content);
       setToast(`Saved meeting note "${filename.replace(/\.md$/i, '')}"`);
     } catch(e) { console.error('meeting save failed', e); }
-  }, [dirs.meetings]);
+  }, [dirs.meetings, meetingLinks]);
 
   const start = useCallback(async (id) => {
     if (timer) await stop();
@@ -1106,7 +1107,7 @@ export default function App() {
     }
     meetingTitleRef.current = ''; meetingNotesRef.current = '';
     meetingStartRef.current = Date.now();
-    setMeetingTitle(''); setMeetingNotes('');
+    setMeetingTitle(''); setMeetingNotes(''); setMeetingLinks({ clients:[], properties:[], tasks:[], people:[] });
     if (timer && timer.taskId!=='__meeting__') await stop();
     const at = { taskId:'__meeting__', start:Date.now() };
     setTimer(at); lsSet('activeTimer', at);
@@ -1634,6 +1635,7 @@ export default function App() {
     if (!q) return true;
     return [p.title, p.filename, p.company, p.role, p.email].filter(Boolean).some(v => String(v).toLowerCase().includes(q));
   });
+  const meetingTaskOptions = [...new Set(tasks.filter(isOpenTask).map(t => t.filename || t.title).filter(Boolean))].sort();
   const person = people.find(p => p.id === personSel);
   const tomorrow = addDays(tod(), 1);
   const completedToday = tasks.filter(t => (t.completedDate || '').slice(0, 10) === tod());
@@ -2119,14 +2121,18 @@ export default function App() {
           meetingOpen={meetingOpen}
           meetingTitle={meetingTitle}
           meetingNotes={meetingNotes}
+          meetingLinks={meetingLinks}
           setMeetingTitle={value => { setMeetingTitle(value); meetingTitleRef.current = value; }}
           setMeetingNotes={value => { setMeetingNotes(value); meetingNotesRef.current = value; }}
+          setMeetingLinks={setMeetingLinks}
           elapsed={getTime('__meeting__')}
           onStart={startMeeting}
           onStop={stopMeeting}
           hasMeetingsFolder={!!dirs.meetings}
           onConfigure={()=>setFolderSetupOpen(true)}
           meetingStart={meetingStartRef.current}
+          refs={refs}
+          taskOptions={meetingTaskOptions}
         />
 
       ) : !task ? (
@@ -2281,9 +2287,10 @@ function PeoplePanel({ people, selected, selectedId, draft, setDraft, onSelect, 
   );
 }
 
-function MeetingPanel({ meetingOpen, meetingTitle, meetingNotes, setMeetingTitle, setMeetingNotes, elapsed, onStart, onStop, hasMeetingsFolder, onConfigure, meetingStart }) {
+function MeetingPanel({ meetingOpen, meetingTitle, meetingNotes, meetingLinks, setMeetingTitle, setMeetingNotes, setMeetingLinks, elapsed, onStart, onStop, hasMeetingsFolder, onConfigure, meetingStart, refs, taskOptions }) {
   const timeLabel = new Date(meetingStart || Date.now()).toLocaleTimeString([], { hour:'2-digit', minute:'2-digit', hour12:false }).replace(':','');
   const filename = `Meeting - ${tod()} - ${meetingTitle.trim() || timeLabel}.md`;
+  const setLinks = (key, value) => setMeetingLinks(prev => ({ ...prev, [key]: value }));
 
   if (!hasMeetingsFolder) {
     return (
@@ -2322,6 +2329,20 @@ function MeetingPanel({ meetingOpen, meetingTitle, meetingNotes, setMeetingTitle
         </div>
       </div>
       <div style={{ flex:1, padding:'20px 30px', display:'flex', flexDirection:'column', gap:8 }}>
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(2,minmax(220px,1fr))', gap:10, marginBottom:10 }}>
+          <Field label="Clients">
+            <ChipMulti value={meetingLinks.clients || []} onChange={value=>setLinks('clients', value)} options={refs.clients || []} placeholder="Add clients..." />
+          </Field>
+          <Field label="Properties">
+            <ChipMulti value={meetingLinks.properties || []} onChange={value=>setLinks('properties', value)} options={refs.properties || []} placeholder="Add properties..." />
+          </Field>
+          <Field label="Tasks">
+            <ChipMulti value={meetingLinks.tasks || []} onChange={value=>setLinks('tasks', value)} options={taskOptions || []} placeholder="Add tasks..." />
+          </Field>
+          <Field label="People">
+            <ChipMulti value={meetingLinks.people || []} onChange={value=>setLinks('people', value)} options={refs.people || []} placeholder="Add people..." />
+          </Field>
+        </div>
         <div style={{ fontSize:10, color:'#475569', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.1em' }}>Notes</div>
         <textarea value={meetingNotes} onChange={e => setMeetingNotes(e.target.value)}
           placeholder="Type your meeting notes here... markdown supported"

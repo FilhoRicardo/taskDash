@@ -372,18 +372,26 @@ export function appendTrackerRow(existing, row) {
 }
 
 // ── Meeting note file ─────────────────────────────────────
-export function buildMeetingMd(title, notes, startTime, endTime) {
+export function buildMeetingMd(title, notes, startTime, endTime, links = {}) {
   const dateStr     = tod(new Date(startTime));
   const fmtT        = d => new Date(d).toLocaleTimeString([], { hour:'2-digit', minute:'2-digit', hour12:false });
   const durationMin = Math.round((endTime - startTime) / 60000) || 1;
   const display     = title.trim() || 'Meeting';
+  const linkRows = [
+    ['Clients', links.clients],
+    ['Properties', links.properties],
+    ['Tasks', links.tasks],
+    ['People', links.people],
+  ]
+    .filter(([, values]) => values?.length)
+    .map(([label, values]) => `- **${label}:** ${values.map(v => `[[${v}]]`).join(', ')}`);
+  const contextSection = linkRows.length ? `\n## Linked context\n\n${linkRows.join('\n')}\n` : '';
   return `---
 status: none
 priority: normal
 due: ${dateStr}
 dateCreated: ${new Date(startTime).toISOString()}
 tags:
-  - task
   - meeting
 title: ${display}
 ---
@@ -394,6 +402,7 @@ title: ${display}
 **Start:** ${fmtT(startTime)}
 **End:** ${fmtT(endTime)}
 **Duration:** ${durationMin} min
+${contextSection}
 
 ## Notes
 
