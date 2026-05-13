@@ -1760,7 +1760,7 @@ export default function App() {
       {toast && <Toast msg={toast} onClose={() => setToast(null)} />}
 
       {/* ─── Sidebar ─── */}
-      <div style={{ width:320, flexShrink:0, borderRight:'1px solid rgba(255,255,255,0.06)', display:'flex', flexDirection:'column' }}>
+      <div style={{ width:360, flexShrink:0, borderRight:'1px solid rgba(255,255,255,0.06)', display:'flex', flexDirection:'column' }}>
         <div style={{ padding:'18px 14px 12px', borderBottom:'1px solid rgba(255,255,255,0.06)' }}>
           <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:4 }}>
             <div style={{ display:'flex', alignItems:'center', gap:7 }}>
