@@ -465,16 +465,53 @@ function workStats(note) {
   };
 }
 
+function ComboInput({ value, onChange, options = [], placeholder }) {
+  const [input, setInput] = useState(value || '');
+  const [open, setOpen] = useState(false);
+  const filtered = options
+    .filter(o => !input.trim() || o.toLowerCase().includes(input.trim().toLowerCase()))
+    .slice(0, 8);
+
+  useEffect(() => { setInput(value || ''); }, [value]);
+
+  return (
+    <div style={{ position:'relative' }}>
+      <input value={input} onFocus={()=>setOpen(true)} onChange={e=>{ setInput(e.target.value); onChange(e.target.value); setOpen(true); }} onBlur={()=>setTimeout(()=>setOpen(false), 120)}
+        placeholder={placeholder || 'Pick or type...'} style={inputBase}/>
+      {open && filtered.length > 0 && (
+        <div style={{ position:'absolute', top:'calc(100% + 4px)', left:0, right:0, zIndex:40, maxHeight:190, overflowY:'auto', padding:4, borderRadius:9, background:'#101018', border:'1px solid rgba(255,255,255,0.1)', boxShadow:'0 12px 30px rgba(0,0,0,0.45)' }}>
+          {filtered.map(option => (
+            <button key={option} type="button" onMouseDown={e=>{ e.preventDefault(); setInput(option); onChange(option); setOpen(false); }}
+              style={{ width:'100%', textAlign:'left', padding:'7px 9px', borderRadius:7, border:'none', background:'transparent', color:'#e2e8f0', cursor:'pointer', fontSize:12, fontFamily:'inherit' }}>
+              {option}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ChipMulti({ value, onChange, options, placeholder }) {
   const [input, setInput] = useState('');
-  const id = `dl_${Math.random().toString(36).slice(2,8)}`;
+  const [open, setOpen] = useState(false);
+  const filtered = (options || [])
+    .filter(o => !value.includes(o))
+    .filter(o => !input.trim() || o.toLowerCase().includes(input.trim().toLowerCase()))
+    .slice(0, 8);
   const add = () => {
     const v = input.trim();
     if (!v) return;
     if (!value.includes(v)) onChange([...value, v]);
     setInput('');
   };
+  const addOption = (option) => {
+    if (!value.includes(option)) onChange([...value, option]);
+    setInput('');
+    setOpen(false);
+  };
   return (
+    <div style={{ position:'relative' }}>
     <div style={{ ...inputBase, display:'flex', flexWrap:'wrap', gap:5, padding:'5px 6px' }}>
       {value.map(p => (
         <span key={p} style={{ fontSize:11, fontWeight:600, padding:'3px 8px', borderRadius:14, background:'rgba(124,58,237,0.18)', color:'#c4b5fd', display:'inline-flex', alignItems:'center', gap:5 }}>
@@ -482,14 +519,22 @@ function ChipMulti({ value, onChange, options, placeholder }) {
           <button type="button" onClick={() => onChange(value.filter(x => x !== p))} style={{ background:'none', border:'none', color:'#c4b5fd', cursor:'pointer', fontSize:14, lineHeight:1, padding:0 }}>×</button>
         </span>
       ))}
-      <input list={id} value={input} onChange={e=>setInput(e.target.value)}
+      <input value={input} onFocus={()=>setOpen(true)} onChange={e=>{ setInput(e.target.value); setOpen(true); }}
         onKeyDown={e=>{ if(e.key==='Enter'){e.preventDefault();add();} else if(e.key==='Backspace'&&!input&&value.length){onChange(value.slice(0,-1));}}}
-        onBlur={add}
+        onBlur={()=>setTimeout(()=>{ setOpen(false); add(); }, 120)}
         placeholder={placeholder||'Type and press Enter'}
         style={{ flex:1, minWidth:120, background:'transparent', border:'none', color:'#e2e8f0', fontSize:13, outline:'none', fontFamily:'inherit', padding:'4px' }}/>
-      <datalist id={id}>
-        {options.map(o => <option key={o} value={o}/>)}
-      </datalist>
+    </div>
+    {open && filtered.length > 0 && (
+      <div style={{ position:'absolute', top:'calc(100% + 4px)', left:0, right:0, zIndex:40, maxHeight:190, overflowY:'auto', padding:4, borderRadius:9, background:'#101018', border:'1px solid rgba(255,255,255,0.1)', boxShadow:'0 12px 30px rgba(0,0,0,0.45)' }}>
+        {filtered.map(option => (
+          <button key={option} type="button" onMouseDown={e=>{ e.preventDefault(); addOption(option); }}
+            style={{ width:'100%', textAlign:'left', padding:'7px 9px', borderRadius:7, border:'none', background:'transparent', color:'#e2e8f0', cursor:'pointer', fontSize:12, fontFamily:'inherit' }}>
+            {option}
+          </button>
+        ))}
+      </div>
+    )}
     </div>
   );
 }
@@ -3111,20 +3156,34 @@ function NewTaskPanel({ onCancel, onCreate, refs }) {
     projects:[], extraTags:'', body:'',
     timeEstimate:'', recurrent:false,
   });
+  const [titleParts, setTitleParts] = useState({ type:'Prop', link:'', name:'' });
   const [busy, setBusy] = useState(false);
   const set = (k, v) => setForm(prev => ({ ...prev, [k]: v }));
+  const setTitlePart = (k, v) => setTitleParts(prev => ({ ...prev, [k]: v }));
+  const titleLinkOptions = titleParts.type === 'Prop'
+    ? refs.properties
+    : titleParts.type === 'Client'
+      ? refs.clients
+      : [...new Set([...refs.properties, ...refs.clients])].sort();
+
+  useEffect(() => {
+    const nextTitle = [titleParts.type, titleParts.link, titleParts.name].map(s => s.trim()).filter(Boolean).join(' - ');
+    setForm(prev => ({
+      ...prev,
+      title: nextTitle,
+      building: titleParts.type === 'Prop' ? titleParts.link : prev.building,
+      client: titleParts.type === 'Client' ? titleParts.link : prev.client,
+    }));
+  }, [titleParts]);
+  const canCreate = titleParts.name.trim().length > 0;
 
   const submit = async (e) => {
     e?.preventDefault?.();
-    if (!form.title.trim()) return;
+    if (!canCreate) return;
     setBusy(true);
     await onCreate(form);
     setBusy(false);
   };
-
-  const dlClients   = `dl_clients_${Math.random().toString(36).slice(2,8)}`;
-  const dlBuildings = `dl_buildings_${Math.random().toString(36).slice(2,8)}`;
-  const dlPeople    = `dl_people_${Math.random().toString(36).slice(2,8)}`;
 
   return (
     <div style={{ flex:1, display:'flex', flexDirection:'column', overflow:'hidden' }}>
@@ -3135,7 +3194,7 @@ function NewTaskPanel({ onCancel, onCreate, refs }) {
         </div>
         <div style={{ display:'flex', gap:8 }}>
           <button onClick={onCancel} style={{ padding:'9px 16px', borderRadius:10, border:'1px solid rgba(255,255,255,0.1)', cursor:'pointer', fontWeight:700, fontSize:13, fontFamily:'inherit', background:'transparent', color:'#94a3b8' }}>Cancel</button>
-          <button onClick={submit} disabled={busy || !form.title.trim()} style={{ padding:'9px 22px', borderRadius:10, border:'none', cursor:'pointer', fontWeight:700, fontSize:13, fontFamily:'inherit', background:'linear-gradient(135deg,#7c3aed,#3b82f6)', color:'#fff', opacity:(busy||!form.title.trim())?0.4:1, boxShadow:'0 4px 16px rgba(124,58,237,0.4)' }}>
+          <button onClick={submit} disabled={busy || !canCreate} style={{ padding:'9px 22px', borderRadius:10, border:'none', cursor:'pointer', fontWeight:700, fontSize:13, fontFamily:'inherit', background:'linear-gradient(135deg,#7c3aed,#3b82f6)', color:'#fff', opacity:(busy||!canCreate)?0.4:1, boxShadow:'0 4px 16px rgba(124,58,237,0.4)' }}>
             {busy ? 'Creating…' : 'Create Task'}
           </button>
         </div>
@@ -3143,8 +3202,14 @@ function NewTaskPanel({ onCancel, onCreate, refs }) {
 
       <div style={{ flex:1, overflowY:'auto', padding:'20px 30px' }}>
         <form onSubmit={submit} style={{ maxWidth:720 }}>
-          <Field label="Title">
-            <input autoFocus value={form.title} onChange={e=>set('title', e.target.value)} placeholder="e.g. Admin - BER dashboard fixes" style={{ ...inputBase, fontSize:16, fontWeight:600, padding:'10px 14px' }}/>
+          <Field label="Task name builder">
+            <div style={{ display:'grid', gridTemplateColumns:'110px minmax(180px,1fr) minmax(220px,1.2fr)', gap:8 }}>
+              <select autoFocus value={titleParts.type} onChange={e=>setTitleParts({ type:e.target.value, link:'', name:titleParts.name })} style={inputBase}>
+                {['Prop','Client','Admin','Other','Research'].map(v => <option key={v} value={v}>{v}</option>)}
+              </select>
+              <ComboInput value={titleParts.link} onChange={v=>setTitlePart('link', v)} options={titleLinkOptions} placeholder="Optional property/client..." />
+              <input value={titleParts.name} onChange={e=>setTitlePart('name', e.target.value)} placeholder="Task name..." style={inputBase}/>
+            </div>
             <div style={{ fontSize:10, color:'#475569', marginTop:4 }}>Filename will be <code style={{ color:'#94a3b8' }}>{form.title.trim() ? safeFilename(form.title) : '<title>'}.md</code></div>
           </Field>
 
@@ -3189,16 +3254,10 @@ function NewTaskPanel({ onCancel, onCreate, refs }) {
 
           <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:11 }}>
             <Field label={`Client${refs.clients.length?` · ${refs.clients.length} available`:''}`}>
-              <input list={dlClients} value={form.client} onChange={e=>set('client', e.target.value)} placeholder="Pick or type…" style={inputBase}/>
-              <datalist id={dlClients}>
-                {refs.clients.map(c => <option key={c} value={c}/>)}
-              </datalist>
+              <ComboInput value={form.client} onChange={v=>set('client', v)} options={refs.clients} placeholder="Pick or type..." />
             </Field>
             <Field label={`Building${refs.properties.length?` · ${refs.properties.length} available`:''}`}>
-              <input list={dlBuildings} value={form.building} onChange={e=>set('building', e.target.value)} placeholder="Pick or type…" style={inputBase}/>
-              <datalist id={dlBuildings}>
-                {refs.properties.map(p => <option key={p} value={p}/>)}
-              </datalist>
+              <ComboInput value={form.building} onChange={v=>set('building', v)} options={refs.properties} placeholder="Pick or type..." />
             </Field>
           </div>
 
@@ -3207,10 +3266,7 @@ function NewTaskPanel({ onCancel, onCreate, refs }) {
           </Field>
 
           <Field label={`Waiting for${refs.people.length?` · ${refs.people.length} available`:''}`}>
-            <input list={dlPeople} value={form.waitingfor} onChange={e=>set('waitingfor', e.target.value)} placeholder="Pick or type…" style={inputBase}/>
-            <datalist id={dlPeople}>
-              {refs.people.map(p => <option key={p} value={p}/>)}
-            </datalist>
+            <ComboInput value={form.waitingfor} onChange={v=>set('waitingfor', v)} options={refs.people} placeholder="Pick or type..." />
           </Field>
 
           <Field label="Extra tags (comma-separated)">
