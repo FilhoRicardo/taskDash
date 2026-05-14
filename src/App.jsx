@@ -368,6 +368,20 @@ function addDays(dateStr, amount) {
   return tod(d);
 }
 
+function daysOpenSince(dateValue) {
+  const created = String(dateValue || '').match(/\d{4}-\d{2}-\d{2}/)?.[0];
+  if (!created) return null;
+  const days = Math.floor((dateFromStr(tod()) - dateFromStr(created)) / 86400000);
+  return Math.max(0, days);
+}
+
+function taskAgeTone(days) {
+  if (days === null) return { color:'#94a3b8', border:'rgba(148,163,184,0.18)', bg:'rgba(148,163,184,0.06)' };
+  if (days <= 15) return { color:'#10b981', border:'rgba(16,185,129,0.28)', bg:'rgba(16,185,129,0.08)' };
+  if (days <= 31) return { color:'#f59e0b', border:'rgba(245,158,11,0.3)', bg:'rgba(245,158,11,0.08)' };
+  return { color:'#f87171', border:'rgba(248,113,113,0.3)', bg:'rgba(248,113,113,0.08)' };
+}
+
 function monthLabel(monthStr) {
   return dateFromStr(`${monthStr}-01`).toLocaleDateString('en-US', { month:'long', year:'numeric' });
 }
@@ -1640,6 +1654,8 @@ export default function App() {
   const project   = projects.find(p => p.id===projectSel);
   const selTime   = sel ? getTime(sel) : 0;
   const live      = timer?.taskId===sel;
+  const taskDaysOpen = task ? daysOpenSince(task.dateCreated) : null;
+  const taskAge = taskAgeTone(taskDaysOpen);
   const totalToday = [...tasks.map(t=>t.id),'__email__','__meeting__','__adhoc__'].reduce((a,id)=>a+getTime(id),0);
   const dueColor  = due => isOver(due)?'#ef4444':isToday(due)?'#f59e0b':'#475569';
   const isClosedTask = t => t.archived || t.status === 'done';
@@ -2197,6 +2213,9 @@ export default function App() {
                   {task.building && <span style={{ fontSize:12, color:'#475569' }}>· 🏢 {task.building}</span>}
                 </div>
                 <h2 style={{ margin:0, fontSize:19, fontWeight:700, lineHeight:1.35, color:'#f1f5f9' }}>{task.title}</h2>
+                <div style={{ marginTop:11, display:'inline-flex', alignItems:'center', gap:8, padding:'7px 11px', borderRadius:9, border:`1px solid ${taskAge.border}`, background:taskAge.bg, color:taskAge.color, fontSize:12, fontWeight:850 }}>
+                  {taskDaysOpen === null ? 'Open age unknown - no dateCreated' : `Open for ${taskDaysOpen} day${taskDaysOpen === 1 ? '' : 's'}`}
+                </div>
                 <div style={{ display:'flex', gap:9, alignItems:'end', flexWrap:'wrap', marginTop:13 }}>
                   <label style={{ display:'flex', flexDirection:'column', gap:4, minWidth:145 }}>
                     <span style={{ fontSize:9, color:'#64748b', fontWeight:800, letterSpacing:'0.08em', textTransform:'uppercase' }}>Due</span>
