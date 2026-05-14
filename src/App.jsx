@@ -143,6 +143,7 @@ function CommentCard({ log, index, onSave, onDelete }) {
   const { time, body } = parseLogText(log.text);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(body);
+  const editRows = Math.min(14, Math.max(5, draft.split('\n').length + 2));
 
   useEffect(() => {
     setDraft(body);
@@ -150,10 +151,10 @@ function CommentCard({ log, index, onSave, onDelete }) {
   }, [body, log.date, log.text]);
 
   return (
-    <div style={{ marginBottom:8, padding:'11px 14px', borderRadius:10, background:'rgba(124,58,237,0.07)', border:'1px solid rgba(124,58,237,0.15)' }}>
-      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:10, marginBottom:5 }}>
+    <div style={{ width:'100%', boxSizing:'border-box', marginBottom:10, padding:'14px 16px', borderRadius:10, background:'rgba(124,58,237,0.07)', border:'1px solid rgba(124,58,237,0.15)', overflow:'hidden' }}>
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:10, marginBottom:8 }}>
         <div style={{ fontSize:10, color:'#7c3aed', fontWeight:700 }}>{log.date}{time?` · ${time}`:''}</div>
-        <div style={{ display:'flex', gap:6 }}>
+        <div style={{ display:'flex', gap:6, flexShrink:0 }}>
           {editing ? (
             <>
               <button onClick={()=>{ setDraft(body); setEditing(false); }} style={{ padding:'4px 8px', borderRadius:7, border:'1px solid rgba(255,255,255,0.08)', background:'rgba(255,255,255,0.03)', color:'#94a3b8', cursor:'pointer', fontSize:10, fontWeight:800, fontFamily:'inherit' }}>Cancel</button>
@@ -168,10 +169,10 @@ function CommentCard({ log, index, onSave, onDelete }) {
         </div>
       </div>
       {editing ? (
-        <textarea value={draft} onChange={e=>setDraft(e.target.value)} rows={3}
-          style={{ width:'100%', boxSizing:'border-box', padding:'8px 10px', borderRadius:8, resize:'vertical', background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.09)', color:'#e2e8f0', fontSize:13, lineHeight:1.5, outline:'none', fontFamily:'inherit' }}/>
+        <textarea value={draft} onChange={e=>setDraft(e.target.value)} rows={editRows}
+          style={{ width:'100%', minHeight:120, boxSizing:'border-box', padding:'11px 12px', borderRadius:8, resize:'vertical', background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.09)', color:'#e2e8f0', fontSize:13, lineHeight:1.55, outline:'none', fontFamily:'inherit', whiteSpace:'pre-wrap', overflowWrap:'anywhere' }}/>
       ) : (
-        <div style={{ fontSize:13, lineHeight:1.55 }}>{body}</div>
+        <div style={{ fontSize:13, lineHeight:1.6, whiteSpace:'pre-wrap', overflowWrap:'anywhere', wordBreak:'break-word' }}>{body}</div>
       )}
     </div>
   );
