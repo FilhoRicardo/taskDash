@@ -89,7 +89,7 @@ function SBadge({ s }) {
 }
 
 function parseLogText(text) {
-  const m = text.match(/^\[(\d{2}:\d{2})\]\s*(.*)/);
+  const m = text.match(/^\[(\d{2}:\d{2})\]\s*([\s\S]*)$/);
   return m ? { time:m[1], body:m[2] } : { time:null, body:text };
 }
 
@@ -2260,10 +2260,11 @@ export default function App() {
 
           <div style={{ flex:1, minHeight:0, display:'grid', gridTemplateColumns:'minmax(420px, 0.58fr) minmax(360px, 0.42fr)', gap:0, overflow:'hidden' }}>
             <div style={{ minWidth:0, overflowY:'auto', padding:'18px 24px 18px 30px', borderRight:'1px solid rgba(255,255,255,0.06)' }}>
-              <div style={{ display:'flex', gap:8, marginBottom:18 }}>
-                <input value={note} onChange={e=>setNote(e.target.value)} onKeyDown={e=>e.key==='Enter'&&!e.shiftKey&&addNote()}
-                  placeholder="Add a note… Enter to save · writes directly to your .md file"
-                  style={{ flex:1, padding:'10px 14px', borderRadius:10, background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.09)', color:'#e2e8f0', fontSize:13, outline:'none', fontFamily:'inherit' }}/>
+              <div style={{ display:'flex', gap:8, marginBottom:18, alignItems:'stretch' }}>
+                <textarea value={note} onChange={e=>setNote(e.target.value)} onKeyDown={e=>{ if(e.key==='Enter'&&!e.shiftKey){ e.preventDefault(); addNote(); }}}
+                  placeholder="Add a note... Enter to save, Shift+Enter for a new line"
+                  rows={3}
+                  style={{ flex:1, minHeight:76, padding:'10px 14px', borderRadius:10, resize:'vertical', background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.09)', color:'#e2e8f0', fontSize:13, lineHeight:1.5, outline:'none', fontFamily:'inherit' }}/>
                 <button onClick={addNote} disabled={!note.trim()} style={{ padding:'10px 20px', borderRadius:10, border:'none', cursor:'pointer', fontWeight:600, fontSize:13, fontFamily:'inherit', background:'linear-gradient(135deg,#7c3aed,#3b82f6)', color:'#fff', opacity:note.trim()?1:0.35 }}>Add</button>
               </div>
               {!task.logs.length && (
@@ -2913,6 +2914,7 @@ function PropertyPanel({ properties, selected, selectedId, images, onSelect, com
 
               <div style={{ display:'flex', gap:8, marginBottom:18 }}>
                 <textarea value={comment} onChange={e=>setComment(e.target.value)} placeholder="Add a property comment…" rows={6}
+                  onKeyDown={e=>{ if(e.key==='Enter'&&!e.shiftKey){ e.preventDefault(); onAddComment(); }}}
                   style={{ flex:1, padding:'10px 12px', borderRadius:10, resize:'vertical', background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.09)', color:'#e2e8f0', fontSize:13, lineHeight:1.5, outline:'none', fontFamily:'inherit' }}/>
                 <button onClick={onAddComment} disabled={!comment.trim()} style={{ alignSelf:'stretch', padding:'0 18px', borderRadius:10, border:'none', cursor:'pointer', fontWeight:700, fontSize:13, fontFamily:'inherit', background:'linear-gradient(135deg,#7c3aed,#3b82f6)', color:'#fff', opacity:comment.trim()?1:0.35 }}>Add</button>
               </div>

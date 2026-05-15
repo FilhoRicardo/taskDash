@@ -116,7 +116,7 @@ function replaceLogLine(raw, targetDate, targetText, occurrence = 0, nextText = 
 
     const sectionEnd = headers[i + 1]?.start ?? raw.length;
     const section = raw.slice(header.end, sectionEnd);
-    const rx = /^Log: ([^\n]+)/gm;
+    const rx = /^Log:\s*([\s\S]*?)(?=\nLog:\s|\n---[ \t]*(?=\n|$)|$)/gm;
     let match;
 
     while ((match = rx.exec(section)) !== null) {
