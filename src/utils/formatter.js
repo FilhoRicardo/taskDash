@@ -491,7 +491,7 @@ export function buildNewPropertyMd({ title, client, summary, tags, coverPath, bo
   lines.push('type: entity');
   lines.push(`building: ${yamlQuote(title)}`);
   if (client) lines.push(`client: ${yamlQuote(`[[${client}]]`)}`);
-  if (coverPath) lines.push(`cover: ${coverPath}`);
+  if (coverPath) lines.push(`cover: ${yamlQuote(coverPath)}`);
   lines.push('---');
   lines.push(`# ${title}`);
   if (body && body.trim()) lines.push('', body.trim());
@@ -566,7 +566,7 @@ export function setPropertyCover(raw, coverPath) {
     else fm = fm + (fm.endsWith('\n') || !fm ? '' : '\n') + `${key}: ${value}`;
   };
 
-  upsert('cover', coverPath);
+  upsert('cover', yamlQuote(coverPath));
   upsert('dateModified', tod());
 
   if (!fmMatch) return `---\n${fm}\n---\n\n${raw.trimStart()}`;
@@ -576,6 +576,14 @@ export function setPropertyCover(raw, coverPath) {
 function addDays(dateStr, days) {
   const d = dateStr ? new Date(`${dateStr}T12:00:00`) : new Date();
   d.setDate(d.getDate() + days);
+  return tod(d);
+}
+
+function addMonths(dateStr, months) {
+  const d = dateStr ? new Date(`${dateStr}T12:00:00`) : new Date();
+  const originalDay = d.getDate();
+  d.setMonth(d.getMonth() + months);
+  if (d.getDate() < originalDay) d.setDate(0);
   return tod(d);
 }
 
@@ -606,6 +614,12 @@ export function updateTaskDates(raw, { due, scheduled }) {
 export function postponeTaskDates(raw, currentDue, currentScheduled, days = 7) {
   const due = currentDue ? addDays(currentDue, days) : (!currentScheduled ? addDays(tod(), days) : '');
   const scheduled = currentScheduled ? addDays(currentScheduled, days) : '';
+  return updateTaskDates(raw, { due, scheduled });
+}
+
+export function postponeTaskDatesByMonths(raw, currentDue, currentScheduled, months = 1) {
+  const due = currentDue ? addMonths(currentDue, months) : (!currentScheduled ? addMonths(tod(), months) : '');
+  const scheduled = currentScheduled ? addMonths(currentScheduled, months) : '';
   return updateTaskDates(raw, { due, scheduled });
 }
 

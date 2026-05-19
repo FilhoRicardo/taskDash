@@ -3,7 +3,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { parseTask, parseProperty, parseProject, parseDailyNote, parsePerson, readMdFiles, readDirNames, readImageFiles } from './utils/parser.js';
 import { idbGet, idbSet, idbDel, lsGet, lsSet, lsDel } from './utils/storage.js';
-import { fmt, tod, isToday, isOver, longDate, appendNoteToMd, appendPropertyCommentToMd, updateCommentLog, deleteCommentLog, appendDailySectionEntry, appendDailyTimeClockEvent, buildDailyNoteMd, buildTrackerRow, appendTrackerRow, buildMeetingMd, buildNewTaskMd, buildNewPropertyMd, buildNewProjectMd, buildNewPersonMd, finishRecurrentTaskInstance, markTaskDone, postponeTaskDates, replaceDailyTimeClockRows, setDailyWorkStatus, setPropertyCover, touchDateModified, updateTaskDates } from './utils/formatter.js';
+import { fmt, tod, isToday, isOver, longDate, appendNoteToMd, appendPropertyCommentToMd, updateCommentLog, deleteCommentLog, appendDailySectionEntry, appendDailyTimeClockEvent, buildDailyNoteMd, buildTrackerRow, appendTrackerRow, buildMeetingMd, buildNewTaskMd, buildNewPropertyMd, buildNewProjectMd, buildNewPersonMd, finishRecurrentTaskInstance, markTaskDone, postponeTaskDates, postponeTaskDatesByMonths, replaceDailyTimeClockRows, setDailyWorkStatus, setPropertyCover, touchDateModified, updateTaskDates } from './utils/formatter.js';
 
 const REFRESH_MS  = 5 * 60 * 1000;
 const WARN_MS     = 60 * 60 * 1000;
@@ -38,7 +38,13 @@ async function rememberWriteBackup(handle, oldText) {
   try {
     const backups = (await idbGet(WRITE_BACKUPS_KEY)) || [];
     const next = [
-      { at: new Date().toISOString(), filename: handle?.name || 'Unknown file', content: oldText },
+      {
+        at: new Date().toISOString(),
+        filename: handle?.name || 'Unknown file',
+        content: oldText,
+        size: oldText.length,
+        preview: oldText.replace(/\s+/g, ' ').trim().slice(0, 180),
+      },
       ...backups,
     ].slice(0, 25);
     await idbSet(WRITE_BACKUPS_KEY, next);
@@ -194,12 +200,16 @@ function parseQuickCaptureText(text) {
   const words = text.trim().split(/\s+/).filter(Boolean);
   const tags = [];
   let due = '';
+  let dueInvalid = '';
   let priority = 'normal';
   const titleParts = [];
   for (const word of words) {
     if (/^#\w+/.test(word)) tags.push(word.slice(1));
     else if (/^!(high|normal|low)$/i.test(word)) priority = word.slice(1).toLowerCase();
-    else if (/^due:/i.test(word)) due = word.split(':').slice(1).join(':');
+    else if (/^due:/i.test(word)) {
+      due = word.split(':').slice(1).join(':');
+      if (!isIsoDate(due)) dueInvalid = due;
+    }
     else if (/^today$/i.test(word)) due = tod();
     else if (/^tomorrow$/i.test(word)) {
       const d = new Date();
@@ -214,6 +224,7 @@ function parseQuickCaptureText(text) {
     priority,
     status:'none',
     due: isIsoDate(due) ? due : '',
+    dueInvalid,
     scheduled:'',
     contexts:'work',
     client:'',
@@ -1055,16 +1066,22 @@ export default function App() {
   const resumeAll = async () => {
     setSetupBusy(true);
     const next = { ...dirs };
+    const stillSaved = {};
     for (const def of FOLDER_DEFS) {
       const h = savedDirs[def.key]; if (!h) continue;
       try {
         const perm = await h.requestPermission({ mode: def.mode });
         if (perm === 'granted') next[def.key] = h;
+        else stillSaved[def.key] = h;
       } catch(e) { console.error(e); }
     }
     setDirs(next);
-    setSavedDirs({});
-    setFolderIssues({});
+    setSavedDirs(stillSaved);
+    setFolderIssues(prev => {
+      const c = { ...prev };
+      Object.keys(next).forEach(key => { delete c[key]; });
+      return c;
+    });
     await loadAll(next);
     if (next.tasks && REF_KEYS.every(k => !next[k])) setFolderSetupOpen(true);
     setSetupBusy(false);
@@ -1348,6 +1365,31 @@ export default function App() {
     }
   };
 
+  const setTaskDatesToToday = async (taskId) => {
+    const task = tasks.find(t => t.id === taskId);
+    if (!task) return;
+    const nextDates = task.scheduled && !task.due
+      ? { scheduled: tod() }
+      : task.scheduled
+        ? { due: tod(), scheduled: tod() }
+        : { due: tod() };
+    await changeTaskDates(taskId, nextDates);
+  };
+
+  const postponeTaskByMonth = async (taskId) => {
+    const task = tasks.find(t => t.id === taskId);
+    const handle = taskHandles[taskId];
+    if (!task || !handle) return;
+    try {
+      const latestTask = parseTask(taskId, await readHandleText(handle));
+      const updated = postponeTaskDatesByMonths(latestTask.raw, latestTask.due, latestTask.scheduled, 1);
+      await writeTaskUpdate(taskId, updated, 'Postponed task by 1 month');
+    } catch(e) {
+      console.error('task monthly postpone failed', e);
+      alert('Failed to postpone task: ' + e.message);
+    }
+  };
+
   const addPropertyComment = async () => {
     if (!propertySel || !propertyComment.trim()) return;
     const handle = propertyHandles[propertySel];
@@ -1570,6 +1612,38 @@ export default function App() {
     } catch(e) {
       console.error('save project failed', e);
       alert('Failed to save project: ' + e.message);
+    }
+  };
+
+  const findWritableHandleForBackup = (backup) => {
+    const filename = backup?.filename;
+    if (!filename) return null;
+    const maps = [taskHandles, projectHandles, propertyHandles, personHandles];
+    for (const map of maps) {
+      const exact = map[filename];
+      if (exact) return exact;
+      const byName = Object.values(map).find(handle => handle?.name === filename);
+      if (byName) return byName;
+    }
+    if (dailyHandle?.name === filename) return dailyHandle;
+    if (trackerHandle?.name === filename) return trackerHandle;
+    return null;
+  };
+
+  const restoreBackup = async (backup) => {
+    const handle = findWritableHandleForBackup(backup);
+    if (!handle) {
+      setToast(`Reconnect or open "${backup.filename}" before restoring this backup.`);
+      return;
+    }
+    if (!confirm(`Restore the saved previous version of "${backup.filename}"?`)) return;
+    try {
+      await writeFile(handle, backup.content);
+      await loadAll(dirs);
+      setToast(`Restored "${backup.filename}" from local backup`);
+    } catch(e) {
+      console.error('backup restore failed', e);
+      alert('Failed to restore backup: ' + e.message);
     }
   };
 
@@ -2173,7 +2247,7 @@ export default function App() {
           />
         )
       ) : view === 'health' ? (
-        <HealthPanel diagnostics={diagnostics} dirs={dirs} backups={writeBackups} onForceSync={forceSyncAll} syncBusy={syncBusy} onConfigure={()=>setFolderSetupOpen(true)}/>
+        <HealthPanel diagnostics={diagnostics} dirs={dirs} backups={writeBackups} onForceSync={forceSyncAll} syncBusy={syncBusy} onConfigure={()=>setFolderSetupOpen(true)} onRestoreBackup={restoreBackup}/>
       ) : newPersonOpen ? (
         <NewPersonPanel onCancel={()=>setNewPersonOpen(false)} onCreate={createPerson} refs={refs} hasPeopleFolder={!!dirs.people} onConfigure={()=>setFolderSetupOpen(true)}/>
       ) : newTaskOpen ? (
@@ -2225,8 +2299,14 @@ export default function App() {
                     <span style={{ fontSize:9, color:'#64748b', fontWeight:800, letterSpacing:'0.08em', textTransform:'uppercase' }}>Scheduled</span>
                     <input type="date" value={task.scheduled || ''} onChange={e=>changeTaskDates(task.id, { scheduled:e.target.value })} style={{ ...inputBase, padding:'7px 9px', fontSize:12 }}/>
                   </label>
+                  <button onClick={()=>setTaskDatesToToday(task.id)} title="Set active task date fields to today" style={{ padding:'8px 12px', borderRadius:9, border:'1px solid rgba(16,185,129,0.32)', cursor:'pointer', fontWeight:800, fontSize:12, fontFamily:'inherit', background:'rgba(16,185,129,0.14)', color:'#10b981' }}>
+                    Today
+                  </button>
                   <button onClick={()=>postponeTaskByWeek(task.id)} title="Move due and scheduled dates forward by 7 days" style={{ padding:'8px 12px', borderRadius:9, border:'1px solid rgba(245,158,11,0.28)', cursor:'pointer', fontWeight:800, fontSize:12, fontFamily:'inherit', background:'rgba(245,158,11,0.08)', color:'#fbbf24' }}>
                     Postpone 1w
+                  </button>
+                  <button onClick={()=>postponeTaskByMonth(task.id)} title="Move due and scheduled dates forward by 1 calendar month" style={{ padding:'8px 12px', borderRadius:9, border:'1px solid rgba(248,113,113,0.32)', cursor:'pointer', fontWeight:800, fontSize:12, fontFamily:'inherit', background:'rgba(248,113,113,0.14)', color:'#f87171' }}>
+                    1 month
                   </button>
                 </div>
               </div>
@@ -2421,8 +2501,16 @@ function MeetingPanel({ meetingOpen, meetingTitle, meetingNotes, meetingLinks, s
   );
 }
 
-function HealthPanel({ diagnostics, dirs, backups, onForceSync, syncBusy, onConfigure }) {
+function HealthPanel({ diagnostics, dirs, backups, onForceSync, syncBusy, onConfigure, onRestoreBackup }) {
+  const [selectedBackup, setSelectedBackup] = useState(null);
   const issueColor = issue => issue.level === 'error' ? '#f87171' : issue.level === 'warning' ? '#fbbf24' : '#818cf8';
+  const copyBackup = async (backup) => {
+    try {
+      await navigator.clipboard.writeText(backup.content || '');
+    } catch(e) {
+      console.warn('backup copy failed', e);
+    }
+  };
   return (
     <div style={{ flex:1, display:'flex', flexDirection:'column', overflow:'hidden' }}>
       <div style={{ padding:'22px 30px 16px', borderBottom:'1px solid rgba(255,255,255,0.06)', flexShrink:0, display:'flex', justifyContent:'space-between', alignItems:'center', gap:18 }}>
@@ -2468,13 +2556,40 @@ function HealthPanel({ diagnostics, dirs, backups, onForceSync, syncBusy, onConf
           <h3 style={{ margin:'0 0 10px', fontSize:14, color:'#f1f5f9' }}>Recent Local Backups</h3>
           {!backups.length && <div style={{ color:'#64748b', fontSize:13 }}>No backups captured yet. The next text write keeps the previous version locally in this browser.</div>}
           {backups.slice(0, 8).map((backup, i) => (
-            <div key={`${backup.at}-${i}`} style={{ padding:'9px 10px', marginBottom:6, borderRadius:8, background:'rgba(255,255,255,0.02)', border:'1px solid rgba(255,255,255,0.05)' }}>
-              <div style={{ fontSize:12, color:'#e2e8f0', fontWeight:800 }}>{backup.filename}</div>
-              <div style={{ fontSize:10, color:'#64748b', marginTop:3 }}>{new Date(backup.at).toLocaleString()}</div>
+            <div key={`${backup.at}-${i}`} style={{ padding:'10px 11px', marginBottom:7, borderRadius:8, background:'rgba(255,255,255,0.02)', border:'1px solid rgba(255,255,255,0.05)' }}>
+              <div style={{ display:'flex', justifyContent:'space-between', gap:12, alignItems:'flex-start' }}>
+                <div style={{ minWidth:0 }}>
+                  <div style={{ fontSize:12, color:'#e2e8f0', fontWeight:800 }}>{backup.filename}</div>
+                  <div style={{ fontSize:10, color:'#64748b', marginTop:3 }}>{new Date(backup.at).toLocaleString()} · {backup.size || backup.content?.length || 0} chars</div>
+                  {backup.preview && <div style={{ fontSize:11, color:'#64748b', marginTop:5, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{backup.preview}</div>}
+                </div>
+                <div style={{ display:'flex', gap:6, flexShrink:0 }}>
+                  <button onClick={()=>setSelectedBackup(backup)} style={{ padding:'6px 9px', borderRadius:8, border:'1px solid rgba(255,255,255,0.08)', background:'rgba(255,255,255,0.035)', color:'#c4b5fd', cursor:'pointer', fontWeight:800, fontSize:11, fontFamily:'inherit' }}>Inspect</button>
+                  <button onClick={()=>onRestoreBackup?.(backup)} style={{ padding:'6px 9px', borderRadius:8, border:'1px solid rgba(16,185,129,0.2)', background:'rgba(16,185,129,0.08)', color:'#10b981', cursor:'pointer', fontWeight:800, fontSize:11, fontFamily:'inherit' }}>Restore</button>
+                </div>
+              </div>
             </div>
           ))}
         </section>
       </div>
+      {selectedBackup && (
+        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.62)', zIndex:1000, display:'flex', alignItems:'center', justifyContent:'center', padding:24 }}>
+          <div style={{ width:'min(900px, 96vw)', maxHeight:'86vh', display:'flex', flexDirection:'column', borderRadius:10, border:'1px solid rgba(255,255,255,0.12)', background:'#0f1018', boxShadow:'0 18px 70px rgba(0,0,0,0.5)', overflow:'hidden' }}>
+            <div style={{ padding:'14px 16px', borderBottom:'1px solid rgba(255,255,255,0.08)', display:'flex', justifyContent:'space-between', alignItems:'center', gap:14 }}>
+              <div style={{ minWidth:0 }}>
+                <div style={{ fontSize:13, color:'#f1f5f9', fontWeight:850 }}>{selectedBackup.filename}</div>
+                <div style={{ fontSize:11, color:'#64748b', marginTop:3 }}>{new Date(selectedBackup.at).toLocaleString()}</div>
+              </div>
+              <div style={{ display:'flex', gap:8 }}>
+                <button onClick={()=>copyBackup(selectedBackup)} style={{ padding:'8px 11px', borderRadius:8, border:'1px solid rgba(255,255,255,0.08)', background:'rgba(255,255,255,0.035)', color:'#94a3b8', cursor:'pointer', fontWeight:800, fontSize:12, fontFamily:'inherit' }}>Copy</button>
+                <button onClick={()=>onRestoreBackup?.(selectedBackup)} style={{ padding:'8px 11px', borderRadius:8, border:'1px solid rgba(16,185,129,0.2)', background:'rgba(16,185,129,0.08)', color:'#10b981', cursor:'pointer', fontWeight:800, fontSize:12, fontFamily:'inherit' }}>Restore</button>
+                <button onClick={()=>setSelectedBackup(null)} style={{ padding:'8px 11px', borderRadius:8, border:'1px solid rgba(255,255,255,0.08)', background:'rgba(255,255,255,0.035)', color:'#f87171', cursor:'pointer', fontWeight:800, fontSize:12, fontFamily:'inherit' }}>Close</button>
+              </div>
+            </div>
+            <pre style={{ margin:0, padding:16, overflow:'auto', color:'#cbd5e1', background:'rgba(255,255,255,0.025)', fontSize:12, lineHeight:1.55, whiteSpace:'pre-wrap', overflowWrap:'anywhere', fontFamily:'ui-monospace, SFMono-Regular, Consolas, monospace' }}>{selectedBackup.content}</pre>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -3179,6 +3294,8 @@ function NewTaskPanel({ onCancel, onCreate, refs }) {
     timeEstimate:'', recurrent:false,
   });
   const [titleParts, setTitleParts] = useState({ type:'Prop', link:'', name:'' });
+  const [quickText, setQuickText] = useState('');
+  const [quickPreview, setQuickPreview] = useState(null);
   const [busy, setBusy] = useState(false);
   const set = (k, v) => setForm(prev => ({ ...prev, [k]: v }));
   const setTitlePart = (k, v) => setTitleParts(prev => ({ ...prev, [k]: v }));
@@ -3197,7 +3314,22 @@ function NewTaskPanel({ onCancel, onCreate, refs }) {
       client: titleParts.type === 'Client' ? titleParts.link : prev.client,
     }));
   }, [titleParts]);
-  const canCreate = titleParts.name.trim().length > 0;
+  const canCreate = form.title.trim().length > 0 && !quickPreview?.dueInvalid;
+
+  const applyQuickCapture = (text) => {
+    setQuickText(text);
+    const parsed = parseQuickCaptureText(text);
+    setQuickPreview(parsed.title || parsed.due || parsed.extraTags || parsed.dueInvalid ? parsed : null);
+    if (!text.trim()) return;
+    setForm(prev => ({
+      ...prev,
+      ...parsed,
+      title: parsed.title || prev.title,
+      due: parsed.due || '',
+      extraTags: parsed.extraTags,
+    }));
+    if (parsed.title) setTitleParts({ type:'Other', link:'', name:parsed.title });
+  };
 
   const submit = async (e) => {
     e?.preventDefault?.();
@@ -3224,6 +3356,20 @@ function NewTaskPanel({ onCancel, onCreate, refs }) {
 
       <div style={{ flex:1, overflowY:'auto', padding:'20px 30px' }}>
         <form onSubmit={submit} style={{ maxWidth:720 }}>
+          <Field label="Quick capture">
+            <input value={quickText} onChange={e=>applyQuickCapture(e.target.value)}
+              placeholder="e.g. Review lease renewal today #legal !high"
+              style={{ ...inputBase, fontSize:14, padding:'10px 14px', border:quickPreview?.dueInvalid?'1px solid rgba(248,113,113,0.45)':inputBase.border }}/>
+            {quickPreview && (
+              <div style={{ marginTop:7, display:'flex', gap:6, flexWrap:'wrap', alignItems:'center' }}>
+                {quickPreview.title && <span style={{ fontSize:10, color:'#94a3b8', padding:'3px 7px', borderRadius:14, background:'rgba(255,255,255,0.035)', border:'1px solid rgba(255,255,255,0.06)' }}>title: {quickPreview.title}</span>}
+                {quickPreview.due && <span style={{ fontSize:10, color:'#fbbf24', padding:'3px 7px', borderRadius:14, background:'rgba(251,191,36,0.08)', border:'1px solid rgba(251,191,36,0.16)' }}>due: {quickPreview.due}</span>}
+                <span style={{ fontSize:10, color:'#818cf8', padding:'3px 7px', borderRadius:14, background:'rgba(129,140,248,0.08)', border:'1px solid rgba(129,140,248,0.16)' }}>priority: {quickPreview.priority}</span>
+                {quickPreview.extraTags && <span style={{ fontSize:10, color:'#c4b5fd', padding:'3px 7px', borderRadius:14, background:'rgba(124,58,237,0.1)', border:'1px solid rgba(124,58,237,0.18)' }}>tags: {quickPreview.extraTags}</span>}
+                {quickPreview.dueInvalid && <span style={{ fontSize:10, color:'#f87171', padding:'3px 7px', borderRadius:14, background:'rgba(248,113,113,0.08)', border:'1px solid rgba(248,113,113,0.18)' }}>invalid due date: {quickPreview.dueInvalid}</span>}
+              </div>
+            )}
+          </Field>
           <Field label="Task name builder">
             <div style={{ display:'grid', gridTemplateColumns:'110px minmax(180px,1fr) minmax(220px,1.2fr)', gap:8 }}>
               <select autoFocus value={titleParts.type} onChange={e=>setTitleParts({ type:e.target.value, link:'', name:titleParts.name })} style={inputBase}>
