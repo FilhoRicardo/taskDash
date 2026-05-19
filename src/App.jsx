@@ -1365,15 +1365,26 @@ export default function App() {
     }
   };
 
-  const setTaskDatesToToday = async (taskId) => {
+  const setTaskDatesToDate = async (taskId, dateStr, label = 'date') => {
     const task = tasks.find(t => t.id === taskId);
     if (!task) return;
     const nextDates = task.scheduled && !task.due
-      ? { scheduled: tod() }
+      ? { scheduled: dateStr }
       : task.scheduled
-        ? { due: tod(), scheduled: tod() }
-        : { due: tod() };
+        ? { due: dateStr, scheduled: dateStr }
+        : { due: dateStr };
     await changeTaskDates(taskId, nextDates);
+    setToast(`Set task date to ${label}`);
+  };
+
+  const setTaskDatesToToday = async (taskId) => {
+    await setTaskDatesToDate(taskId, tod(), 'today');
+  };
+
+  const setTaskDatesToTomorrow = async (taskId) => {
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    await setTaskDatesToDate(taskId, tod(d), 'tomorrow');
   };
 
   const postponeTaskByMonth = async (taskId) => {
@@ -2301,6 +2312,9 @@ export default function App() {
                   </label>
                   <button onClick={()=>setTaskDatesToToday(task.id)} title="Set active task date fields to today" style={{ padding:'8px 12px', borderRadius:9, border:'1px solid rgba(16,185,129,0.32)', cursor:'pointer', fontWeight:800, fontSize:12, fontFamily:'inherit', background:'rgba(16,185,129,0.14)', color:'#10b981' }}>
                     Today
+                  </button>
+                  <button onClick={()=>setTaskDatesToTomorrow(task.id)} title="Set active task date fields to tomorrow" style={{ padding:'8px 12px', borderRadius:9, border:'1px solid rgba(56,189,248,0.32)', cursor:'pointer', fontWeight:800, fontSize:12, fontFamily:'inherit', background:'rgba(56,189,248,0.12)', color:'#38bdf8' }}>
+                    Tomorrow
                   </button>
                   <button onClick={()=>postponeTaskByWeek(task.id)} title="Move due and scheduled dates forward by 7 days" style={{ padding:'8px 12px', borderRadius:9, border:'1px solid rgba(245,158,11,0.28)', cursor:'pointer', fontWeight:800, fontSize:12, fontFamily:'inherit', background:'rgba(245,158,11,0.08)', color:'#fbbf24' }}>
                     Postpone 1w
