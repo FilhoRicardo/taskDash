@@ -70,12 +70,11 @@ function withTrailingSeparator(text) {
 }
 
 function stripTrailingSeparator(text) {
-  const index = trailingSeparatorIndex(text);
-  return text.slice(0, index);
+  return text.replace(/\n[ \t]*---[ \t]*(?:\n[ \t]*)*$/g, '');
 }
 
 function trailingSeparatorIndex(text) {
-  const match = text.match(/\n[ \t]*---[ \t]*(?=\n|$)(?![\s\S]*\n[ \t]*---[ \t]*(?=\n|$))/);
+  const match = /\n[ \t]*---[ \t]*(?:\n[ \t]*)*$/.exec(text);
   return match ? match.index : text.length;
 }
 

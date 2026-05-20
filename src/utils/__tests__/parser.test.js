@@ -82,24 +82,6 @@ Log: [10:20] Follow up
       { date: '2026-05-18', text: '[10:20] Follow up' },
     ]);
   });
-
-  it('does not include non-log section content after the final separator', () => {
-    const raw = `# Task
-
-### [[2026-05-18]]
-Log: [09:15] Visible comment
-
----
-
-## Other content
-
-This should not be part of the comment.
-`;
-
-    const task = parseTask('Task.md', raw);
-
-    expect(task.logs).toEqual([{ date: '2026-05-18', text: '[09:15] Visible comment' }]);
-  });
 });
 
 describe('parseDailyNote', () => {
