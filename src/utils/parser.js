@@ -51,14 +51,20 @@ function parseDatedLogs(txt) {
   })).filter(h => h.date);
   headers.forEach((h, i) => {
     const section = txt.slice(h.end, headers[i + 1]?.start ?? txt.length);
-    [...section.matchAll(/^Log:\s*([\s\S]*?)(?=\nLog:\s|\n---[ \t]*(?=\n|$)|$)/gm)].forEach(lm => {
-      const text = lm[1].trim();
+    const entries = [...section.matchAll(/^Log:\s*/gm)];
+    entries.forEach((lm, index) => {
+      const next = entries[index + 1]?.index ?? section.length;
+      const text = stripTrailingSeparator(section.slice(lm.index + lm[0].length, next)).trim();
       if (text) logs.push({ date: h.date, text, order: logs.length });
     });
   });
   logs.sort((a, b) => a.date.localeCompare(b.date) || a.order - b.order);
   logs.forEach(l => { delete l.order; });
   return logs;
+}
+
+function stripTrailingSeparator(text) {
+  return text.replace(/\n[ \t]*---[ \t]*(?:\n[ \t]*)*$/g, '');
 }
 
 export function parseTask(name, txt) {

@@ -69,6 +69,15 @@ function withTrailingSeparator(text) {
   return /(^|\n)---$/.test(trimmed) ? `${trimmed}\n` : `${trimmed}\n\n---\n`;
 }
 
+function stripTrailingSeparator(text) {
+  return text.replace(/\n[ \t]*---[ \t]*(?:\n[ \t]*)*$/g, '');
+}
+
+function trailingSeparatorIndex(text) {
+  const match = /\n[ \t]*---[ \t]*(?:\n[ \t]*)*$/.exec(text);
+  return match ? match.index : text.length;
+}
+
 // Append note to task .md in chronological date sections.
 export function appendNoteToMd(raw, noteText) {
   const dateStr = tod();
@@ -116,18 +125,21 @@ function replaceLogLine(raw, targetDate, targetText, occurrence = 0, nextText = 
 
     const sectionEnd = headers[i + 1]?.start ?? raw.length;
     const section = raw.slice(header.end, sectionEnd);
-    const rx = /^Log:\s*([\s\S]*?)(?=\nLog:\s|\n---[ \t]*(?=\n|$)|$)/gm;
-    let match;
+    const entries = [...section.matchAll(/^Log:\s*/gm)];
 
-    while ((match = rx.exec(section)) !== null) {
-      if (match[1].trim() !== targetText) continue;
+    for (let index = 0; index < entries.length; index++) {
+      const match = entries[index];
+      const next = entries[index + 1]?.index ?? section.length;
+      const bodyStart = match.index + match[0].length;
+      const entryText = section.slice(bodyStart, next);
+      if (stripTrailingSeparator(entryText).trim() !== targetText) continue;
       if (seen !== occurrence) {
         seen += 1;
         continue;
       }
 
       const lineStart = header.end + match.index;
-      const lineEnd = lineStart + match[0].length;
+      const lineEnd = header.end + bodyStart + trailingSeparatorIndex(entryText);
       const replacement = nextText === null ? '' : `Log: ${nextText.trim()}`;
       return `${raw.slice(0, lineStart)}${replacement}${raw.slice(lineEnd)}`;
     }
