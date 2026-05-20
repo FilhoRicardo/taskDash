@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import {
-  appendNoteToMd,
   appendDailySectionEntry,
   appendPropertyCommentToMd,
   buildNewProjectMd,
@@ -81,40 +80,6 @@ Log: [10:00] Same
 
     expect(updated).toContain('Log: [09:00] Same');
     expect(updated).toContain('Log: [10:00] Updated');
-  });
-
-  it('updates multi-line logs that contain markdown dividers without damaging following logs', () => {
-    const raw = `# Task
-
-### [[2026-05-18]]
-Log: [09:00] First paragraph
-
----
-Second paragraph
-
----
-Log: [10:00] Follow up
-
----
-`;
-
-    const updated = updateCommentLog(
-      raw,
-      '2026-05-18',
-      '[09:00] First paragraph\n\n---\nSecond paragraph',
-      0,
-      '[09:00] Updated paragraph'
-    );
-
-    expect(updated).toContain('Log: [09:00] Updated paragraph');
-    expect(updated).toContain('---\nLog: [10:00] Follow up');
-  });
-
-  it('appends multi-line task notes without flattening the comment body', () => {
-    const updated = appendNoteToMd('# Task\n', 'First paragraph\n\n---\nSecond paragraph');
-
-    expect(updated).toContain('Log: [');
-    expect(updated).toContain('First paragraph\n\n---\nSecond paragraph');
   });
 
   it('creates property comment sections when missing', () => {

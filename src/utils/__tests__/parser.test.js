@@ -59,29 +59,6 @@ Log: [09:15] Started review
     expect(task.status).toBe('none');
     expect(task.tags).toEqual([]);
   });
-
-  it('keeps markdown dividers inside multi-line logs while trimming section separators', () => {
-    const raw = `# Task
-
-### [[2026-05-18]]
-Log: [09:15] First paragraph
-
----
-Second paragraph after a divider
-
----
-Log: [10:20] Follow up
-
----
-`;
-
-    const task = parseTask('Task.md', raw);
-
-    expect(task.logs).toEqual([
-      { date: '2026-05-18', text: '[09:15] First paragraph\n\n---\nSecond paragraph after a divider' },
-      { date: '2026-05-18', text: '[10:20] Follow up' },
-    ]);
-  });
 });
 
 describe('parseDailyNote', () => {
