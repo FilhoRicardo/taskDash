@@ -64,7 +64,8 @@ function parseDatedLogs(txt) {
 }
 
 function stripTrailingSeparator(text) {
-  return text.replace(/\n[ \t]*---[ \t]*(?:\n[ \t]*)*$/g, '');
+  const match = text.match(/\n[ \t]*---[ \t]*(?=\n|$)(?![\s\S]*\n[ \t]*---[ \t]*(?=\n|$))/);
+  return match ? text.slice(0, match.index) : text;
 }
 
 export function parseTask(name, txt) {
