@@ -149,7 +149,7 @@ function CommentCard({ log, index, onSave, onDelete }) {
   const { time, body } = parseLogText(log.text);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(body);
-  const editRows = Math.min(14, Math.max(5, draft.split('\n').length + 2));
+  const editRows = Math.max(5, draft.split('\n').length + 2);
 
   useEffect(() => {
     setDraft(body);
@@ -157,7 +157,7 @@ function CommentCard({ log, index, onSave, onDelete }) {
   }, [body, log.date, log.text]);
 
   return (
-    <div style={{ width:'100%', boxSizing:'border-box', marginBottom:10, padding:'14px 16px', borderRadius:10, background:'rgba(124,58,237,0.07)', border:'1px solid rgba(124,58,237,0.15)', overflow:'hidden' }}>
+    <div style={{ width:'100%', height:'auto', minHeight:'max-content', boxSizing:'border-box', marginBottom:10, padding:'14px 16px', borderRadius:10, background:'rgba(124,58,237,0.07)', border:'1px solid rgba(124,58,237,0.15)', overflow:'visible' }}>
       <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:10, marginBottom:8 }}>
         <div style={{ fontSize:10, color:'#7c3aed', fontWeight:700 }}>{log.date}{time?` · ${time}`:''}</div>
         <div style={{ display:'flex', gap:6, flexShrink:0 }}>
@@ -176,9 +176,9 @@ function CommentCard({ log, index, onSave, onDelete }) {
       </div>
       {editing ? (
         <textarea value={draft} onChange={e=>setDraft(e.target.value)} rows={editRows}
-          style={{ width:'100%', minHeight:120, boxSizing:'border-box', padding:'11px 12px', borderRadius:8, resize:'vertical', background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.09)', color:'#e2e8f0', fontSize:13, lineHeight:1.55, outline:'none', fontFamily:'inherit', whiteSpace:'pre-wrap', overflowWrap:'anywhere' }}/>
+          style={{ width:'100%', minHeight:120, boxSizing:'border-box', fieldSizing:'content', padding:'11px 12px', borderRadius:8, resize:'vertical', background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.09)', color:'#e2e8f0', fontSize:13, lineHeight:1.55, outline:'none', fontFamily:'inherit', whiteSpace:'pre-wrap', overflowWrap:'anywhere' }}/>
       ) : (
-        <div style={{ fontSize:13, lineHeight:1.6, whiteSpace:'pre-wrap', overflowWrap:'anywhere', wordBreak:'break-word' }}>{body}</div>
+        <div style={{ height:'auto', minHeight:'max-content', fontSize:13, lineHeight:1.6, whiteSpace:'pre-wrap', overflowWrap:'anywhere', wordBreak:'break-word' }}>{body}</div>
       )}
     </div>
   );
@@ -2358,7 +2358,7 @@ export default function App() {
                 <textarea value={note} onChange={e=>setNote(e.target.value)} onKeyDown={e=>{ if(e.key==='Enter'&&!e.shiftKey){ e.preventDefault(); addNote(); }}}
                   placeholder="Add a note... Enter to save, Shift+Enter for a new line"
                   rows={3}
-                  style={{ flex:1, minHeight:76, padding:'10px 14px', borderRadius:10, resize:'vertical', background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.09)', color:'#e2e8f0', fontSize:13, lineHeight:1.5, outline:'none', fontFamily:'inherit' }}/>
+                  style={{ flex:1, minHeight:76, fieldSizing:'content', padding:'10px 14px', borderRadius:10, resize:'vertical', background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.09)', color:'#e2e8f0', fontSize:13, lineHeight:1.5, outline:'none', fontFamily:'inherit' }}/>
                 <button onClick={addNote} disabled={!note.trim()} style={{ padding:'10px 20px', borderRadius:10, border:'none', cursor:'pointer', fontWeight:600, fontSize:13, fontFamily:'inherit', background:'linear-gradient(135deg,#7c3aed,#3b82f6)', color:'#fff', opacity:note.trim()?1:0.35 }}>Add</button>
               </div>
               {!task.logs.length && (
@@ -3044,7 +3044,7 @@ function PropertyPanel({ properties, selected, selectedId, images, onSelect, com
               <div style={{ display:'flex', gap:8, marginBottom:18 }}>
                 <textarea value={comment} onChange={e=>setComment(e.target.value)} placeholder="Add a property comment…" rows={6}
                   onKeyDown={e=>{ if(e.key==='Enter'&&!e.shiftKey){ e.preventDefault(); onAddComment(); }}}
-                  style={{ flex:1, padding:'10px 12px', borderRadius:10, resize:'vertical', background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.09)', color:'#e2e8f0', fontSize:13, lineHeight:1.5, outline:'none', fontFamily:'inherit' }}/>
+                  style={{ flex:1, minHeight:160, fieldSizing:'content', padding:'10px 12px', borderRadius:10, resize:'vertical', background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.09)', color:'#e2e8f0', fontSize:13, lineHeight:1.5, outline:'none', fontFamily:'inherit' }}/>
                 <button onClick={onAddComment} disabled={!comment.trim()} style={{ alignSelf:'stretch', padding:'0 18px', borderRadius:10, border:'none', cursor:'pointer', fontWeight:700, fontSize:13, fontFamily:'inherit', background:'linear-gradient(135deg,#7c3aed,#3b82f6)', color:'#fff', opacity:comment.trim()?1:0.35 }}>Add</button>
               </div>
 
