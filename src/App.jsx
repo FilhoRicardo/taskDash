@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { parseTask, parseProperty, parseProject, parseDailyNote, parsePerson, readMdFiles, readDirNames, readImageFiles } from './utils/parser.js';
+import { parseTask, parseProperty, parseProject, parseDailyNote, parseMeeting, parsePerson, readMdFiles, readDirNames, readImageFiles } from './utils/parser.js';
 import { idbGet, idbSet, idbDel, lsGet, lsSet, lsDel } from './utils/storage.js';
 import { fmt, tod, isToday, isOver, longDate, appendNoteToMd, appendPropertyCommentToMd, updateCommentLog, deleteCommentLog, appendDailySectionEntry, appendDailyTimeClockEvent, buildDailyNoteMd, buildTrackerRow, appendTrackerRow, buildMeetingMd, buildNewTaskMd, buildNewPropertyMd, buildNewProjectMd, buildNewPersonMd, finishRecurrentTaskInstance, markTaskDone, postponeTaskDates, postponeTaskDatesByMonths, replaceDailyTimeClockRows, setDailyWorkStatus, setPropertyCover, touchDateModified, updateTaskDates } from './utils/formatter.js';
 
@@ -603,6 +603,10 @@ export default function App() {
   const [personSel,     setPersonSel]     = useState(null);
   const [personDraft,   setPersonDraft]   = useState('');
 
+  // Meeting library state
+  const [meetings,      setMeetings]      = useState([]);
+  const [meetingSel,    setMeetingSel]    = useState(null);
+
   // â”€â”€ Daily note state â”€â”€
   const [dailyNote,   setDailyNote]   = useState(null);
   const [dailyHandle, setDailyHandle] = useState(null);
@@ -833,6 +837,17 @@ export default function App() {
     } catch(e) { console.error('people load failed', e); }
   }, []);
 
+  const loadMeetings = useCallback(async (dir) => {
+    try {
+      const raw = await readMdFiles(dir);
+      const parsed = raw.map(f => parseMeeting(f.name, f.text))
+        .sort((a, b) => (b.dateCreated || b.date || '').localeCompare(a.dateCreated || a.date || '') || a.title.localeCompare(b.title));
+      setMeetings(parsed);
+      setFolderStats(prev => ({ ...prev, meetings: raw.length }));
+      setMeetingSel(prev => prev && parsed.some(m => m.id === prev) ? prev : (parsed[0]?.id || null));
+    } catch(e) { console.error('meetings load failed', e); }
+  }, []);
+
   const readDailyNoteForDate = useCallback(async (dir, dateStr, create = false) => {
     if (!dir) return null;
     const filename = `${dateStr}.md`;
@@ -920,7 +935,7 @@ export default function App() {
     if (keys.includes('projects')) { setProjects([]); setProjectHandles({}); setProjectSel(null); setProjectDraft(''); }
     if (keys.includes('properties')) { setProperties([]); setPropertyHandles({}); setPropertySel(null); }
     if (keys.includes('people')) { setPeople([]); setPersonHandles({}); setPersonSel(null); setPersonDraft(''); }
-    if (keys.includes('meetings')) { setMeetingOpen(false); setMeetingTitle(''); setMeetingNotes(''); setMeetingLinks({ clients:[], properties:[], tasks:[], people:[] }); meetingTitleRef.current = ''; meetingNotesRef.current = ''; meetingStartRef.current = null; }
+    if (keys.includes('meetings')) { setMeetings([]); setMeetingSel(null); setMeetingOpen(false); setMeetingTitle(''); setMeetingNotes(''); setMeetingLinks({ clients:[], properties:[], tasks:[], people:[] }); meetingTitleRef.current = ''; meetingNotesRef.current = ''; meetingStartRef.current = null; }
     if (keys.includes('daily')) { setDailyNote(null); setDailyHandle(null); setDailyInputs({ notes:'', reflections:'', brainDump:'' }); setWorkNotes({}); setWorkHandles({}); }
     if (keys.includes('attachments')) {
       Object.values(imageUrlsRef.current).forEach(URL.revokeObjectURL);
@@ -973,12 +988,13 @@ export default function App() {
     if (available.projects) await loadProjects(available.projects);
     if (available.properties) await loadProperties(available.properties);
     if (available.people) await loadPeople(available.people);
+    if (available.meetings) await loadMeetings(available.meetings);
     if (available.attachments) await loadAttachmentImages(available.attachments);
     if (available.daily) await ensureDailyNote(available.daily);
-  }, [loadFiles, loadRefs, loadProjects, loadProperties, loadPeople, loadAttachmentImages, ensureDailyNote, clearUnavailableFolderData]);
+  }, [loadFiles, loadRefs, loadProjects, loadProperties, loadPeople, loadMeetings, loadAttachmentImages, ensureDailyNote, clearUnavailableFolderData]);
 
   useEffect(() => {
-    if (!dirs.tasks && !dirs.done && !dirs.projects && !dirs.properties && !dirs.daily && !dirs.attachments) return;
+    if (!dirs.tasks && !dirs.done && !dirs.meetings && !dirs.projects && !dirs.properties && !dirs.daily && !dirs.attachments) return;
     syncRef.current = setInterval(() => loadAll(dirs), REFRESH_MS);
     return () => clearInterval(syncRef.current);
   }, [dirs, loadAll]);
@@ -1027,6 +1043,7 @@ export default function App() {
         if (key === 'projects') await loadProjects(dir);
         if (key === 'properties') await loadProperties(dir);
         if (key === 'people') await loadPeople(dir);
+        if (key === 'meetings') await loadMeetings(dir);
         if (key === 'attachments') await loadAttachmentImages(dir);
         if (key === 'daily') await ensureDailyNote(dir);
         await loadRefs(next);
@@ -1054,6 +1071,7 @@ export default function App() {
           if (key === 'projects') await loadProjects(h);
           if (key === 'properties') await loadProperties(h);
           if (key === 'people') await loadPeople(h);
+          if (key === 'meetings') await loadMeetings(h);
           if (key === 'attachments') await loadAttachmentImages(h);
           if (key === 'daily') await ensureDailyNote(h);
           await loadRefs(next);
@@ -1097,7 +1115,7 @@ export default function App() {
     else if (key === 'projects') { setProjects([]); setProjectHandles({}); setProjectSel(null); setProjectDraft(''); }
     else if (key === 'properties') { setProperties([]); setPropertyHandles({}); setPropertySel(null); }
     else if (key === 'people') { setPeople([]); setPersonHandles({}); setPersonSel(null); setPersonDraft(''); }
-    else if (key === 'meetings') { setMeetingOpen(false); setMeetingTitle(''); setMeetingNotes(''); setMeetingLinks({ clients:[], properties:[], tasks:[], people:[] }); meetingTitleRef.current = ''; meetingNotesRef.current = ''; meetingStartRef.current = null; }
+    else if (key === 'meetings') { setMeetings([]); setMeetingSel(null); setMeetingOpen(false); setMeetingTitle(''); setMeetingNotes(''); setMeetingLinks({ clients:[], properties:[], tasks:[], people:[] }); meetingTitleRef.current = ''; meetingNotesRef.current = ''; meetingStartRef.current = null; }
     else if (key === 'daily') { setDailyNote(null); setDailyHandle(null); setDailyInputs({ notes:'', reflections:'', brainDump:'' }); setWorkNotes({}); setWorkHandles({}); }
     else if (key === 'attachments') {
       Object.values(imageUrlsRef.current).forEach(URL.revokeObjectURL);
@@ -1115,7 +1133,7 @@ export default function App() {
     setTasks([]); setTaskHandles({}); setTrackerHandle(null);
     setProjects([]); setProjectHandles({}); setProjectSel(null); setProjectDraft('');
     setProperties([]); setPropertyHandles({}); setPropertySel(null);
-    setMeetingOpen(false); setMeetingTitle(''); setMeetingNotes(''); setMeetingLinks({ clients:[], properties:[], tasks:[], people:[] }); meetingTitleRef.current = ''; meetingNotesRef.current = ''; meetingStartRef.current = null;
+    setMeetings([]); setMeetingSel(null); setMeetingOpen(false); setMeetingTitle(''); setMeetingNotes(''); setMeetingLinks({ clients:[], properties:[], tasks:[], people:[] }); meetingTitleRef.current = ''; meetingNotesRef.current = ''; meetingStartRef.current = null;
     setDailyNote(null); setDailyHandle(null); setDailyInputs({ notes:'', reflections:'', brainDump:'' }); setWorkNotes({}); setWorkHandles({});
     Object.values(imageUrlsRef.current).forEach(URL.revokeObjectURL);
     imageUrlsRef.current = {};
@@ -1165,9 +1183,10 @@ export default function App() {
     try {
       const fh = await dirs.meetings.getFileHandle(filename, { create:true });
       await writeFile(fh, content);
+      await loadMeetings(dirs.meetings);
       setToast(`Saved meeting note "${filename.replace(/\.md$/i, '')}"`);
     } catch(e) { console.error('meeting save failed', e); }
-  }, [dirs.meetings, meetingLinks]);
+  }, [dirs.meetings, meetingLinks, loadMeetings]);
 
   const start = useCallback(async (id) => {
     if (timer) await stop();
@@ -1737,6 +1756,7 @@ export default function App() {
   const task      = tasks.find(t => t.id===sel);
   const property  = properties.find(p => p.id===propertySel);
   const project   = projects.find(p => p.id===projectSel);
+  const savedMeeting = meetings.find(m => m.id === meetingSel);
   const selTime   = sel ? getTime(sel) : 0;
   const live      = timer?.taskId===sel;
   const taskDaysOpen = task ? daysOpenSince(task.dateCreated) : null;
@@ -1799,13 +1819,13 @@ export default function App() {
   const healthWarnings = diagnostics.issues.filter(i => i.level === 'warning').length;
   const healthBadges = healthErrors + healthWarnings;
   const headerLabel = view === 'mission' ? 'MISSION CONTROL' : view === 'tasks' ? "TODAY'S TOTAL" : view === 'meetings' ? 'MEETINGS' : view === 'projects' ? 'PROJECT LIBRARY' : view === 'properties' ? 'PROPERTY LIBRARY' : view === 'people' ? 'PEOPLE' : 'VAULT HEALTH';
-  const headerMetric = view === 'mission' ? missionToday.length + missionOverdue.length + missionRecurrent.length : view === 'tasks' ? fmt(totalToday) : view === 'meetings' ? (meetingOpen ? fmt(getTime('__meeting__')) : 'Ready') : view === 'projects' ? projects.length : view === 'properties' ? properties.length : view === 'people' ? people.length : diagnostics.issues.length;
+  const headerMetric = view === 'mission' ? missionToday.length + missionOverdue.length + missionRecurrent.length : view === 'tasks' ? fmt(totalToday) : view === 'meetings' ? (meetingOpen ? fmt(getTime('__meeting__')) : meetings.length) : view === 'projects' ? projects.length : view === 'properties' ? properties.length : view === 'people' ? people.length : diagnostics.issues.length;
   const headerDetail = view === 'mission'
     ? `${missionToday.length} today · ${missionOverdue.length} overdue · ${missionRecurrent.length} recurrent · ${dirs.daily ? 'daily on' : 'daily off'}`
     : view === 'tasks'
       ? `${openTasks.length} open tasks · ${Object.values(refs).reduce((a,r)=>a+r.length,0)} refs`
       : view === 'meetings'
-        ? `${dirs.meetings ? dirs.meetings.name : 'No folder'} · ${meetingOpen ? 'meeting note open' : 'meeting notes'}`
+        ? `${dirs.meetings ? dirs.meetings.name : 'No folder'} · ${meetingOpen ? 'meeting note open' : `${meetings.length} saved`}`
         : view === 'projects'
           ? `${dirs.projects ? dirs.projects.name : 'No folder'} · editable`
           : view === 'properties'
@@ -1838,7 +1858,7 @@ export default function App() {
   };
 
   // ── Setup screen / folder manager ──
-  const showSetup = bootDone && (!dirs.tasks || folderSetupOpen);
+  const showSetup = bootDone && (folderSetupOpen || (!dirs.tasks && !folderIssues.tasks));
   const allSavedReady = bootDone && Object.keys(savedDirs).length > 0;
 
   if (showSetup) return (
@@ -1974,7 +1994,7 @@ export default function App() {
             </div>
 
             <div style={{ padding:'8px 10px 4px', display:'flex', gap:6, alignItems:'center' }}>
-              <button onClick={()=>{ setNewPersonOpen(false); setNewTaskOpen(true); }} style={{ flex:1, padding:'8px 10px', borderRadius:9, border:'none', cursor:'pointer', fontWeight:700, fontSize:12, fontFamily:'inherit', background:'linear-gradient(135deg,#7c3aed,#3b82f6)', color:'#fff', boxShadow:'0 2px 12px rgba(124,58,237,0.35)' }}>
+              <button onClick={()=>{ setNewPersonOpen(false); setNewTaskOpen(true); }} disabled={!dirs.tasks} style={{ flex:1, padding:'8px 10px', borderRadius:9, border:'none', cursor:dirs.tasks?'pointer':'not-allowed', fontWeight:700, fontSize:12, fontFamily:'inherit', background:'linear-gradient(135deg,#7c3aed,#3b82f6)', color:'#fff', boxShadow:'0 2px 12px rgba(124,58,237,0.35)', opacity:dirs.tasks?1:0.35 }}>
                 +  New Task
               </button>
               <button onClick={()=>{ setNewTaskOpen(false); setNewPersonOpen(true); }} title={dirs.people ? 'Add a person note' : 'Configure the People folder first'} style={{ padding:'8px 10px', borderRadius:9, border:'1px solid rgba(255,255,255,0.08)', cursor:'pointer', fontWeight:700, fontSize:12, fontFamily:'inherit', background:'rgba(255,255,255,0.035)', color:'#c4b5fd', opacity:dirs.people?1:0.65 }}>
@@ -2044,8 +2064,19 @@ export default function App() {
               <div style={{ fontSize:9, color:'#475569', fontWeight:800, textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:7 }}>Meeting folder</div>
               <div style={{ fontSize:12, color:dirs.meetings ? '#94a3b8' : '#fbbf24', lineHeight:1.45 }}>{dirs.meetings ? dirs.meetings.name : 'Pick a Meetings folder before saving notes.'}</div>
             </div>
-            <div style={{ flex:1, padding:'18px 14px', color:'#475569', fontSize:12, lineHeight:1.55 }}>
-              Meeting notes save as markdown files in the configured Meetings folder. You can switch to Tasks while a meeting note is open and come back here to continue writing.
+            <div style={{ flex:1, overflowY:'auto', padding:'8px' }}>
+              <div style={{ padding:'4px 6px 8px', color:'#475569', fontSize:10, fontWeight:800, textTransform:'uppercase', letterSpacing:'0.1em' }}>Saved meetings</div>
+              {!dirs.meetings && <div style={{ padding:'10px 8px', color:'#475569', fontSize:12, lineHeight:1.5 }}>Configure the Meetings folder to read saved meeting notes.</div>}
+              {dirs.meetings && !meetings.length && <div style={{ padding:'10px 8px', color:'#475569', fontSize:12, lineHeight:1.5 }}>Saved meeting notes will appear here after the folder is synced.</div>}
+              {meetings.map(m => {
+                const active = meetingSel === m.id && !meetingOpen;
+                return (
+                  <div key={m.id} onClick={()=>setMeetingSel(m.id)} style={{ padding:'10px', marginBottom:4, borderRadius:10, cursor:'pointer', background:active?'rgba(124,58,237,0.1)':'rgba(255,255,255,0.02)', border:`1px solid ${active?'rgba(124,58,237,0.28)':'rgba(255,255,255,0.04)'}` }}>
+                    <div style={{ fontSize:12, fontWeight:700, lineHeight:1.35, color:'#e2e8f0' }}>{m.title}</div>
+                    <div style={{ fontSize:10, color:'#475569', marginTop:3 }}>{m.date || m.filename}</div>
+                  </div>
+                );
+              })}
             </div>
           </>
         ) : view === 'projects' ? (
@@ -2259,6 +2290,8 @@ export default function App() {
         )
       ) : view === 'health' ? (
         <HealthPanel diagnostics={diagnostics} dirs={dirs} backups={writeBackups} onForceSync={forceSyncAll} syncBusy={syncBusy} onConfigure={()=>setFolderSetupOpen(true)} onRestoreBackup={restoreBackup}/>
+      ) : view === 'tasks' && !dirs.tasks ? (
+        <TasksFolderRecoveryPanel issue={folderIssues.tasks} onConfigure={()=>setFolderSetupOpen(true)}/>
       ) : newPersonOpen ? (
         <NewPersonPanel onCancel={()=>setNewPersonOpen(false)} onCreate={createPerson} refs={refs} hasPeopleFolder={!!dirs.people} onConfigure={()=>setFolderSetupOpen(true)}/>
       ) : newTaskOpen ? (
@@ -2280,6 +2313,7 @@ export default function App() {
           meetingStart={meetingStartRef.current}
           refs={refs}
           taskOptions={meetingTaskOptions}
+          savedMeeting={savedMeeting}
         />
 
       ) : !task ? (
@@ -2447,7 +2481,22 @@ function PeoplePanel({ people, selected, selectedId, draft, setDraft, onSelect, 
   );
 }
 
-function MeetingPanel({ meetingOpen, meetingTitle, meetingNotes, meetingLinks, setMeetingTitle, setMeetingNotes, setMeetingLinks, elapsed, onStart, onStop, hasMeetingsFolder, onConfigure, meetingStart, refs, taskOptions }) {
+function TasksFolderRecoveryPanel({ issue, onConfigure }) {
+  return (
+    <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', padding:30 }}>
+      <div style={{ width:'min(560px,100%)', borderRadius:10, border:'1px solid rgba(248,113,113,0.22)', background:'rgba(248,113,113,0.06)', padding:24 }}>
+        <div style={{ fontSize:10, color:'#f87171', fontWeight:800, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:10 }}>Tasks folder needs attention</div>
+        <h2 style={{ margin:'0 0 10px', fontSize:22, color:'#f1f5f9' }}>Reconnect your Tasks folder</h2>
+        <p style={{ margin:'0 0 16px', color:'#94a3b8', fontSize:13, lineHeight:1.6 }}>
+          {issue?.name ? `"${issue.name}" is not available at its saved location.` : 'The Tasks folder is not connected on this device.'} Pick the folder again and TaskDash will rescan it.
+        </p>
+        <button onClick={onConfigure} style={{ padding:'10px 18px', borderRadius:10, border:'none', cursor:'pointer', fontWeight:800, fontSize:13, fontFamily:'inherit', background:'linear-gradient(135deg,#7c3aed,#3b82f6)', color:'#fff' }}>Configure folders</button>
+      </div>
+    </div>
+  );
+}
+
+function MeetingPanel({ meetingOpen, meetingTitle, meetingNotes, meetingLinks, setMeetingTitle, setMeetingNotes, setMeetingLinks, elapsed, onStart, onStop, hasMeetingsFolder, onConfigure, meetingStart, refs, taskOptions, savedMeeting }) {
   const timeLabel = new Date(meetingStart || Date.now()).toLocaleTimeString([], { hour:'2-digit', minute:'2-digit', hour12:false }).replace(':','');
   const filename = `Meeting - ${tod()} - ${meetingTitle.trim() || timeLabel}.md`;
   const setLinks = (key, value) => setMeetingLinks(prev => ({ ...prev, [key]: value }));
@@ -2461,6 +2510,26 @@ function MeetingPanel({ meetingOpen, meetingTitle, meetingNotes, meetingLinks, s
   }
 
   if (!meetingOpen) {
+    if (savedMeeting) {
+      return (
+        <div style={{ flex:1, overflowY:'auto', padding:'22px 30px' }}>
+          <div style={{ display:'flex', justifyContent:'space-between', gap:18, alignItems:'flex-start', marginBottom:18 }}>
+            <div>
+              <div style={{ fontSize:10, color:'#10b981', fontWeight:800, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:8 }}>Saved meeting</div>
+              <h2 style={{ margin:0, fontSize:22, color:'#f1f5f9' }}>{savedMeeting.title}</h2>
+              <div style={{ fontSize:12, color:'#64748b', marginTop:6 }}>{savedMeeting.date || savedMeeting.filename}</div>
+            </div>
+            <button onClick={onStart} style={{ padding:'10px 16px', borderRadius:10, border:'none', cursor:'pointer', fontWeight:800, fontSize:13, fontFamily:'inherit', background:'linear-gradient(135deg,#7c3aed,#3b82f6)', color:'#fff', flexShrink:0 }}>+ Start Meeting</button>
+          </div>
+          <div style={{ borderRadius:10, border:'1px solid rgba(255,255,255,0.06)', background:'rgba(255,255,255,0.025)', padding:'16px 18px' }}>
+            <ReactMarkdown remarkPlugins={[remarkGfm]} className="markdown-body">
+              {noteBodyText(savedMeeting.raw)}
+            </ReactMarkdown>
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', padding:30 }}>
         <div style={{ width:'min(520px,100%)', borderRadius:10, border:'1px solid rgba(255,255,255,0.06)', background:'rgba(255,255,255,0.025)', padding:24, textAlign:'center' }}>

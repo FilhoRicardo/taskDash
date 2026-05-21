@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseDailyNote, parseProperty, parseTask } from '../parser.js';
+import { parseDailyNote, parseMeeting, parseProperty, parseTask } from '../parser.js';
 
 describe('parseTask', () => {
   it('reads TaskNotes frontmatter, checklist, dates, links, recurrence, and logs', () => {
@@ -111,6 +111,32 @@ filters:
     expect(note.notes).toEqual(['Follow up with legal']);
     expect(note.reflections).toEqual(['Good focus']);
     expect(note.brainDump).toEqual(['Waiting on survey']);
+  });
+});
+
+describe('parseMeeting', () => {
+  it('extracts saved meeting metadata for navigation', () => {
+    const raw = `---
+due: 2026-05-21
+dateCreated: 2026-05-21T07:30:00.000Z
+title: Utility review
+tags:
+  - meeting
+---
+
+# Utility review
+
+## Notes
+
+Reviewed next steps.
+`;
+
+    const meeting = parseMeeting('Meeting - 2026-05-21 - Utility review.md', raw);
+
+    expect(meeting.title).toBe('Utility review');
+    expect(meeting.date).toBe('2026-05-21');
+    expect(meeting.dateCreated).toBe('2026-05-21T07:30:00.000Z');
+    expect(meeting.raw).toBe(raw);
   });
 });
 

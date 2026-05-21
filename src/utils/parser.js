@@ -152,6 +152,19 @@ export function parseDailyNote(name, txt) {
   };
 }
 
+export function parseMeeting(name, txt) {
+  const fm = parseFrontmatter(txt);
+  const h1 = txt.match(/^#\s+(.+)$/m)?.[1]?.trim();
+  return {
+    id: name,
+    filename: basename(name),
+    title: fm.title || h1 || titleFromName(name),
+    date: fm.due || fm.date || (fm.dateCreated || '').slice(0, 10) || null,
+    dateCreated: fm.dateCreated || null,
+    raw: txt,
+  };
+}
+
 export function parseProperty(name, txt) {
   const fm = parseFrontmatter(txt);
   const h1 = txt.match(/^#\s+(.+)$/m)?.[1]?.trim();
