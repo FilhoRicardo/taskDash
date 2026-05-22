@@ -25,7 +25,7 @@ describe('dashboardStats', () => {
   it('filters daily notes and averages tracked days by weekday', () => {
     const dashboard = dashboardStats([
       { date:'2026-05-18', timeClock:[{ time:'09:00', event:'Clock in' }, { time:'17:00', event:'Clock out' }] },
-      { date:'2026-05-19', timeClock:[{ time:'09:00', event:'Clock in' }, { time:'16:00', event:'Clock out' }] },
+      { date:'2026-05-19', timeClock:[{ time:'09:00', event:'Clock in' }, { time:'15:30', event:'Clock out' }] },
       { date:'2026-05-25', timeClock:[{ time:'09:00', event:'Clock in' }, { time:'18:00', event:'Clock out' }] },
       { date:'2026-05-26', timeClock:[] },
       { date:'Loose note', timeClock:[{ time:'09:00', event:'Clock in' }, { time:'17:00', event:'Clock out' }] },
@@ -37,9 +37,9 @@ describe('dashboardStats', () => {
       totalDays: 3,
       overGoal: 2,
       underGoal: 1,
-      goalMet: 2,
+      goalMet: 0,
     });
     expect(dashboard.weekdays[0]).toMatchObject({ label:'Mon', count:2, averageMinutes:510 });
-    expect(dashboard.weekdays[1]).toMatchObject({ label:'Tue', count:1, averageMinutes:420 });
+    expect(dashboard.weekdays[1]).toMatchObject({ label:'Tue', count:1, averageMinutes:390 });
   });
 });

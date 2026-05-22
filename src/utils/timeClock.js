@@ -1,4 +1,5 @@
 export const TARGET_WORK_MINUTES = 7.25 * 60;
+export const TARGET_WORK_TOLERANCE = TARGET_WORK_MINUTES * 0.05;
 export const WEEK_TARGET_MINUTES = TARGET_WORK_MINUTES * 5;
 export const WORK_CHART_MAX_MINUTES = 600;
 export const WORK_EVENT_ORDER = ['Clock in', 'Break start', 'Break finish', 'Clock out'];
@@ -10,6 +11,13 @@ export const WORK_STATUS_LABELS = {
 };
 
 export const WEEKDAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+export function goalBand(minutes) {
+  if (!minutes) return 'empty';
+  if (minutes < TARGET_WORK_MINUTES - TARGET_WORK_TOLERANCE) return 'below';
+  if (minutes > TARGET_WORK_MINUTES + TARGET_WORK_TOLERANCE) return 'above';
+  return 'target';
+}
 
 export function minutesFromTime(time) {
   const match = String(time || '').match(/^(\d{1,2}):(\d{2})$/);
@@ -86,9 +94,9 @@ export function dashboardStats(notes = [], startDate = '', endDate = '') {
       totalDays: countedDays.length,
       totalMinutes,
       averageMinutes: countedDays.length ? Math.round(totalMinutes / countedDays.length) : 0,
-      overGoal: countedDays.filter(day => day.totalMinutes > TARGET_WORK_MINUTES).length,
-      underGoal: countedDays.filter(day => day.totalMinutes < TARGET_WORK_MINUTES).length,
-      goalMet: countedDays.filter(day => day.totalMinutes >= TARGET_WORK_MINUTES).length,
+      overGoal: countedDays.filter(day => goalBand(day.totalMinutes) === 'above').length,
+      underGoal: countedDays.filter(day => goalBand(day.totalMinutes) === 'below').length,
+      goalMet: countedDays.filter(day => goalBand(day.totalMinutes) === 'target').length,
     },
   };
 }
