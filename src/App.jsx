@@ -4,6 +4,7 @@ import remarkGfm from 'remark-gfm';
 import { parseTask, parseProperty, parseProject, parseDailyNote, parseMeeting, parsePerson, readMdFiles, readDirNames, readImageFiles } from './utils/parser.js';
 import { idbGet, idbSet, idbDel, lsGet, lsSet, lsDel } from './utils/storage.js';
 import { fmt, tod, isToday, isOver, longDate, appendNoteToMd, appendPropertyCommentToMd, updateCommentLog, deleteCommentLog, appendDailySectionEntry, appendDailyTimeClockEvent, buildDailyNoteMd, buildTrackerRow, appendTrackerRow, buildMeetingMd, buildNewTaskMd, buildNewPropertyMd, buildNewProjectMd, buildNewPersonMd, finishRecurrentTaskInstance, markTaskDone, postponeTaskDates, postponeTaskDatesByMonths, replaceDailyTimeClockRows, setDailyWorkStatus, setPropertyCover, touchDateModified, updateTaskDates } from './utils/formatter.js';
+import { TARGET_WORK_MINUTES, WEEK_TARGET_MINUTES, WORK_CHART_MAX_MINUTES, WORK_EVENT_ORDER, WORK_STATUS_LABELS, dashboardStats, minutesFromTime, workStats } from './utils/timeClock.js';
 
 const REFRESH_MS  = 5 * 60 * 1000;
 const WARN_MS     = 60 * 60 * 1000;
@@ -358,17 +359,6 @@ function Field({ label, children }) {
   );
 }
 
-const TARGET_WORK_MINUTES = 7.25 * 60;
-const WEEK_TARGET_MINUTES = TARGET_WORK_MINUTES * 5;
-const WORK_CHART_MAX_MINUTES = 600;
-const WORK_EVENT_ORDER = ['Clock in', 'Break start', 'Break finish', 'Clock out'];
-const WORK_STATUS_LABELS = {
-  workday: 'Workday',
-  'bank-holiday': 'Bank holiday',
-  'sick-leave': 'Sick leave',
-  holiday: 'Holiday',
-};
-
 function dateFromStr(dateStr) {
   return new Date(`${dateStr}T12:00:00`);
 }
@@ -425,12 +415,6 @@ function nextMonth(monthStr) {
   return tod(d).slice(0, 7);
 }
 
-function minutesFromTime(time) {
-  const match = String(time || '').match(/^(\d{1,2}):(\d{2})$/);
-  if (!match) return null;
-  return Number(match[1]) * 60 + Number(match[2]);
-}
-
 function formatMinutes(minutes) {
   return `${Math.max(0, Math.round(minutes || 0))} min`;
 }
@@ -455,40 +439,6 @@ function rowsFromTimeDraft(draft) {
     .map(event => ({ time: draft[event], event }))
     .filter(row => /^\d{2}:\d{2}$/.test(row.time || ''))
     .sort((a, b) => minutesFromTime(a.time) - minutesFromTime(b.time));
-}
-
-function workStats(note) {
-  const rows = (note?.timeClock || [])
-    .map(row => ({ ...row, minutes: minutesFromTime(row.time) }))
-    .filter(row => row.minutes !== null)
-    .sort((a, b) => a.minutes - b.minutes);
-  const status = note?.workStatus || 'workday';
-  const clockIn = rows.find(row => row.event === 'Clock in')?.minutes;
-  const clockOut = [...rows].reverse().find(row => row.event === 'Clock out')?.minutes;
-  let breakStart = null;
-  let breakMinutes = 0;
-
-  for (const row of rows) {
-    if (row.event === 'Break start') breakStart = row.minutes;
-    if (row.event === 'Break finish' && breakStart !== null && row.minutes > breakStart) {
-      breakMinutes += row.minutes - breakStart;
-      breakStart = null;
-    }
-  }
-
-  const creditedDay = status !== 'workday';
-  const totalMinutes = creditedDay ? TARGET_WORK_MINUTES : clockIn !== undefined && clockOut !== undefined && clockOut > clockIn
-    ? Math.max(0, clockOut - clockIn - breakMinutes)
-    : 0;
-
-  return {
-    totalMinutes,
-    breakMinutes,
-    status,
-    label: WORK_STATUS_LABELS[status] || WORK_STATUS_LABELS.workday,
-    complete: creditedDay || (clockIn !== undefined && clockOut !== undefined),
-    creditedDay,
-  };
 }
 
 function ComboInput({ value, onChange, options = [], placeholder }) {
@@ -615,6 +565,7 @@ export default function App() {
   const [workMonth,   setWorkMonth]   = useState(tod().slice(0, 7));
   const [workNotes,   setWorkNotes]   = useState({});
   const [workHandles, setWorkHandles] = useState({});
+  const [timeNotes,   setTimeNotes]   = useState([]);
 
   // ── Tasks / timer / UI state ──
   const [tasks,         setTasks]         = useState([]);
@@ -880,6 +831,23 @@ export default function App() {
     return null;
   }, [readDailyNoteForDate]);
 
+  const loadTimeNotes = useCallback(async (dir) => {
+    try {
+      const raw = await readMdFiles(dir);
+      const parsed = raw.flatMap(file => {
+        try { return [parseDailyNote(file.name, file.text)]; }
+        catch(e) {
+          console.warn(`Skipped unparseable daily note: ${file.name}`, e);
+          return [];
+        }
+      }).sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+      setTimeNotes(parsed);
+      setFolderStats(prev => ({ ...prev, daily: raw.length }));
+    } catch(e) {
+      console.error('daily notes dashboard load failed', e);
+    }
+  }, []);
+
   const loadWorkNotes = useCallback(async (dates, createDate = null) => {
     if (!dirs.daily) return;
     const uniqueDates = [...new Set(dates.filter(Boolean))];
@@ -936,7 +904,7 @@ export default function App() {
     if (keys.includes('properties')) { setProperties([]); setPropertyHandles({}); setPropertySel(null); }
     if (keys.includes('people')) { setPeople([]); setPersonHandles({}); setPersonSel(null); setPersonDraft(''); }
     if (keys.includes('meetings')) { setMeetings([]); setMeetingSel(null); setMeetingOpen(false); setMeetingTitle(''); setMeetingNotes(''); setMeetingLinks({ clients:[], properties:[], tasks:[], people:[] }); meetingTitleRef.current = ''; meetingNotesRef.current = ''; meetingStartRef.current = null; }
-    if (keys.includes('daily')) { setDailyNote(null); setDailyHandle(null); setDailyInputs({ notes:'', reflections:'', brainDump:'' }); setWorkNotes({}); setWorkHandles({}); }
+    if (keys.includes('daily')) { setDailyNote(null); setDailyHandle(null); setDailyInputs({ notes:'', reflections:'', brainDump:'' }); setWorkNotes({}); setWorkHandles({}); setTimeNotes([]); }
     if (keys.includes('attachments')) {
       Object.values(imageUrlsRef.current).forEach(URL.revokeObjectURL);
       imageUrlsRef.current = {};
@@ -990,8 +958,11 @@ export default function App() {
     if (available.people) await loadPeople(available.people);
     if (available.meetings) await loadMeetings(available.meetings);
     if (available.attachments) await loadAttachmentImages(available.attachments);
-    if (available.daily) await ensureDailyNote(available.daily);
-  }, [loadFiles, loadRefs, loadProjects, loadProperties, loadPeople, loadMeetings, loadAttachmentImages, ensureDailyNote, clearUnavailableFolderData]);
+    if (available.daily) {
+      await ensureDailyNote(available.daily);
+      await loadTimeNotes(available.daily);
+    }
+  }, [loadFiles, loadRefs, loadProjects, loadProperties, loadPeople, loadMeetings, loadAttachmentImages, ensureDailyNote, loadTimeNotes, clearUnavailableFolderData]);
 
   useEffect(() => {
     if (!dirs.tasks && !dirs.done && !dirs.meetings && !dirs.projects && !dirs.properties && !dirs.daily && !dirs.attachments) return;
@@ -1045,7 +1016,10 @@ export default function App() {
         if (key === 'people') await loadPeople(dir);
         if (key === 'meetings') await loadMeetings(dir);
         if (key === 'attachments') await loadAttachmentImages(dir);
-        if (key === 'daily') await ensureDailyNote(dir);
+        if (key === 'daily') {
+          await ensureDailyNote(dir);
+          await loadTimeNotes(dir);
+        }
         await loadRefs(next);
       }
     } catch(e) { if (e.name!=='AbortError') alert('Error: '+e.message); }
@@ -1073,7 +1047,10 @@ export default function App() {
           if (key === 'people') await loadPeople(h);
           if (key === 'meetings') await loadMeetings(h);
           if (key === 'attachments') await loadAttachmentImages(h);
-          if (key === 'daily') await ensureDailyNote(h);
+          if (key === 'daily') {
+            await ensureDailyNote(h);
+            await loadTimeNotes(h);
+          }
           await loadRefs(next);
         }
       }
@@ -1116,7 +1093,7 @@ export default function App() {
     else if (key === 'properties') { setProperties([]); setPropertyHandles({}); setPropertySel(null); }
     else if (key === 'people') { setPeople([]); setPersonHandles({}); setPersonSel(null); setPersonDraft(''); }
     else if (key === 'meetings') { setMeetings([]); setMeetingSel(null); setMeetingOpen(false); setMeetingTitle(''); setMeetingNotes(''); setMeetingLinks({ clients:[], properties:[], tasks:[], people:[] }); meetingTitleRef.current = ''; meetingNotesRef.current = ''; meetingStartRef.current = null; }
-    else if (key === 'daily') { setDailyNote(null); setDailyHandle(null); setDailyInputs({ notes:'', reflections:'', brainDump:'' }); setWorkNotes({}); setWorkHandles({}); }
+    else if (key === 'daily') { setDailyNote(null); setDailyHandle(null); setDailyInputs({ notes:'', reflections:'', brainDump:'' }); setWorkNotes({}); setWorkHandles({}); setTimeNotes([]); }
     else if (key === 'attachments') {
       Object.values(imageUrlsRef.current).forEach(URL.revokeObjectURL);
       imageUrlsRef.current = {};
@@ -1134,7 +1111,7 @@ export default function App() {
     setProjects([]); setProjectHandles({}); setProjectSel(null); setProjectDraft('');
     setProperties([]); setPropertyHandles({}); setPropertySel(null);
     setMeetings([]); setMeetingSel(null); setMeetingOpen(false); setMeetingTitle(''); setMeetingNotes(''); setMeetingLinks({ clients:[], properties:[], tasks:[], people:[] }); meetingTitleRef.current = ''; meetingNotesRef.current = ''; meetingStartRef.current = null;
-    setDailyNote(null); setDailyHandle(null); setDailyInputs({ notes:'', reflections:'', brainDump:'' }); setWorkNotes({}); setWorkHandles({});
+    setDailyNote(null); setDailyHandle(null); setDailyInputs({ notes:'', reflections:'', brainDump:'' }); setWorkNotes({}); setWorkHandles({}); setTimeNotes([]);
     Object.values(imageUrlsRef.current).forEach(URL.revokeObjectURL);
     imageUrlsRef.current = {};
     setPropertyImages({});
@@ -1698,6 +1675,11 @@ export default function App() {
     }
   };
 
+  const upsertTimeNote = (note) => {
+    setTimeNotes(prev => [...prev.filter(item => item.id !== note.id), note]
+      .sort((a, b) => (a.date || '').localeCompare(b.date || '')));
+  };
+
   const addTimeClockEvent = async (event) => {
     if (!dirs.daily || !dailyHandle || !dailyNote) {
       alert('Pick a Daily Notes folder first.');
@@ -1712,6 +1694,7 @@ export default function App() {
       setDailyNote(parsed);
       setWorkNotes(prev => ({ ...prev, [tod()]: parsed }));
       setWorkHandles(prev => ({ ...prev, [tod()]: dailyHandle }));
+      upsertTimeNote(parsed);
       setToast(`${event} saved to today's daily note`);
     } catch(e) {
       console.error('time clock write failed', e);
@@ -1724,6 +1707,7 @@ export default function App() {
     const parsed = parseDailyNote(`${dateStr}.md`, updated);
     setWorkNotes(prev => ({ ...prev, [dateStr]: parsed }));
     setWorkHandles(prev => ({ ...prev, [dateStr]: handle }));
+    upsertTimeNote(parsed);
     if (dateStr === tod()) {
       setDailyNote(parsed);
       setDailyHandle(handle);
@@ -1814,25 +1798,28 @@ export default function App() {
     properties: properties.length,
     people: people.length,
   };
+  const allTimeStats = dashboardStats(timeNotes);
   const diagnostics = buildDiagnostics({ tasks, projects, properties, refs, dirs, folderStats, folderIssues, backups:writeBackups });
   const healthErrors = diagnostics.issues.filter(i => i.level === 'error').length;
   const healthWarnings = diagnostics.issues.filter(i => i.level === 'warning').length;
   const healthBadges = healthErrors + healthWarnings;
-  const headerLabel = view === 'mission' ? 'MISSION CONTROL' : view === 'tasks' ? "TODAY'S TOTAL" : view === 'meetings' ? 'MEETINGS' : view === 'projects' ? 'PROJECT LIBRARY' : view === 'properties' ? 'PROPERTY LIBRARY' : view === 'people' ? 'PEOPLE' : 'VAULT HEALTH';
-  const headerMetric = view === 'mission' ? missionToday.length + missionOverdue.length + missionRecurrent.length : view === 'tasks' ? fmt(totalToday) : view === 'meetings' ? (meetingOpen ? fmt(getTime('__meeting__')) : meetings.length) : view === 'projects' ? projects.length : view === 'properties' ? properties.length : view === 'people' ? people.length : diagnostics.issues.length;
+  const headerLabel = view === 'mission' ? 'MISSION CONTROL' : view === 'tasks' ? "TODAY'S TOTAL" : view === 'time' ? 'TIME DASHBOARD' : view === 'meetings' ? 'MEETINGS' : view === 'projects' ? 'PROJECT LIBRARY' : view === 'properties' ? 'PROPERTY LIBRARY' : view === 'people' ? 'PEOPLE' : 'VAULT HEALTH';
+  const headerMetric = view === 'mission' ? missionToday.length + missionOverdue.length + missionRecurrent.length : view === 'tasks' ? fmt(totalToday) : view === 'time' ? allTimeStats.summary.totalDays : view === 'meetings' ? (meetingOpen ? fmt(getTime('__meeting__')) : meetings.length) : view === 'projects' ? projects.length : view === 'properties' ? properties.length : view === 'people' ? people.length : diagnostics.issues.length;
   const headerDetail = view === 'mission'
     ? `${missionToday.length} today · ${missionOverdue.length} overdue · ${missionRecurrent.length} recurrent · ${dirs.daily ? 'daily on' : 'daily off'}`
     : view === 'tasks'
       ? `${openTasks.length} open tasks · ${Object.values(refs).reduce((a,r)=>a+r.length,0)} refs`
-      : view === 'meetings'
-        ? `${dirs.meetings ? dirs.meetings.name : 'No folder'} · ${meetingOpen ? 'meeting note open' : `${meetings.length} saved`}`
-        : view === 'projects'
-          ? `${dirs.projects ? dirs.projects.name : 'No folder'} · editable`
-          : view === 'properties'
-            ? `${dirs.properties ? dirs.properties.name : 'No folder'} · ${dirs.attachments ? 'covers on' : 'covers off'}`
-            : view === 'people'
-              ? `${dirs.people ? dirs.people.name : 'No folder'} · waiting-for source`
-              : `${healthErrors} errors · ${healthWarnings} warnings · ${writeBackups.length} backups`;
+      : view === 'time'
+        ? `${formatHoursMinutes(allTimeStats.summary.totalMinutes)} from ${allTimeStats.summary.dailyNotes} dated daily notes`
+        : view === 'meetings'
+          ? `${dirs.meetings ? dirs.meetings.name : 'No folder'} · ${meetingOpen ? 'meeting note open' : `${meetings.length} saved`}`
+          : view === 'projects'
+            ? `${dirs.projects ? dirs.projects.name : 'No folder'} · editable`
+            : view === 'properties'
+              ? `${dirs.properties ? dirs.properties.name : 'No folder'} · ${dirs.attachments ? 'covers on' : 'covers off'}`
+              : view === 'people'
+                ? `${dirs.people ? dirs.people.name : 'No folder'} · waiting-for source`
+                : `${healthErrors} errors · ${healthWarnings} warnings · ${writeBackups.length} backups`;
 
   const btnPrimary = { padding:'13px 34px', borderRadius:12, border:'none', cursor:'pointer', fontWeight:700, fontSize:14, fontFamily:'inherit', background:'linear-gradient(135deg,#7c3aed,#3b82f6)', color:'#fff', boxShadow:'0 4px 24px rgba(124,58,237,0.45)' };
 
@@ -1953,7 +1940,7 @@ export default function App() {
             <div style={{ fontSize:10, color:'#475569', marginTop:2 }}>{headerDetail}</div>
           </div>
           <div style={{ display:'flex', gap:4, marginTop:10, padding:3, borderRadius:10, background:'rgba(255,255,255,0.03)', border:'1px solid rgba(255,255,255,0.06)' }}>
-            {['mission','tasks','meetings','projects','properties','people'].map(v => (
+            {['mission','tasks','time','meetings','projects','properties','people'].map(v => (
               <button key={v} onClick={()=>{ setView(v); setNewTaskOpen(false); setNewPropertyOpen(false); setNewProjectOpen(false); setNewPersonOpen(false); }} style={{ flex:1, padding:'6px 5px', borderRadius:8, border:'none', cursor:'pointer', fontWeight:700, fontSize:10, fontFamily:'inherit', textTransform:'capitalize', background:view===v?'rgba(124,58,237,0.2)':'transparent', color:view===v?'#c4b5fd':'#64748b' }}>
                 {v === 'mission' ? 'Today' : v === 'meetings' ? 'Meet' : v}
               </button>
@@ -2161,6 +2148,17 @@ export default function App() {
               </button>
             </div>
           </>
+        ) : view === 'time' ? (
+          <div style={{ flex:1, overflowY:'auto', padding:'14px 12px' }}>
+            <div style={{ fontSize:9, color:'#475569', fontWeight:800, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:9 }}>Daily time data</div>
+            <div style={{ padding:'12px', borderRadius:8, background:'rgba(255,255,255,0.025)', border:'1px solid rgba(255,255,255,0.06)', marginBottom:9 }}>
+              <div style={{ fontSize:24, fontWeight:850, color:'#10b981', fontVariantNumeric:'tabular-nums' }}>{formatHoursMinutes(allTimeStats.summary.totalMinutes)}</div>
+              <div style={{ fontSize:11, color:'#64748b', marginTop:4 }}>{allTimeStats.summary.totalDays} counted days · {allTimeStats.summary.goalMet} hit goal</div>
+            </div>
+            <div style={{ padding:'12px', borderRadius:8, background:'rgba(255,255,255,0.025)', border:'1px solid rgba(255,255,255,0.06)', color:'#94a3b8', fontSize:12, lineHeight:1.55 }}>
+              {dirs.daily ? `${allTimeStats.summary.dailyNotes} dated notes are ready for the Time tab.` : 'Connect Daily Notes to read Time Clock tables.'}
+            </div>
+          </div>
         ) : (
           <div style={{ flex:1, overflowY:'auto', padding:'10px' }}>
             <div style={{ fontSize:9, color:'#475569', fontWeight:700, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:8 }}>Mission queues</div>
@@ -2185,7 +2183,7 @@ export default function App() {
           </div>
         )}
 
-        {(view === 'tasks' || view === 'mission' || view === 'meetings' || view === 'people' || view === 'health') && (
+        {(view === 'tasks' || view === 'mission' || view === 'time' || view === 'meetings' || view === 'people' || view === 'health') && (
           <div style={{ padding:'6px 10px 9px', borderTop:'1px solid rgba(255,255,255,0.04)' }}>
             <button onClick={()=>setFolderSetupOpen(true)} style={{ width:'100%', padding:'5px 10px', background:'transparent', border:'none', color:'#334155', fontSize:10, cursor:'pointer', fontFamily:'inherit', textAlign:'center' }}>
               ⚙  Configure folders
@@ -2226,6 +2224,8 @@ export default function App() {
           weekDates={weekDates(tod())}
           vaultTotals={vaultTotals}
         />
+      ) : view === 'time' ? (
+        <TimeDashboardPanel notes={timeNotes} hasDailyFolder={!!dirs.daily} onConfigure={()=>setFolderSetupOpen(true)}/>
       ) : view === 'projects' ? (
         newProjectOpen ? (
           <NewProjectPanel onCancel={()=>setNewProjectOpen(false)} onCreate={createProject} refs={refs}/>
@@ -2673,6 +2673,156 @@ function HealthPanel({ diagnostics, dirs, backups, onForceSync, syncBusy, onConf
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function TimeDashboardPanel({ notes, hasDailyFolder, onConfigure }) {
+  const datedNotes = notes
+    .filter(note => /^\d{4}-\d{2}-\d{2}$/.test(note.date || ''))
+    .sort((a, b) => a.date.localeCompare(b.date));
+  const firstDate = datedNotes[0]?.date || '';
+  const lastDate = datedNotes[datedNotes.length - 1]?.date || '';
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const rangeStart = startDate || firstDate;
+  const rangeEnd = endDate || lastDate;
+  const stats = dashboardStats(datedNotes, rangeStart, rangeEnd);
+  const chartMaxMinutes = Math.max(WORK_CHART_MAX_MINUTES, TARGET_WORK_MINUTES, ...stats.days.map(day => day.totalMinutes));
+  const weekdayMaxMinutes = Math.max(TARGET_WORK_MINUTES, ...stats.weekdays.map(day => day.averageMinutes));
+  const targetBottom = `${Math.min(100, (TARGET_WORK_MINUTES / chartMaxMinutes) * 100)}%`;
+  const weekdayTargetBottom = `${Math.min(100, (TARGET_WORK_MINUTES / weekdayMaxMinutes) * 100)}%`;
+  const summaryCards = [
+    ['Days counted', stats.summary.totalDays, '#10b981'],
+    ['Over goal', stats.summary.overGoal, '#34d399'],
+    ['Under goal', stats.summary.underGoal, '#fbbf24'],
+    ['Goal met', stats.summary.goalMet, '#38bdf8'],
+    ['Total time', formatHoursMinutes(stats.summary.totalMinutes), '#f1f5f9'],
+    ['Average day', formatHoursMinutes(stats.summary.averageMinutes), '#c4b5fd'],
+  ];
+
+  if (!hasDailyFolder) {
+    return (
+      <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', color:'#475569', fontSize:13 }}>
+        <button onClick={onConfigure} style={{ padding:'10px 18px', borderRadius:10, border:'none', cursor:'pointer', fontWeight:800, fontSize:13, fontFamily:'inherit', background:'linear-gradient(135deg,#0f766e,#2563eb)', color:'#fff' }}>Configure Daily Notes folder</button>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ flex:1, minWidth:0, minHeight:0, overflowY:'auto', background:'#09090e' }}>
+      <section style={{ minHeight:188, padding:'24px 30px', borderBottom:'1px solid rgba(255,255,255,0.06)', display:'flex', alignItems:'flex-end', justifyContent:'space-between', gap:20, backgroundImage:'linear-gradient(90deg,rgba(4,7,15,0.35),rgba(4,7,15,0.68) 58%,rgba(4,7,15,0.94)),url(/time-dashboard-header.jpg)', backgroundSize:'cover', backgroundPosition:'center' }}>
+        <div style={{ minWidth:0 }}>
+          <div style={{ fontSize:10, color:'#67e8f9', fontWeight:800, textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:8 }}>Time Clock</div>
+          <h2 style={{ margin:0, fontSize:28, color:'#f8fafc', letterSpacing:0 }}>Work rhythm</h2>
+          <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap', marginTop:11, color:'#cbd5e1', fontSize:12, fontWeight:700 }}>
+            <span>{stats.summary.dailyNotes} daily notes</span>
+            <span style={{ color:'#475569' }}>|</span>
+            <span>{formatHoursMinutes(stats.summary.totalMinutes)}</span>
+            <span style={{ color:'#475569' }}>|</span>
+            <span>goal {formatHoursMinutes(TARGET_WORK_MINUTES)}</span>
+          </div>
+        </div>
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(2,minmax(132px,1fr)) auto', gap:8, alignItems:'end', padding:'11px', borderRadius:8, background:'rgba(6,10,20,0.72)', border:'1px solid rgba(255,255,255,0.12)', backdropFilter:'blur(10px)' }}>
+          <label style={{ minWidth:0 }}>
+            <span style={{ display:'block', fontSize:9, color:'#94a3b8', fontWeight:800, textTransform:'uppercase', marginBottom:5 }}>Start</span>
+            <input type="date" min={firstDate} max={endDate || lastDate} value={rangeStart} onChange={e=>setStartDate(e.target.value)}
+              style={{ ...inputBase, minWidth:0, padding:'8px 9px', fontSize:12 }} />
+          </label>
+          <label style={{ minWidth:0 }}>
+            <span style={{ display:'block', fontSize:9, color:'#94a3b8', fontWeight:800, textTransform:'uppercase', marginBottom:5 }}>End</span>
+            <input type="date" min={startDate || firstDate} max={lastDate} value={rangeEnd} onChange={e=>setEndDate(e.target.value)}
+              style={{ ...inputBase, minWidth:0, padding:'8px 9px', fontSize:12 }} />
+          </label>
+          <button onClick={()=>{ setStartDate(''); setEndDate(''); }} disabled={!startDate && !endDate}
+            style={{ height:35, padding:'0 12px', borderRadius:8, border:'1px solid rgba(255,255,255,0.1)', background:'rgba(255,255,255,0.055)', color:'#cbd5e1', cursor:startDate || endDate ? 'pointer' : 'not-allowed', opacity:startDate || endDate ? 1 : 0.42, fontSize:11, fontWeight:800, fontFamily:'inherit' }}>
+            All
+          </button>
+        </div>
+      </section>
+
+      <div style={{ display:'grid', gridTemplateColumns:'minmax(560px,1fr) 250px', gap:18, alignItems:'start', padding:'20px 24px 24px' }}>
+        <div style={{ minWidth:0 }}>
+          <section style={{ borderRadius:8, border:'1px solid rgba(255,255,255,0.07)', background:'rgba(255,255,255,0.025)', padding:'16px', marginBottom:16 }}>
+            <div style={{ display:'flex', justifyContent:'space-between', gap:12, alignItems:'baseline', marginBottom:14 }}>
+              <div>
+                <h3 style={{ margin:0, fontSize:15, color:'#f8fafc' }}>Daily totals</h3>
+                <div style={{ fontSize:11, color:'#64748b', marginTop:4 }}>{rangeStart || 'No start'} to {rangeEnd || 'No end'}</div>
+              </div>
+              <div style={{ color:'#fbbf24', fontSize:11, fontWeight:800 }}>7h 15m goal</div>
+            </div>
+            {stats.days.length ? (
+              <div style={{ overflowX:'auto', paddingBottom:3 }}>
+                <div style={{ minWidth:Math.max(640, stats.days.length * 58), height:330, padding:'22px 12px 42px', borderRadius:8, border:'1px solid rgba(255,255,255,0.05)', background:'linear-gradient(180deg,rgba(15,23,42,0.68),rgba(9,9,14,0.72))', position:'relative' }}>
+                  <div style={{ position:'absolute', left:12, right:12, bottom:`calc(42px + ${targetBottom})`, borderTop:'1px dashed rgba(251,191,36,0.92)', zIndex:2 }} />
+                  <div style={{ position:'absolute', right:14, bottom:`calc(42px + ${targetBottom})`, transform:'translateY(50%)', borderRadius:5, background:'#111827', color:'#fbbf24', fontSize:9, fontWeight:800, padding:'2px 5px', zIndex:3 }}>7h 15m</div>
+                  <div style={{ height:'100%', display:'grid', gridTemplateColumns:`repeat(${stats.days.length},minmax(42px,1fr))`, gap:10, alignItems:'stretch' }}>
+                    {stats.days.map(day => {
+                      const pct = Math.min(100, (day.totalMinutes / chartMaxMinutes) * 100);
+                      const barHeight = day.totalMinutes > 0 ? Math.max(3, pct) : 0;
+                      const color = day.creditedDay ? 'linear-gradient(180deg,#7dd3fc,#0284c7)' : day.totalMinutes >= TARGET_WORK_MINUTES ? 'linear-gradient(180deg,#6ee7b7,#059669)' : day.totalMinutes ? 'linear-gradient(180deg,#fde68a,#d97706)' : 'rgba(255,255,255,0.07)';
+                      return (
+                        <div key={day.date} title={`${day.date} · ${formatHoursMinutes(day.totalMinutes)} · ${day.label}`} style={{ minWidth:0, height:'100%', position:'relative' }}>
+                          <div style={{ position:'absolute', left:-5, right:-5, bottom:`calc(${barHeight}% + 8px)`, textAlign:'center', color:day.totalMinutes ? '#cbd5e1' : '#475569', fontSize:9, fontWeight:800, fontVariantNumeric:'tabular-nums', whiteSpace:'nowrap' }}>{day.totalMinutes ? formatHoursMinutes(day.totalMinutes) : '--'}</div>
+                          <div style={{ position:'absolute', left:'12%', right:'12%', bottom:0, minHeight:day.totalMinutes ? 0 : 3, height:`${barHeight}%`, borderRadius:'8px 8px 3px 3px', background:color, border:'1px solid rgba(255,255,255,0.08)' }} />
+                          <div style={{ position:'absolute', left:-5, right:-5, bottom:-34, textAlign:'center', lineHeight:1.25 }}>
+                            <div style={{ fontSize:9, color:'#94a3b8', fontWeight:850 }}>{dateFromStr(day.date).toLocaleDateString('en-US', { weekday:'short' })}</div>
+                            <div style={{ fontSize:9, color:'#475569', fontWeight:750 }}>{day.date.slice(5)}</div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div style={{ minHeight:250, borderRadius:8, border:'1px solid rgba(255,255,255,0.05)', background:'rgba(15,23,42,0.4)', display:'flex', alignItems:'center', justifyContent:'center', color:'#475569', fontSize:13 }}>No dated Time Clock notes in range</div>
+            )}
+          </section>
+
+          <section style={{ borderRadius:8, border:'1px solid rgba(255,255,255,0.07)', background:'rgba(255,255,255,0.025)', padding:'16px' }}>
+            <div style={{ display:'flex', justifyContent:'space-between', gap:12, alignItems:'baseline', marginBottom:14 }}>
+              <div>
+                <h3 style={{ margin:0, fontSize:15, color:'#f8fafc' }}>Average week</h3>
+                <div style={{ fontSize:11, color:'#64748b', marginTop:4 }}>Average tracked total by weekday</div>
+              </div>
+              <div style={{ fontSize:11, color:'#94a3b8', fontWeight:800 }}>Mon to Sun</div>
+            </div>
+            <div style={{ height:250, padding:'19px 12px 38px', borderRadius:8, border:'1px solid rgba(255,255,255,0.05)', background:'rgba(15,23,42,0.52)', position:'relative' }}>
+              <div style={{ position:'absolute', left:12, right:12, bottom:`calc(38px + ${weekdayTargetBottom})`, borderTop:'1px dashed rgba(251,191,36,0.72)' }} />
+              <div style={{ height:'100%', display:'grid', gridTemplateColumns:'repeat(7,minmax(0,1fr))', gap:12 }}>
+                {stats.weekdays.map(day => {
+                  const pct = Math.min(100, (day.averageMinutes / weekdayMaxMinutes) * 100);
+                  const barHeight = day.averageMinutes > 0 ? Math.max(3, pct) : 0;
+                  return (
+                    <div key={day.label} title={`${day.label} · ${day.count} day${day.count === 1 ? '' : 's'} · ${formatHoursMinutes(day.averageMinutes)}`} style={{ height:'100%', minWidth:0, position:'relative' }}>
+                      <div style={{ position:'absolute', left:-8, right:-8, bottom:`calc(${barHeight}% + 7px)`, textAlign:'center', fontSize:9, fontWeight:800, color:day.averageMinutes ? '#cbd5e1' : '#475569', whiteSpace:'nowrap' }}>{day.averageMinutes ? formatHoursMinutes(day.averageMinutes) : '--'}</div>
+                      <div style={{ position:'absolute', left:'16%', right:'16%', bottom:0, height:`${barHeight}%`, minHeight:day.averageMinutes ? 0 : 3, borderRadius:'8px 8px 3px 3px', background:day.averageMinutes >= TARGET_WORK_MINUTES ? 'linear-gradient(180deg,#22d3ee,#0f766e)' : day.averageMinutes ? 'linear-gradient(180deg,#93c5fd,#2563eb)' : 'rgba(255,255,255,0.07)', border:'1px solid rgba(255,255,255,0.08)' }} />
+                      <div style={{ position:'absolute', left:0, right:0, bottom:-27, textAlign:'center' }}>
+                        <div style={{ fontSize:10, color:'#e2e8f0', fontWeight:850 }}>{day.label}</div>
+                        <div style={{ fontSize:9, color:'#475569', fontWeight:750 }}>{day.count}</div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <aside style={{ display:'grid', gap:10, minWidth:0 }}>
+          {summaryCards.map(([label, value, color]) => (
+            <div key={label} style={{ minHeight:86, padding:'14px', borderRadius:8, border:'1px solid rgba(255,255,255,0.07)', background:'rgba(255,255,255,0.03)' }}>
+              <div style={{ fontSize:10, color:'#64748b', fontWeight:850, textTransform:'uppercase', letterSpacing:'0.08em' }}>{label}</div>
+              <div style={{ marginTop:10, color, fontSize:label.includes('time') || label.includes('Average') ? 23 : 29, lineHeight:1, fontWeight:900, fontVariantNumeric:'tabular-nums', overflowWrap:'anywhere' }}>{value}</div>
+            </div>
+          ))}
+          <div style={{ padding:'14px', borderRadius:8, border:'1px solid rgba(255,255,255,0.07)', background:'rgba(255,255,255,0.03)' }}>
+            <div style={{ fontSize:10, color:'#64748b', fontWeight:850, textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:8 }}>Daily notes</div>
+            <div style={{ color:'#f8fafc', fontSize:23, lineHeight:1, fontWeight:900, fontVariantNumeric:'tabular-nums' }}>{stats.summary.dailyNotes}</div>
+          </div>
+        </aside>
+      </div>
     </div>
   );
 }
