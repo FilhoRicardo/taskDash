@@ -144,13 +144,13 @@ function groupByInitial(items) {
   }, {});
 }
 
-function MarkdownBody({ children, emptyText = 'No Markdown content yet.' }) {
+function MarkdownBody({ children, emptyText = 'No Markdown content yet.', compact = false }) {
   const text = String(children || '').trim();
   if (!text) return <div style={{ color:'#64748b' }}>{emptyText}</div>;
   return (
     <ReactMarkdown
       remarkPlugins={[remarkGfm]}
-      className="markdown-body"
+      className={`markdown-body${compact ? ' markdown-compact' : ''}`}
       components={{
         a: ({ node: _node, ...props }) => <a {...props} target="_blank" rel="noreferrer" />,
         img: ({ node: _node, ...props }) => <img {...props} loading="lazy" />,
@@ -2992,7 +2992,9 @@ function MissionControlPanel({ today, overdue, recurrent, selectedId, liveId, ge
                 </div>
                 <div style={{ minHeight:46, marginBottom:9 }}>
                   {items.length ? items.slice(-2).map((item, i) => (
-                    <div key={i} style={{ fontSize:12, color:'#cbd5e1', lineHeight:1.4, marginBottom:5, overflow:'hidden', display:'-webkit-box', WebkitLineClamp:2, WebkitBoxOrient:'vertical' }}>- {item}</div>
+                    <div key={i} style={{ marginBottom:5, overflow:'hidden', display:'-webkit-box', WebkitLineClamp:2, WebkitBoxOrient:'vertical' }}>
+                      <MarkdownBody compact>{item}</MarkdownBody>
+                    </div>
                   )) : <div style={{ fontSize:12, color:'#334155', paddingTop:8 }}>Nothing written yet</div>}
                 </div>
                 <div style={{ display:'flex', gap:7 }}>

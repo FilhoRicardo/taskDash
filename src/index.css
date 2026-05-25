@@ -47,6 +47,11 @@ input[type="time"]::-webkit-calendar-picker-indicator {
   overflow-wrap: anywhere;
   word-break: normal;
 }
+.markdown-body.markdown-compact {
+  font-size: 12px;
+  line-height: 1.42;
+}
+.markdown-body.markdown-compact > * + * { margin-top: 5px; }
 .markdown-body > *:first-child { margin-top: 0; }
 .markdown-body > *:last-child { margin-bottom: 0; }
 .markdown-body > * + * { margin-top: 12px; }
