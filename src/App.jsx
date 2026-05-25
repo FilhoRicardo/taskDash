@@ -144,11 +144,19 @@ function groupByInitial(items) {
   }, {});
 }
 
-function MarkdownBody({ children }) {
+function MarkdownBody({ children, emptyText = 'No Markdown content yet.' }) {
   const text = String(children || '').trim();
-  if (!text) return <div style={{ color:'#64748b' }}>No task description body yet.</div>;
+  if (!text) return <div style={{ color:'#64748b' }}>{emptyText}</div>;
   return (
-    <ReactMarkdown remarkPlugins={[remarkGfm]} className="markdown-body">
+    <ReactMarkdown
+      remarkPlugins={[remarkGfm]}
+      className="markdown-body"
+      components={{
+        a: ({ node: _node, ...props }) => <a {...props} target="_blank" rel="noreferrer" />,
+        img: ({ node: _node, ...props }) => <img {...props} loading="lazy" />,
+        input: ({ node: _node, ...props }) => <input {...props} disabled />,
+      }}
+    >
       {text}
     </ReactMarkdown>
   );
@@ -187,7 +195,7 @@ function CommentCard({ log, index, onSave, onDelete }) {
         <textarea value={draft} onChange={e=>setDraft(e.target.value)} rows={editRows}
           style={{ width:'100%', minHeight:120, boxSizing:'border-box', fieldSizing:'content', padding:'11px 12px', borderRadius:8, resize:'vertical', background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.09)', color:'#e2e8f0', fontSize:13, lineHeight:1.55, outline:'none', fontFamily:'inherit', whiteSpace:'pre-wrap', overflowWrap:'anywhere' }}/>
       ) : (
-        <div style={{ height:'auto', minHeight:'max-content', fontSize:13, lineHeight:1.6, whiteSpace:'pre-wrap', overflowWrap:'anywhere', wordBreak:'break-word' }}>{body}</div>
+        <MarkdownBody>{body}</MarkdownBody>
       )}
     </div>
   );
@@ -2419,7 +2427,7 @@ export default function App() {
                 <span style={{ fontSize:10, color:'#475569', fontWeight:800 }}>{task.filename}</span>
               </div>
               <div style={{ borderRadius:10, border:'1px solid rgba(255,255,255,0.06)', background:'rgba(255,255,255,0.025)', padding:'14px 16px', minHeight:220 }}>
-                <MarkdownBody>{taskDescriptionText(task.raw)}</MarkdownBody>
+                <MarkdownBody emptyText="No task description body yet.">{taskDescriptionText(task.raw)}</MarkdownBody>
               </div>
             </aside>
           </div>
@@ -2475,12 +2483,18 @@ function PeoplePanel({ people, selected, selectedId, draft, setDraft, onSelect, 
           <button onClick={onSave} disabled={!selected} style={{ padding:'9px 18px', borderRadius:10, border:'none', cursor:selected?'pointer':'not-allowed', fontWeight:800, fontSize:13, fontFamily:'inherit', background:'linear-gradient(135deg,#7c3aed,#3b82f6)', color:'#fff', opacity:selected?1:0.35 }}>Save</button>
         </div>
         {selected ? (
-          <div style={{ flex:1, minHeight:0, display:'flex', flexDirection:'column', overflow:'hidden' }}>
-            <div style={{ padding:'16px 28px 10px', flexShrink:0, display:'flex', justifyContent:'space-between', gap:12, alignItems:'baseline' }}>
-              <h3 style={{ margin:0, fontSize:14, color:'#f1f5f9' }}>Notes</h3>
-              <span style={{ fontSize:10, color:'#475569', fontWeight:800 }}>{selected.filename}</span>
+          <div style={{ flex:1, minHeight:0, display:'grid', gridTemplateColumns:'minmax(280px,1fr) minmax(260px,0.85fr)', overflow:'hidden' }}>
+            <div style={{ minWidth:0, minHeight:0, display:'flex', flexDirection:'column', overflow:'hidden' }}>
+              <div style={{ padding:'16px 28px 10px', flexShrink:0, display:'flex', justifyContent:'space-between', gap:12, alignItems:'baseline' }}>
+                <h3 style={{ margin:0, fontSize:14, color:'#f1f5f9' }}>Notes</h3>
+                <span style={{ fontSize:10, color:'#475569', fontWeight:800 }}>{selected.filename}</span>
+              </div>
+              <textarea value={draft} onChange={e=>setDraft(e.target.value)} spellCheck={false} style={{ flex:1, width:'100%', resize:'none', padding:'8px 28px 22px', background:'rgba(255,255,255,0.02)', border:'none', color:'#e2e8f0', outline:'none', fontFamily:'ui-monospace, SFMono-Regular, Consolas, monospace', fontSize:13, lineHeight:1.65 }}/>
             </div>
-            <textarea value={draft} onChange={e=>setDraft(e.target.value)} spellCheck={false} style={{ flex:1, width:'100%', resize:'none', padding:'8px 28px 22px', background:'rgba(255,255,255,0.02)', border:'none', color:'#e2e8f0', outline:'none', fontFamily:'ui-monospace, SFMono-Regular, Consolas, monospace', fontSize:13, lineHeight:1.65 }}/>
+            <div style={{ minWidth:0, minHeight:0, overflowY:'auto', padding:'16px 22px 22px', borderLeft:'1px solid rgba(255,255,255,0.06)', background:'rgba(255,255,255,0.012)' }}>
+              <div style={{ fontSize:10, color:'#a78bfa', fontWeight:800, textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:12 }}>Preview</div>
+              <MarkdownBody emptyText="No notes body yet.">{noteBodyText(draft)}</MarkdownBody>
+            </div>
           </div>
         ) : (
           <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', color:'#334155', fontSize:13 }}>Select or create a person</div>
@@ -2531,9 +2545,7 @@ function MeetingPanel({ meetingOpen, meetingTitle, meetingNotes, meetingLinks, s
             <button onClick={onStart} style={{ padding:'10px 16px', borderRadius:10, border:'none', cursor:'pointer', fontWeight:800, fontSize:13, fontFamily:'inherit', background:'linear-gradient(135deg,#7c3aed,#3b82f6)', color:'#fff', flexShrink:0 }}>+ Start Meeting</button>
           </div>
           <div style={{ borderRadius:10, border:'1px solid rgba(255,255,255,0.06)', background:'rgba(255,255,255,0.025)', padding:'16px 18px' }}>
-            <ReactMarkdown remarkPlugins={[remarkGfm]} className="markdown-body">
-              {noteBodyText(savedMeeting.raw)}
-            </ReactMarkdown>
+            <MarkdownBody>{noteBodyText(savedMeeting.raw)}</MarkdownBody>
           </div>
         </div>
       );
@@ -3196,7 +3208,13 @@ function ProjectPanel({ projects, selected, selectedId, draft, setDraft, onSelec
           <button onClick={onSave} disabled={!selected} style={{ padding:'9px 18px', borderRadius:10, border:'none', cursor:selected?'pointer':'not-allowed', fontWeight:800, fontSize:13, fontFamily:'inherit', background:'linear-gradient(135deg,#7c3aed,#3b82f6)', color:'#fff', opacity:selected?1:0.35 }}>Save</button>
         </div>
         {selected ? (
-          <textarea value={draft} onChange={e=>setDraft(e.target.value)} spellCheck={false} style={{ flex:1, width:'100%', resize:'none', padding:'18px 22px', background:'rgba(255,255,255,0.025)', border:'none', color:'#e2e8f0', outline:'none', fontFamily:'ui-monospace, SFMono-Regular, Consolas, monospace', fontSize:13, lineHeight:1.65 }}/>
+          <div style={{ flex:1, minHeight:0, display:'grid', gridTemplateColumns:'minmax(280px,1fr) minmax(260px,0.85fr)', overflow:'hidden' }}>
+            <textarea value={draft} onChange={e=>setDraft(e.target.value)} spellCheck={false} style={{ minWidth:0, width:'100%', height:'100%', resize:'none', padding:'18px 22px', background:'rgba(255,255,255,0.025)', border:'none', color:'#e2e8f0', outline:'none', fontFamily:'ui-monospace, SFMono-Regular, Consolas, monospace', fontSize:13, lineHeight:1.65 }}/>
+            <div style={{ minWidth:0, overflowY:'auto', padding:'18px 22px', borderLeft:'1px solid rgba(255,255,255,0.06)', background:'rgba(255,255,255,0.012)' }}>
+              <div style={{ fontSize:10, color:'#a78bfa', fontWeight:800, textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:12 }}>Preview</div>
+              <MarkdownBody emptyText="No project notes body yet.">{noteBodyText(draft)}</MarkdownBody>
+            </div>
+          </div>
         ) : (
           <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', color:'#334155', fontSize:13 }}>Select or create a project</div>
         )}
