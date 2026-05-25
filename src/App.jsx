@@ -26,6 +26,7 @@ const FOLDER_SETUP_SEEN = 'folderSetupV2Seen';
 const WRITE_BACKUPS_KEY = 'taskdashWriteBackups';
 const SAVED_FILTERS_KEY = 'taskdashSavedFilters';
 const FOLDER_LABELS = Object.fromEntries(FOLDER_DEFS.map(def => [def.key, def.label]));
+const HIDDEN_TASK_TAG = 'lifeos';
 
 const STATUS_COLORS = {
   done:          { bg:'rgba(16,185,129,0.12)',  color:'#10b981' },
@@ -33,6 +34,13 @@ const STATUS_COLORS = {
   todo:          { bg:'rgba(59,130,246,0.12)',  color:'#60a5fa' },
   none:          { bg:'rgba(100,116,139,0.12)', color:'#64748b' },
 };
+
+function hasHiddenTaskTag(task) {
+  return (task.tags || []).some(tag => {
+    const normalized = String(tag).trim().replace(/^#/, '').toLowerCase().replace(/[\s_-]/g, '');
+    return normalized === HIDDEN_TASK_TAG || normalized.startsWith(`${HIDDEN_TASK_TAG}/`);
+  });
+}
 
 async function rememberWriteBackup(handle, oldText) {
   if (!oldText || typeof oldText !== 'string' || oldText.length > 500000) return;
@@ -723,6 +731,7 @@ export default function App() {
           return [];
         }
       })
+        .filter(t => !hasHiddenTaskTag(t))
         .sort((a,b) => (a.due||'9999') > (b.due||'9999') ? 1 : -1);
       setTasks(parsed);
       setFolderStats(prev => ({ ...prev, tasks: activeRaw.length, done: doneRaw.length }));
