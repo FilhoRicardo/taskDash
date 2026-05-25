@@ -3,8 +3,8 @@ export function parseFrontmatter(txt) {
   if (!m) return {};
   const res = {}; let key = null;
   for (const line of m[1].split('\n')) {
-    if (/^  - /.test(line)) {
-      const v = line.replace(/^  - /, '').trim().replace(/^["']|["']$/g, '');
+    if (/^\s*-\s+/.test(line)) {
+      const v = line.replace(/^\s*-\s+/, '').trim().replace(/^["']|["']$/g, '');
       if (key && Array.isArray(res[key])) res[key].push(v);
     } else {
       const kv = line.match(/^(\w+):\s*(.*)/);

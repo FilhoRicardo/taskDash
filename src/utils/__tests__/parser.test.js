@@ -59,6 +59,24 @@ Log: [09:15] Started review
     expect(task.status).toBe('none');
     expect(task.tags).toEqual([]);
   });
+
+  it('reads unindented frontmatter lists', () => {
+    const raw = `---
+title: Home - Back garden - Buy spider killer
+contexts:
+- Personal
+- Home
+tags:
+- task
+- LifeOS
+---
+`;
+
+    const task = parseTask('Home - Back garden - Buy spider killer.md', raw);
+
+    expect(task.contexts).toEqual(['Personal', 'Home']);
+    expect(task.tags).toEqual(['task', 'LifeOS']);
+  });
 });
 
 describe('parseDailyNote', () => {
