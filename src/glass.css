@@ -11,24 +11,24 @@
 
 :root {
   /* Accent — change --accent-h to shift across the OKLCH hue ring. */
-  --accent-h: 152;
-  --accent:       oklch(0.7 0.17 var(--accent-h));
-  --accent-soft:  oklch(0.7 0.17 var(--accent-h) / 0.2);
-  --accent-line:  oklch(0.72 0.16 var(--accent-h) / 0.48);
+  --accent-h: 170;
+  --accent:       oklch(0.64 0.12 var(--accent-h));
+  --accent-soft:  oklch(0.64 0.12 var(--accent-h) / 0.18);
+  --accent-line:  oklch(0.72 0.10 var(--accent-h) / 0.42);
 
   --good: oklch(0.74 0.16 160);
   --warn: oklch(0.78 0.16 70);
   --bad:  oklch(0.7 0.2 25);
 
-  --ink:        oklch(0.98 0.012 155);
-  --ink-dim:    oklch(0.84 0.025 155);
-  --ink-muted:  oklch(0.72 0.035 155);
-  --ink-faint:  oklch(0.61 0.035 155);
+  --ink:        #f4fff9;
+  --ink-dim:    #d7f5e8;
+  --ink-muted:  #a9d8c9;
+  --ink-faint:  #82b7a7;
 
-  --glass-bg:        rgba(12, 70, 45, 0.22);
-  --glass-bg-strong: rgba(10, 55, 37, 0.36);
-  --glass-line:        rgba(187, 247, 208, 0.14);
-  --glass-line-strong: rgba(187, 247, 208, 0.24);
+  --glass-bg:        rgba(2, 31, 28, 0.34);
+  --glass-bg-strong: rgba(1, 23, 21, 0.58);
+  --glass-line:        rgba(154, 221, 202, 0.14);
+  --glass-line-strong: rgba(169, 216, 201, 0.24);
   --glass-inset:  inset 0 1px 0 rgba(255,255,255,0.10);
   --glass-shadow: 0 24px 60px -20px rgba(0,0,0,0.55), 0 4px 14px -8px rgba(0,0,0,0.5);
 
@@ -46,19 +46,20 @@
  */
 body {
   /* override the flat black from index.css */
-  background: #03100a;
+  background: #000b0a;
   font-size: 14px;
 }
 .wallpaper {
   position: fixed; inset: 0; z-index: 0; overflow: hidden; pointer-events: none;
   background:
-    radial-gradient(circle at 20% 8%, rgba(20, 83, 45, 0.46), transparent 34%),
-    radial-gradient(circle at 80% 80%, rgba(6, 95, 70, 0.42), transparent 38%),
-    radial-gradient(circle at 50% 50%, #082015 0%, #04110b 58%, #020604 100%);
+    linear-gradient(165deg, rgba(0, 8, 7, 0.92) 0%, rgba(2, 38, 34, 0.8) 44%, rgba(1, 17, 15, 0.96) 100%),
+    radial-gradient(circle at 28% 18%, rgba(11, 73, 64, 0.52), transparent 42%),
+    radial-gradient(circle at 72% 78%, rgba(0, 57, 49, 0.48), transparent 44%),
+    #000b0a;
 }
 .wallpaper::before, .wallpaper::after, .wallpaper > .blob {
   content: ""; position: absolute; border-radius: 50%;
-  filter: blur(80px); opacity: 0.55; mix-blend-mode: screen;
+  filter: blur(96px); opacity: 0.34; mix-blend-mode: screen;
 }
 .wallpaper::before {
   width: 56vw; height: 56vw; left: -10vw; top: -18vw;
