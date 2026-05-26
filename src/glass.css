@@ -11,24 +11,24 @@
 
 :root {
   /* Accent — change --accent-h to shift across the OKLCH hue ring. */
-  --accent-h: 290;
-  --accent:       oklch(0.68 0.18 var(--accent-h));
-  --accent-soft:  oklch(0.68 0.18 var(--accent-h) / 0.18);
-  --accent-line:  oklch(0.68 0.18 var(--accent-h) / 0.4);
+  --accent-h: 152;
+  --accent:       oklch(0.7 0.17 var(--accent-h));
+  --accent-soft:  oklch(0.7 0.17 var(--accent-h) / 0.2);
+  --accent-line:  oklch(0.72 0.16 var(--accent-h) / 0.48);
 
   --good: oklch(0.74 0.16 160);
   --warn: oklch(0.78 0.16 70);
   --bad:  oklch(0.7 0.2 25);
 
-  --ink:        oklch(0.97 0.005 270);
-  --ink-dim:    oklch(0.78 0.01 270);
-  --ink-muted:  oklch(0.6 0.015 270);
-  --ink-faint:  oklch(0.45 0.015 270);
+  --ink:        oklch(0.98 0.012 155);
+  --ink-dim:    oklch(0.84 0.025 155);
+  --ink-muted:  oklch(0.72 0.035 155);
+  --ink-faint:  oklch(0.61 0.035 155);
 
-  --glass-bg:        rgba(255,255,255,0.055);
-  --glass-bg-strong: rgba(255,255,255,0.085);
-  --glass-line:        rgba(255,255,255,0.10);
-  --glass-line-strong: rgba(255,255,255,0.18);
+  --glass-bg:        rgba(12, 70, 45, 0.22);
+  --glass-bg-strong: rgba(10, 55, 37, 0.36);
+  --glass-line:        rgba(187, 247, 208, 0.14);
+  --glass-line-strong: rgba(187, 247, 208, 0.24);
   --glass-inset:  inset 0 1px 0 rgba(255,255,255,0.10);
   --glass-shadow: 0 24px 60px -20px rgba(0,0,0,0.55), 0 4px 14px -8px rgba(0,0,0,0.5);
 
@@ -46,11 +46,15 @@
  */
 body {
   /* override the flat black from index.css */
-  background: #07070b;
+  background: #03100a;
+  font-size: 14px;
 }
 .wallpaper {
   position: fixed; inset: 0; z-index: 0; overflow: hidden; pointer-events: none;
-  background: radial-gradient(circle at 50% 50%, #1a1530 0%, #0b0b14 55%, #050507 100%);
+  background:
+    radial-gradient(circle at 20% 8%, rgba(20, 83, 45, 0.46), transparent 34%),
+    radial-gradient(circle at 80% 80%, rgba(6, 95, 70, 0.42), transparent 38%),
+    radial-gradient(circle at 50% 50%, #082015 0%, #04110b 58%, #020604 100%);
 }
 .wallpaper::before, .wallpaper::after, .wallpaper > .blob {
   content: ""; position: absolute; border-radius: 50%;
@@ -72,7 +76,7 @@ body {
 /* ── App shell ─── 3-pane grid: rail · sidebar · main ── */
 .shell {
   display: grid;
-  grid-template-columns: 64px 300px 1fr;
+  grid-template-columns: 64px minmax(320px, 340px) minmax(0, 1fr);
   height: 100vh;
   position: relative;
   z-index: 1;
@@ -169,3 +173,11 @@ body {
 
 @keyframes tdg-barIn { from { transform: scaleY(0.05); opacity: 0; } to { transform: scaleY(1); opacity: 1; } }
 .tdg-bar { transform-origin: bottom; animation: tdg-barIn 0.5s cubic-bezier(.2,.7,.2,1) both; }
+
+@media (max-width: 1100px) {
+  .shell {
+    grid-template-columns: 60px minmax(280px, 310px) minmax(0, 1fr);
+    gap: 10px;
+    padding: 10px;
+  }
+}
