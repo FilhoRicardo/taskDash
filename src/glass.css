@@ -1,0 +1,171 @@
+/* TaskDash · Glass theme
+ * Drop this file into src/ and import it AFTER index.css in main.jsx.
+ *
+ *   import './index.css';
+ *   import './glass.css';
+ *
+ * Everything here is additive — no rules override index.css.
+ * The wallpaper sits behind the app at z-index 0; the app shell
+ * goes at z-index 1 (handled by the .shell class — see App.jsx edits).
+ */
+
+:root {
+  /* Accent — change --accent-h to shift across the OKLCH hue ring. */
+  --accent-h: 290;
+  --accent:       oklch(0.68 0.18 var(--accent-h));
+  --accent-soft:  oklch(0.68 0.18 var(--accent-h) / 0.18);
+  --accent-line:  oklch(0.68 0.18 var(--accent-h) / 0.4);
+
+  --good: oklch(0.74 0.16 160);
+  --warn: oklch(0.78 0.16 70);
+  --bad:  oklch(0.7 0.2 25);
+
+  --ink:        oklch(0.97 0.005 270);
+  --ink-dim:    oklch(0.78 0.01 270);
+  --ink-muted:  oklch(0.6 0.015 270);
+  --ink-faint:  oklch(0.45 0.015 270);
+
+  --glass-bg:        rgba(255,255,255,0.055);
+  --glass-bg-strong: rgba(255,255,255,0.085);
+  --glass-line:        rgba(255,255,255,0.10);
+  --glass-line-strong: rgba(255,255,255,0.18);
+  --glass-inset:  inset 0 1px 0 rgba(255,255,255,0.10);
+  --glass-shadow: 0 24px 60px -20px rgba(0,0,0,0.55), 0 4px 14px -8px rgba(0,0,0,0.5);
+
+  --r-sm: 10px;
+  --r-md: 14px;
+  --r-lg: 20px;
+  --r-xl: 28px;
+
+  --blur: 28px;
+}
+
+/* ── Ambient backdrop ─────────────────────────────────────────────────────────
+ * The .wallpaper element is rendered as a sibling of the app shell from App.jsx.
+ * Three soft colored blobs over near-black so backdrop-filter has color to sample.
+ */
+body {
+  /* override the flat black from index.css */
+  background: #07070b;
+}
+.wallpaper {
+  position: fixed; inset: 0; z-index: 0; overflow: hidden; pointer-events: none;
+  background: radial-gradient(circle at 50% 50%, #1a1530 0%, #0b0b14 55%, #050507 100%);
+}
+.wallpaper::before, .wallpaper::after, .wallpaper > .blob {
+  content: ""; position: absolute; border-radius: 50%;
+  filter: blur(80px); opacity: 0.55; mix-blend-mode: screen;
+}
+.wallpaper::before {
+  width: 56vw; height: 56vw; left: -10vw; top: -18vw;
+  background: oklch(0.55 0.22 var(--accent-h));
+}
+.wallpaper::after {
+  width: 50vw; height: 50vw; right: -14vw; bottom: -18vw;
+  background: oklch(0.62 0.18 calc(var(--accent-h) + 60));
+}
+.wallpaper > .blob {
+  width: 40vw; height: 40vw; right: 20vw; top: 30vh;
+  background: oklch(0.58 0.18 calc(var(--accent-h) - 50));
+}
+
+/* ── App shell ─── 3-pane grid: rail · sidebar · main ── */
+.shell {
+  display: grid;
+  grid-template-columns: 64px 300px 1fr;
+  height: 100vh;
+  position: relative;
+  z-index: 1;
+  padding: 14px;
+  gap: 12px;
+  color: var(--ink);
+  background: transparent !important;
+}
+.shell > .pane {
+  display: flex; flex-direction: column; min-height: 0;
+  border-radius: var(--r-xl);
+  overflow: hidden;
+}
+
+/* ── Icon rail ─────────────────────────────────────────────────────────────── */
+.rail {
+  display: flex; flex-direction: column; align-items: center;
+  padding: 12px 0; gap: 6px;
+}
+.rail-btn {
+  width: 44px; height: 44px; border-radius: 13px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.06);
+  color: var(--ink-muted);
+  cursor: pointer; padding: 0;
+  transition: background 0.15s, color 0.15s, border-color 0.15s, transform 0.12s;
+  position: relative;
+  font-family: inherit;
+}
+.rail-btn:hover { background: rgba(255,255,255,0.08); color: var(--ink); }
+.rail-btn:active { transform: scale(0.94); }
+.rail-btn.on {
+  background: linear-gradient(180deg, oklch(0.7 0.18 var(--accent-h)), oklch(0.55 0.22 var(--accent-h)));
+  border-color: oklch(0.6 0.22 var(--accent-h));
+  color: #fff;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.25), 0 6px 14px -6px oklch(0.6 0.22 var(--accent-h) / 0.55);
+}
+.rail-btn .tip {
+  position: absolute; left: calc(100% + 12px); top: 50%; transform: translateY(-50%);
+  padding: 5px 10px; border-radius: 8px;
+  background: rgba(20,20,28,0.95);
+  border: 1px solid rgba(255,255,255,0.12);
+  color: var(--ink); font-size: 11.5px; font-weight: 600; white-space: nowrap;
+  pointer-events: none; opacity: 0; transition: opacity 0.15s; z-index: 80;
+}
+.rail-btn:hover .tip { opacity: 1; }
+.rail-sep { width: 24px; height: 1px; background: rgba(255,255,255,0.08); margin: 4px 0; }
+
+/* ── Glass surfaces ───────────────────────────────────────────────────────────
+ * Apply .glass / .glass-strong to top-level panels you want frosted.
+ * Safe to add ALONGSIDE existing inline backgrounds — the var() backgrounds
+ * here win when their target is a sibling without inline background.
+ */
+.glass {
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--blur)) saturate(180%);
+  -webkit-backdrop-filter: blur(var(--blur)) saturate(180%);
+  border: 1px solid var(--glass-line);
+  box-shadow: var(--glass-inset), var(--glass-shadow);
+}
+.glass-strong {
+  background: var(--glass-bg-strong);
+  backdrop-filter: blur(calc(var(--blur) + 8px)) saturate(190%);
+  -webkit-backdrop-filter: blur(calc(var(--blur) + 8px)) saturate(190%);
+  border: 1px solid var(--glass-line-strong);
+  box-shadow: var(--glass-inset), var(--glass-shadow);
+}
+.glass-thin {
+  background: rgba(255,255,255,0.035);
+  backdrop-filter: blur(18px) saturate(160%);
+  -webkit-backdrop-filter: blur(18px) saturate(160%);
+  border: 1px solid rgba(255,255,255,0.07);
+}
+
+/* ── Misc atoms used by IconRail + TodayHero ───────────────────────────────── */
+.tdg-num     { font-variant-numeric: tabular-nums; font-feature-settings: 'tnum'; }
+.tdg-eyebrow { font-size: 10px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-faint); }
+
+.tdg-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 22px; padding: 0 10px; border-radius: 999px;
+  font-size: 10.5px; font-weight: 600; letter-spacing: 0.02em;
+  background: rgba(255,255,255,0.06); color: var(--ink-dim);
+  border: 1px solid rgba(255,255,255,0.08);
+}
+.tdg-chip.accent { background: var(--accent-soft); color: oklch(0.92 0.05 var(--accent-h)); border-color: var(--accent-line); }
+.tdg-chip.good   { background: oklch(0.74 0.16 160 / 0.15); color: oklch(0.92 0.1 160); border-color: oklch(0.74 0.16 160 / 0.32); }
+
+.tdg-ring-wrap   { position: relative; width: 88px; height: 88px; flex-shrink: 0; }
+.tdg-ring-wrap svg { transform: rotate(-90deg); }
+.tdg-ring-label  { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 16px; font-weight: 800; }
+.tdg-ring-label .small { font-size: 10px; font-weight: 600; color: var(--ink-muted); }
+
+@keyframes tdg-barIn { from { transform: scaleY(0.05); opacity: 0; } to { transform: scaleY(1); opacity: 1; } }
+.tdg-bar { transform-origin: bottom; animation: tdg-barIn 0.5s cubic-bezier(.2,.7,.2,1) both; }

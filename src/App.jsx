@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import IconRail from './IconRail.jsx';
+import TodayHero from './TodayHero.jsx';
 import { parseTask, parseProperty, parseProject, parseDailyNote, parseMeeting, parsePerson, readMdFiles, readDirNames, readImageFiles } from './utils/parser.js';
 import { idbGet, idbSet, idbDel, lsGet, lsSet, lsDel } from './utils/storage.js';
 import { fmt, tod, isToday, isOver, longDate, appendNoteToMd, appendPropertyCommentToMd, updateCommentLog, deleteCommentLog, appendDailySectionEntry, appendDailyTimeClockEvent, buildDailyNoteMd, buildTrackerRow, appendTrackerRow, buildMeetingMd, buildNewTaskMd, buildNewPropertyMd, buildNewProjectMd, buildNewPersonMd, finishRecurrentTaskInstance, markTaskDone, postponeTaskDates, postponeTaskDatesByMonths, replaceDailyTimeClockRows, setDailyWorkStatus, setPropertyCover, touchDateModified, updateTaskDates } from './utils/formatter.js';
@@ -1927,19 +1929,27 @@ export default function App() {
 
   // ── Main UI ──
   return (
-    <div style={{ display:'flex', height:'100vh', background:'#09090e', color:'#e2e8f0', overflow:'hidden' }}>
-      {toast && <Toast msg={toast} onClose={() => setToast(null)} />}
+    <>
+      <div className="wallpaper" aria-hidden="true"><div className="blob"/></div>
+      <div className="shell">
+        {toast && <Toast msg={toast} onClose={() => setToast(null)} />}
+
+        <IconRail
+          view={view}
+          setView={(v) => { setView(v); setNewTaskOpen(false); setNewPropertyOpen(false); setNewProjectOpen(false); setNewPersonOpen(false); }}
+          vaultName={dirs.tasks?.name}
+          healthOk={!healthBadges}
+          onHealth={() => setView('health')}
+          onSettings={() => setFolderSetupOpen(true)}
+        />
 
       {/* ─── Sidebar ─── */}
-      <div style={{ width:360, flexShrink:0, borderRight:'1px solid rgba(255,255,255,0.06)', display:'flex', flexDirection:'column' }}>
+      <div className="pane glass-strong" style={{ flexShrink:0, display:'flex', flexDirection:'column' }}>
         <div style={{ padding:'18px 14px 12px', borderBottom:'1px solid rgba(255,255,255,0.06)' }}>
           <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:4 }}>
             <div style={{ display:'flex', alignItems:'center', gap:7 }}>
               <span style={{ fontSize:15 }}>⚡</span>
               <span style={{ fontWeight:700, fontSize:13, maxWidth:155, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{dirs.tasks?.name}</span>
-              <button onClick={()=>setView('health')} title={healthBadges ? `${healthErrors} errors, ${healthWarnings} warnings` : 'Vault health looks okay'} style={{ width:25, height:25, borderRadius:8, border:`1px solid ${healthBadges ? 'rgba(248,113,113,0.35)' : 'rgba(16,185,129,0.25)'}`, cursor:'pointer', fontSize:12, fontWeight:900, fontFamily:'inherit', background:healthBadges?'rgba(248,113,113,0.1)':'rgba(16,185,129,0.08)', color:healthBadges?'#f87171':'#10b981' }}>
-                {healthBadges ? '✕' : '✓'}
-              </button>
             </div>
             <button onClick={forceSyncAll} disabled={syncBusy} title="Force rescan all configured folders" style={{ padding:'4px 10px', borderRadius:7, border:'none', cursor:syncBusy?'wait':'pointer', fontSize:11, fontWeight:600, fontFamily:'inherit',
               background:needsRefresh?'rgba(245,158,11,0.2)':'rgba(124,58,237,0.15)',
@@ -1955,13 +1965,6 @@ export default function App() {
             <div style={{ fontSize:9, color:'#7c3aed', fontWeight:800, letterSpacing:'0.1em', marginBottom:3 }}>{headerLabel}</div>
             <div style={{ fontWeight:800, fontSize:23, letterSpacing:'-0.03em', fontVariantNumeric:'tabular-nums' }}>{headerMetric}</div>
             <div style={{ fontSize:10, color:'#475569', marginTop:2 }}>{headerDetail}</div>
-          </div>
-          <div style={{ display:'flex', gap:4, marginTop:10, padding:3, borderRadius:10, background:'rgba(255,255,255,0.03)', border:'1px solid rgba(255,255,255,0.06)' }}>
-            {['mission','tasks','time','meetings','projects','properties','people'].map(v => (
-              <button key={v} onClick={()=>{ setView(v); setNewTaskOpen(false); setNewPropertyOpen(false); setNewProjectOpen(false); setNewPersonOpen(false); }} style={{ flex:1, padding:'6px 5px', borderRadius:8, border:'none', cursor:'pointer', fontWeight:700, fontSize:10, fontFamily:'inherit', textTransform:'capitalize', background:view===v?'rgba(124,58,237,0.2)':'transparent', color:view===v?'#c4b5fd':'#64748b' }}>
-                {v === 'mission' ? 'Today' : v === 'meetings' ? 'Meet' : v}
-              </button>
-            ))}
           </div>
         </div>
 
@@ -2210,6 +2213,7 @@ export default function App() {
       </div>
 
       {/* ─── Main panel ─── */}
+      <div className="pane glass-strong" style={{ display:'flex', flexDirection:'column', minHeight:0, overflow:'hidden' }}>
       {view === 'mission' ? (
         <MissionControlPanel
           today={missionToday}
@@ -2433,7 +2437,9 @@ export default function App() {
           </div>
         </div>
       )}
-    </div>
+      </div>
+      </div>
+    </>
   );
 }
 
@@ -2924,6 +2930,19 @@ function MissionControlPanel({ today, overdue, recurrent, selectedId, liveId, ge
         <div style={{ display:'flex', gap:8 }}>
           <button onClick={onConfigure} style={{ padding:'9px 13px', borderRadius:10, border:'1px solid rgba(255,255,255,0.08)', cursor:'pointer', fontWeight:800, fontSize:12, fontFamily:'inherit', background:'rgba(255,255,255,0.03)', color:'#94a3b8' }}>{hasDailyFolder ? 'Daily folder set' : 'Set Daily folder'}</button>
         </div>
+      </div>
+      <div style={{ padding:'16px 30px 0' }}>
+        <TodayHero
+          workedMinutes={workStats(workNotes[tod()]).totalMinutes}
+          goalMinutes={TARGET_WORK_MINUTES}
+          clockIn={(workNotes[tod()]?.timeClock || []).find(e => e.event === 'Clock in')?.time || ''}
+          week={currentWeekDates.map(d => ({
+            day: new Date(`${d}T12:00:00`).toLocaleDateString('en-US', { weekday: 'short' }),
+            date: d,
+            minutes: workStats(workNotes[d]).totalMinutes,
+          }))}
+          shippedThisWeek={completedToday.length}
+        />
       </div>
       <div style={{ flex:1, minHeight:0, display:'grid', gridTemplateColumns:'minmax(360px,0.42fr) minmax(520px,1fr)', overflow:'hidden' }}>
         <div style={{ minWidth:0, minHeight:0, overflowY:'auto', padding:'16px', borderRight:'1px solid rgba(255,255,255,0.06)' }}>
