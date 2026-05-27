@@ -780,14 +780,16 @@ export default function App() {
       const parsed = raw.flatMap(f => {
         try { return [parseProperty(f.name, f.text)]; }
         catch(e) {
-          skipped.push(f.name);
+          skipped.push({ name: f.name, message: e.message });
           console.warn(`Skipped unparseable property: ${f.name}`, e);
           return [];
         }
       })
         .sort((a,b) => a.title.localeCompare(b.title));
       setProperties(parsed);
-      setPropertyLoadError(skipped.length ? `${skipped.length} property note${skipped.length === 1 ? '' : 's'} could not be read: ${skipped.join(', ')}` : '');
+      setPropertyLoadError(skipped.length
+        ? `${skipped.length} property note${skipped.length === 1 ? '' : 's'} could not be read:\n${skipped.map(s => `• ${s.name} — ${s.message}`).join('\n')}`
+        : '');
       setFolderStats(prev => ({ ...prev, properties: raw.length }));
       const handles = {};
       raw.forEach(f => { handles[f.name] = f.handle; });
@@ -3298,7 +3300,7 @@ function PropertyPanel({ properties, selected, selectedId, images, loadError, on
 
       <div style={{ flex:1, minHeight:0, display:'grid', gridTemplateColumns:'minmax(260px, 0.38fr) minmax(0, 1fr)', gap:0, overflow:'hidden' }}>
         <div style={{ minWidth:0, overflowY:'auto', padding:'20px 22px', borderRight:'1px solid rgba(255,255,255,0.08)' }}>
-          {loadError && <div style={{ marginBottom:12, padding:'10px 11px', borderRadius:10, background:'rgba(245,158,11,0.12)', border:'1px solid rgba(245,158,11,0.28)', color:'#fde68a', fontSize:13, fontWeight:750, lineHeight:1.45 }}>{loadError}</div>}
+          {loadError && <div style={{ marginBottom:12, padding:'10px 11px', borderRadius:10, background:'rgba(245,158,11,0.12)', border:'1px solid rgba(245,158,11,0.28)', color:'#fde68a', fontSize:13, fontWeight:750, lineHeight:1.45, whiteSpace:'pre-wrap' }}>{loadError}</div>}
           {!properties.length && !loadError && <div style={{ color:'#f4fff9', textAlign:'center', paddingTop:50, fontSize:15, fontWeight:750 }}>No properties found in this folder.</div>}
           <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(165px,1fr))', gap:14 }}>
             {properties.map(p => {

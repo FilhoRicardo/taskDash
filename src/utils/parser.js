@@ -37,7 +37,11 @@ const titleFromName = name => basename(name)
   .filter(Boolean)
   .map(w => w.charAt(0).toUpperCase() + w.slice(1))
   .join(' ');
-const attachmentName = path => path ? path.replace(/\\/g, '/').split('/').pop() : null;
+const attachmentName = path => {
+  if (Array.isArray(path)) path = path[0];
+  if (typeof path !== 'string' || !path) return null;
+  return path.replace(/\\/g, '/').split('/').pop();
+};
 const normalizeLogDate = rawDate => {
   const iso = rawDate.match(/^(\d{4})-(\d{2})-(\d{2})$/);
   if (iso) return rawDate;
