@@ -18,7 +18,11 @@ export function parseFrontmatter(txt) {
   return res;
 }
 
-const wl = s => s ? s.replace(/^\[\[|\]\]$/g, '') : null;
+const wl = s => {
+  if (Array.isArray(s)) s = s[0];
+  if (typeof s !== 'string' || !s) return null;
+  return s.replace(/^\[\[|\]\]$/g, '');
+};
 const fileBase = name => name.replace(/\\/g, '/').split('/').pop();
 const basename = name => fileBase(name).replace(/\.md$/i, '');
 const ignoredName = (name, { includeUnderscore = false } = {}) => {
