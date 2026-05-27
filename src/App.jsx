@@ -370,10 +370,10 @@ async function uniqueFileNameInDir(dir, preferredName) {
 
 const inputBase = {
   width:'100%', padding:'9px 12px', borderRadius:8,
-  background:'rgba(3,63,57,0.14)', border:'1px solid rgba(154,221,202,0.18)',
+  background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.10)',
   color:'#f4fff9', fontSize:14, outline:'none', fontFamily:'inherit', colorScheme:'dark',
 };
-const labelBase = { fontSize:11, color:'#d2f5e8', fontWeight:800, letterSpacing:'0.08em', textTransform:'uppercase', display:'block', marginBottom:6 };
+const labelBase = { fontSize:11, color:'#f4fff9', fontWeight:800, letterSpacing:'0.08em', textTransform:'uppercase', display:'block', marginBottom:6 };
 
 function Field({ label, children }) {
   return (
@@ -2150,7 +2150,7 @@ export default function App() {
         ) : view === 'properties' ? (
           <>
             <div style={{ padding:'8px 10px 4px', display:'flex', gap:6, alignItems:'center' }}>
-              <button onClick={()=>setNewPropertyOpen(true)} disabled={!dirs.properties} style={{ flex:1, padding:'9px 11px', borderRadius:9, border:'none', cursor:dirs.properties?'pointer':'not-allowed', fontWeight:800, fontSize:13, fontFamily:'inherit', background:'linear-gradient(135deg,#064e45,#022c27)', color:'#f4fff9', boxShadow:'0 2px 12px rgba(6,78,69,0.35)', opacity:dirs.properties?1:0.35 }}>
+              <button onClick={()=>setNewPropertyOpen(true)} disabled={!dirs.properties} style={{ flex:1, padding:'9px 11px', borderRadius:9, border:'none', cursor:dirs.properties?'pointer':'not-allowed', fontWeight:800, fontSize:13, fontFamily:'inherit', background:'linear-gradient(135deg,#0d8a5b,#063e2e)', color:'#f4fff9', boxShadow:'0 2px 12px rgba(13,138,91,0.35)', opacity:dirs.properties?1:0.35 }}>
                 +  New Property
               </button>
             </div>
@@ -2158,20 +2158,20 @@ export default function App() {
               <input value={propertySearch} onChange={e=>setPropertySearch(e.target.value)} placeholder="Search properties…" style={{ ...inputBase, padding:'9px 11px', fontSize:14 }}/>
             </div>
             <div style={{ flex:1, overflowY:'auto', padding:'6px 8px' }}>
-              {!dirs.properties && <div style={{ color:'#9adcca', textAlign:'center', paddingTop:40, fontSize:13, fontWeight:700 }}>Pick your Properties folder in Configure folders</div>}
+              {!dirs.properties && <div style={{ color:'#f4fff9', textAlign:'center', paddingTop:40, fontSize:13, fontWeight:700 }}>Pick your Properties folder in Configure folders</div>}
               {filteredProperties.map(p => {
                 const active = propertySel === p.id;
                 return (
-                  <div key={p.id} onClick={()=>setPropertySel(p.id)} style={{ padding:'11px', marginBottom:5, borderRadius:10, cursor:'pointer', background:active?'rgba(6,78,69,0.22)':'rgba(2,44,39,0.14)', border:`1px solid ${active?'rgba(154,220,202,0.42)':'rgba(154,221,202,0.1)'}` }}>
+                  <div key={p.id} onClick={()=>setPropertySel(p.id)} style={{ padding:'11px', marginBottom:5, borderRadius:10, cursor:'pointer', background:active?'rgba(255,255,255,0.06)':'rgba(255,255,255,0.03)', border:`1px solid ${active?'rgba(13,138,91,0.4)':'rgba(255,255,255,0.06)'}` }}>
                     <div style={{ fontSize:14, fontWeight:800, lineHeight:1.35, color:'#f4fff9' }}>{p.title}</div>
-                    <div style={{ fontSize:12, color:'#d2f5e8', marginTop:4 }}>{p.client || p.filename}</div>
-                    {p.comments.length > 0 && <div style={{ fontSize:12, color:'#9adcca', marginTop:5, fontWeight:700 }}>{p.comments.length} comment{p.comments.length===1?'':'s'}</div>}
+                    <div style={{ fontSize:12, color:'#f4fff9', marginTop:4 }}>{p.client || p.filename}</div>
+                    {p.comments.length > 0 && <div style={{ fontSize:12, color:'#f4fff9', marginTop:5, fontWeight:700 }}>{p.comments.length} comment{p.comments.length===1?'':'s'}</div>}
                   </div>
                 );
               })}
             </div>
             <div style={{ padding:'8px 10px', borderTop:'1px solid rgba(255,255,255,0.04)' }}>
-              <button onClick={()=>setFolderSetupOpen(true)} style={{ width:'100%', padding:'8px 10px', borderRadius:8, border:'1px solid rgba(154,221,202,0.13)', background:'rgba(2,44,39,0.18)', color:'#d2f5e8', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>
+              <button onClick={()=>setFolderSetupOpen(true)} style={{ width:'100%', padding:'8px 10px', borderRadius:8, border:'1px solid rgba(255,255,255,0.07)', background:'rgba(255,255,255,0.04)', color:'#f4fff9', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>
                 Configure property folders
               </button>
             </div>
@@ -3281,38 +3281,38 @@ function PropertyPanel({ properties, selected, selectedId, images, loadError, on
 
   return (
     <div style={{ flex:1, display:'flex', flexDirection:'column', overflow:'hidden' }}>
-      <div style={{ padding:'22px 30px 18px', borderBottom:'1px solid rgba(154,221,202,0.16)', flexShrink:0, display:'flex', justifyContent:'space-between', alignItems:'center', gap:18 }}>
+      <div style={{ padding:'22px 30px 18px', borderBottom:'1px solid rgba(255,255,255,0.08)', flexShrink:0, display:'flex', justifyContent:'space-between', alignItems:'center', gap:18 }}>
         <div>
-          <div style={{ fontSize:12, color:'#9adcca', fontWeight:800, textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:7 }}>Properties</div>
+          <div style={{ fontSize:12, color:'#f4fff9', fontWeight:800, textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:7 }}>Properties</div>
           <h2 style={{ margin:0, fontSize:22, fontWeight:800, color:'#f4fff9' }}>Property management</h2>
         </div>
         <div style={{ display:'flex', gap:8, alignItems:'center' }}>
-          <button onClick={onNewProperty} style={{ padding:'9px 14px', borderRadius:9, border:'none', background:'linear-gradient(135deg,#064e45,#022c27)', color:'#f4fff9', cursor:'pointer', fontWeight:800, fontSize:13, fontFamily:'inherit' }}>
+          <button onClick={onNewProperty} style={{ padding:'9px 14px', borderRadius:9, border:'none', background:'linear-gradient(135deg,#0d8a5b,#063e2e)', color:'#f4fff9', cursor:'pointer', fontWeight:800, fontSize:13, fontFamily:'inherit' }}>
             + New Property
           </button>
-          <button onClick={onConfigure} style={{ padding:'9px 14px', borderRadius:9, border:'1px solid rgba(154,221,202,0.18)', background:'rgba(2,44,39,0.28)', color:'#d2f5e8', cursor:'pointer', fontWeight:800, fontSize:13, fontFamily:'inherit' }}>
+          <button onClick={onConfigure} style={{ padding:'9px 14px', borderRadius:9, border:'1px solid rgba(255,255,255,0.10)', background:'rgba(255,255,255,0.05)', color:'#f4fff9', cursor:'pointer', fontWeight:800, fontSize:13, fontFamily:'inherit' }}>
             {hasAttachmentsFolder ? 'Folders configured' : 'Add Attachments folder'}
           </button>
         </div>
       </div>
 
       <div style={{ flex:1, minHeight:0, display:'grid', gridTemplateColumns:'minmax(260px, 0.38fr) minmax(0, 1fr)', gap:0, overflow:'hidden' }}>
-        <div style={{ minWidth:0, overflowY:'auto', padding:'20px 22px', borderRight:'1px solid rgba(154,221,202,0.14)' }}>
+        <div style={{ minWidth:0, overflowY:'auto', padding:'20px 22px', borderRight:'1px solid rgba(255,255,255,0.08)' }}>
           {loadError && <div style={{ marginBottom:12, padding:'10px 11px', borderRadius:10, background:'rgba(245,158,11,0.12)', border:'1px solid rgba(245,158,11,0.28)', color:'#fde68a', fontSize:13, fontWeight:750, lineHeight:1.45 }}>{loadError}</div>}
-          {!properties.length && !loadError && <div style={{ color:'#a9d8c9', textAlign:'center', paddingTop:50, fontSize:15, fontWeight:750 }}>No properties found in this folder.</div>}
+          {!properties.length && !loadError && <div style={{ color:'#f4fff9', textAlign:'center', paddingTop:50, fontSize:15, fontWeight:750 }}>No properties found in this folder.</div>}
           <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(165px,1fr))', gap:14 }}>
             {properties.map(p => {
               const img = imageFor(p);
               const active = selectedId === p.id;
               return (
                 <button key={p.id} onClick={()=>onSelect(p.id)}
-                  style={{ textAlign:'left', borderRadius:10, overflow:'hidden', border:`1px solid ${active?'rgba(154,220,202,0.58)':'rgba(154,221,202,0.13)'}`, background:active?'rgba(6,78,69,0.24)':'rgba(2,44,39,0.18)', cursor:'pointer', padding:0, fontFamily:'inherit', color:'#ecfdf5' }}>
-                  <div style={{ aspectRatio:'1 / 0.9', background:'rgba(3,63,57,0.16)', display:'flex', alignItems:'center', justifyContent:'center', overflow:'hidden' }}>
-                    {img ? <img src={img} alt="" style={{ width:'100%', height:'100%', objectFit:'contain' }}/> : <span style={{ fontSize:32, color:'#9adcca' }}>🏢</span>}
+                  style={{ textAlign:'left', borderRadius:10, overflow:'hidden', border:`1px solid ${active?'rgba(13,138,91,0.55)':'rgba(255,255,255,0.07)'}`, background:active?'rgba(255,255,255,0.06)':'rgba(255,255,255,0.04)', cursor:'pointer', padding:0, fontFamily:'inherit', color:'#f4fff9' }}>
+                  <div style={{ aspectRatio:'1 / 0.9', background:'rgba(255,255,255,0.04)', display:'flex', alignItems:'center', justifyContent:'center', overflow:'hidden' }}>
+                    {img ? <img src={img} alt="" style={{ width:'100%', height:'100%', objectFit:'contain' }}/> : <span style={{ fontSize:32, color:'#f4fff9' }}>🏢</span>}
                   </div>
                   <div style={{ padding:'11px 12px 12px' }}>
                     <div style={{ fontSize:14, fontWeight:850, lineHeight:1.3, color:'#f4fff9' }}>{p.title}</div>
-                    <div style={{ fontSize:12, color:'#d2f5e8', marginTop:5, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{p.client || p.filename}</div>
+                    <div style={{ fontSize:12, color:'#f4fff9', marginTop:5, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{p.client || p.filename}</div>
                   </div>
                 </button>
               );
@@ -3322,39 +3322,39 @@ function PropertyPanel({ properties, selected, selectedId, images, loadError, on
 
         <div style={{ minWidth:0, overflowY:'auto', padding:'22px 30px' }}>
           {!selected ? (
-            <div style={{ color:'#9adcca', textAlign:'center', paddingTop:90, fontSize:15, fontWeight:700 }}>Select a property</div>
+            <div style={{ color:'#f4fff9', textAlign:'center', paddingTop:90, fontSize:15, fontWeight:700 }}>Select a property</div>
           ) : (
             <div>
-              <div style={{ height:210, borderRadius:10, overflow:'hidden', marginBottom:18, background:'rgba(3,63,57,0.16)', border:'1px solid rgba(154,221,202,0.15)', display:'flex', alignItems:'center', justifyContent:'center' }}>
+              <div style={{ height:210, borderRadius:10, overflow:'hidden', marginBottom:18, background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.08)', display:'flex', alignItems:'center', justifyContent:'center' }}>
                 {imageFor(selected)
                   ? <img src={imageFor(selected)} alt="" style={{ width:'100%', height:'100%', objectFit:'contain' }}/>
-                  : <span style={{ fontSize:13, color:'#9adcca', fontWeight:800 }}>No cover</span>}
+                  : <span style={{ fontSize:13, color:'#f4fff9', fontWeight:800 }}>No cover</span>}
               </div>
               <div style={{ display:'flex', justifyContent:'space-between', gap:16, alignItems:'flex-start', marginBottom:16 }}>
                 <div style={{ minWidth:0 }}>
-                  <div style={{ fontSize:12, color:'#9adcca', fontWeight:800, textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:7, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{selected.filename}</div>
+                  <div style={{ fontSize:12, color:'#f4fff9', fontWeight:800, textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:7, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{selected.filename}</div>
                   <h2 style={{ margin:0, fontSize:26, lineHeight:1.22, color:'#f4fff9' }}>{selected.title}</h2>
-                  {selected.client && <div style={{ fontSize:14, color:'#d2f5e8', marginTop:8 }}>Client: {selected.client}</div>}
+                  {selected.client && <div style={{ fontSize:14, color:'#f4fff9', marginTop:8 }}>Client: {selected.client}</div>}
                 </div>
                 <div style={{ display:'flex', flexDirection:'column', alignItems:'flex-end', gap:8, flexShrink:0 }}>
-                  <span style={{ fontSize:12, fontWeight:800, padding:'5px 9px', borderRadius:20, background:'rgba(6,78,69,0.28)', color:'#d2f5e8', border:'1px solid rgba(154,221,202,0.16)' }}>{selected.comments.length} notes</span>
-                  <button onClick={()=>hasAttachmentsFolder ? coverInputRef.current?.click() : onConfigure()} style={{ padding:'8px 11px', borderRadius:8, border:'1px solid rgba(154,221,202,0.18)', background:'rgba(2,44,39,0.3)', color:'#d2f5e8', cursor:'pointer', fontWeight:800, fontSize:12, fontFamily:'inherit' }}>
+                  <span style={{ fontSize:12, fontWeight:800, padding:'5px 9px', borderRadius:20, background:'rgba(255,255,255,0.07)', color:'#f4fff9', border:'1px solid rgba(255,255,255,0.08)' }}>{selected.comments.length} notes</span>
+                  <button onClick={()=>hasAttachmentsFolder ? coverInputRef.current?.click() : onConfigure()} style={{ padding:'8px 11px', borderRadius:8, border:'1px solid rgba(255,255,255,0.10)', background:'rgba(255,255,255,0.05)', color:'#f4fff9', cursor:'pointer', fontWeight:800, fontSize:12, fontFamily:'inherit' }}>
                     Upload cover
                   </button>
                   <input ref={coverInputRef} type="file" accept="image/*" style={{ display:'none' }} onChange={e=>{ const file = e.target.files?.[0]; if (file) onUploadCover(selected.id, file); e.target.value = ''; }}/>
                 </div>
               </div>
 
-              {selected.summary && <p style={{ margin:'0 0 20px', color:'#dffcf1', fontSize:15, lineHeight:1.6 }}>{selected.summary}</p>}
+              {selected.summary && <p style={{ margin:'0 0 20px', color:'#f4fff9', fontSize:15, lineHeight:1.6 }}>{selected.summary}</p>}
 
               <div style={{ display:'flex', gap:8, marginBottom:18 }}>
                 <textarea value={comment} onChange={e=>setComment(e.target.value)} placeholder="Add a property comment…" rows={6}
                   onKeyDown={e=>{ if(e.key==='Enter'&&!e.shiftKey){ e.preventDefault(); onAddComment(); }}}
-                  style={{ flex:1, minHeight:160, fieldSizing:'content', padding:'12px 14px', borderRadius:10, resize:'vertical', background:'rgba(3,63,57,0.14)', border:'1px solid rgba(154,221,202,0.18)', color:'#f4fff9', fontSize:15, lineHeight:1.55, outline:'none', fontFamily:'inherit' }}/>
-                <button onClick={onAddComment} disabled={!comment.trim()} style={{ alignSelf:'stretch', padding:'0 20px', borderRadius:10, border:'none', cursor:'pointer', fontWeight:800, fontSize:14, fontFamily:'inherit', background:'linear-gradient(135deg,#064e45,#022c27)', color:'#f4fff9', opacity:comment.trim()?1:0.35 }}>Add</button>
+                  style={{ flex:1, minHeight:160, fieldSizing:'content', padding:'12px 14px', borderRadius:10, resize:'vertical', background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.10)', color:'#f4fff9', fontSize:15, lineHeight:1.55, outline:'none', fontFamily:'inherit' }}/>
+                <button onClick={onAddComment} disabled={!comment.trim()} style={{ alignSelf:'stretch', padding:'0 20px', borderRadius:10, border:'none', cursor:'pointer', fontWeight:800, fontSize:14, fontFamily:'inherit', background:'linear-gradient(135deg,#0d8a5b,#063e2e)', color:'#f4fff9', opacity:comment.trim()?1:0.35 }}>Add</button>
               </div>
 
-              {!selected.comments.length && <div style={{ color:'#9adcca', textAlign:'center', padding:'40px 0', fontSize:15, fontWeight:700 }}>No property comments yet</div>}
+              {!selected.comments.length && <div style={{ color:'#f4fff9', textAlign:'center', padding:'40px 0', fontSize:15, fontWeight:700 }}>No property comments yet</div>}
               {selected.comments.map((l, i) => (
                 <CommentCard key={`${l.date}-${i}-${l.text}`} log={l} index={i} onSave={onEditComment} onDelete={onDeleteComment} />
               ))}
