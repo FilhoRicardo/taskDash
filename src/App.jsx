@@ -2,7 +2,6 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import IconRail from './IconRail.jsx';
-import TodayHero from './TodayHero.jsx';
 import { parseTask, parseProperty, parseProject, parseDailyNote, parseMeeting, parsePerson, readMdFiles, readDirNames, readImageFiles } from './utils/parser.js';
 import { idbGet, idbSet, idbDel, lsGet, lsSet, lsDel } from './utils/storage.js';
 import { fmt, tod, isToday, isOver, longDate, appendNoteToMd, appendPropertyCommentToMd, updateCommentLog, deleteCommentLog, appendDailySectionEntry, appendDailyTimeClockEvent, buildDailyNoteMd, buildTrackerRow, appendTrackerRow, buildMeetingMd, buildNewTaskMd, buildNewPropertyMd, buildNewProjectMd, buildNewPersonMd, finishRecurrentTaskInstance, markTaskDone, postponeTaskDates, postponeTaskDatesByMonths, replaceDailyTimeClockRows, setDailyWorkStatus, setPropertyCover, touchDateModified, updateTaskDates } from './utils/formatter.js';
@@ -34,7 +33,7 @@ const STATUS_COLORS = {
   done:          { bg:'rgba(16,185,129,0.12)',  color:'#10b981' },
   'in-progress': { bg:'rgba(99,102,241,0.12)',  color:'#818cf8' },
   todo:          { bg:'rgba(59,130,246,0.12)',  color:'#60a5fa' },
-  none:          { bg:'rgba(100,116,139,0.12)', color:'#64748b' },
+  none:          { bg:'rgba(100,116,139,0.12)', color:'#f4fff9' },
 };
 
 function hasHiddenTaskTag(task) {
@@ -156,7 +155,7 @@ function groupByInitial(items) {
 
 function MarkdownBody({ children, emptyText = 'No Markdown content yet.', compact = false }) {
   const text = String(children || '').trim();
-  if (!text) return <div style={{ color:'#64748b' }}>{emptyText}</div>;
+  if (!text) return <div style={{ color:'#f4fff9' }}>{emptyText}</div>;
   return (
     <ReactMarkdown
       remarkPlugins={[remarkGfm]}
@@ -190,7 +189,7 @@ function CommentCard({ log, index, onSave, onDelete }) {
         <div style={{ display:'flex', gap:6, flexShrink:0 }}>
           {editing ? (
             <>
-              <button onClick={()=>{ setDraft(body); setEditing(false); }} style={{ padding:'4px 8px', borderRadius:7, border:'1px solid rgba(255,255,255,0.08)', background:'rgba(255,255,255,0.03)', color:'#94a3b8', cursor:'pointer', fontSize:10, fontWeight:800, fontFamily:'inherit' }}>Cancel</button>
+              <button onClick={()=>{ setDraft(body); setEditing(false); }} style={{ padding:'4px 8px', borderRadius:7, border:'1px solid rgba(255,255,255,0.08)', background:'rgba(255,255,255,0.03)', color:'#f4fff9', cursor:'pointer', fontSize:10, fontWeight:800, fontFamily:'inherit' }}>Cancel</button>
               <button onClick={()=>onSave(index, draft)} disabled={!draft.trim()} style={{ padding:'4px 8px', borderRadius:7, border:'none', background:'rgba(16,185,129,0.14)', color:'#10b981', cursor:draft.trim()?'pointer':'not-allowed', opacity:draft.trim()?1:0.4, fontSize:10, fontWeight:800, fontFamily:'inherit' }}>Save</button>
             </>
           ) : (
@@ -403,7 +402,7 @@ function daysOpenSince(dateValue) {
 }
 
 function taskAgeTone(days) {
-  if (days === null) return { color:'#94a3b8', border:'rgba(148,163,184,0.18)', bg:'rgba(148,163,184,0.06)' };
+  if (days === null) return { color:'#f4fff9', border:'rgba(148,163,184,0.18)', bg:'rgba(148,163,184,0.06)' };
   if (days <= 15) return { color:'#10b981', border:'rgba(16,185,129,0.28)', bg:'rgba(16,185,129,0.08)' };
   if (days <= 31) return { color:'#f59e0b', border:'rgba(245,158,11,0.3)', bg:'rgba(245,158,11,0.08)' };
   return { color:'#f87171', border:'rgba(248,113,113,0.3)', bg:'rgba(248,113,113,0.08)' };
@@ -777,18 +776,18 @@ export default function App() {
   const loadProperties = useCallback(async (dir) => {
     try {
       const raw = await readMdFiles(dir, [], '', { includeUnderscore: true });
-      let skipped = 0;
+      const skipped = [];
       const parsed = raw.flatMap(f => {
         try { return [parseProperty(f.name, f.text)]; }
         catch(e) {
-          skipped += 1;
+          skipped.push(f.name);
           console.warn(`Skipped unparseable property: ${f.name}`, e);
           return [];
         }
       })
         .sort((a,b) => a.title.localeCompare(b.title));
       setProperties(parsed);
-      setPropertyLoadError(skipped ? `${skipped} property note${skipped === 1 ? '' : 's'} could not be read.` : '');
+      setPropertyLoadError(skipped.length ? `${skipped.length} property note${skipped.length === 1 ? '' : 's'} could not be read: ${skipped.join(', ')}` : '');
       setFolderStats(prev => ({ ...prev, properties: raw.length }));
       const handles = {};
       raw.forEach(f => { handles[f.name] = f.handle; });
@@ -1799,7 +1798,7 @@ export default function App() {
   const taskDaysOpen = task ? daysOpenSince(task.dateCreated) : null;
   const taskAge = taskAgeTone(taskDaysOpen);
   const totalToday = [...tasks.map(t=>t.id),'__email__','__meeting__','__adhoc__'].reduce((a,id)=>a+getTime(id),0);
-  const dueColor  = due => isOver(due)?'#ef4444':isToday(due)?'#f59e0b':'#475569';
+  const dueColor  = due => isOver(due)?'#ef4444':isToday(due)?'#f59e0b':'#f4fff9';
   const isClosedTask = t => t.archived || t.status === 'done';
   const isOpenTask = t => !isClosedTask(t);
   const isOverdueTask = t => isOpenTask(t) && isOver(t.due);
@@ -1906,7 +1905,7 @@ export default function App() {
       <div style={{ fontSize:52, filter:'drop-shadow(0 0 20px rgba(124,58,237,0.6))' }}>⚡</div>
       <div style={{ textAlign:'center' }}>
         <h1 style={{ margin:'0 0 8px', fontSize:32, fontWeight:800, background:'linear-gradient(135deg,#c4b5fd,#60a5fa)', WebkitBackgroundClip:'text', WebkitTextFillColor:'transparent' }}>TaskDash</h1>
-        <p style={{ margin:0, color:'#64748b', fontSize:14 }}>Connect your Obsidian vault folders — one time per device</p>
+        <p style={{ margin:0, color:'#f4fff9', fontSize:14 }}>Connect your Obsidian vault folders — one time per device</p>
       </div>
 
       {allSavedReady && (
@@ -1929,13 +1928,13 @@ export default function App() {
                   {status==='connected' && <span style={{ fontSize:10, color:'#10b981', fontWeight:600 }}>● {live.name}</span>}
                   {status==='saved' && <span style={{ fontSize:10, color:'#fbbf24', fontWeight:600 }}>● needs permission · {saved.name}</span>}
                 </div>
-                <div style={{ fontSize:11, color:'#64748b' }}>{def.desc}</div>
+                <div style={{ fontSize:11, color:'#f4fff9' }}>{def.desc}</div>
               </div>
               <div style={{ display:'flex', gap:6, flexShrink:0 }}>
                 {status==='saved' && (
                   <button onClick={()=>resumeFolder(def.key)} disabled={setupBusy} style={{ padding:'6px 12px', borderRadius:8, border:'none', cursor:'pointer', fontWeight:700, fontSize:11, fontFamily:'inherit', background:'rgba(245,158,11,0.15)', color:'#fbbf24' }}>Resume</button>
                 )}
-                <button onClick={()=>pickFolder(def.key)} disabled={setupBusy} style={{ padding:'6px 12px', borderRadius:8, border:'none', cursor:'pointer', fontWeight:700, fontSize:11, fontFamily:'inherit', background:status==='connected'?'rgba(255,255,255,0.05)':'linear-gradient(135deg,#7c3aed,#3b82f6)', color:status==='connected'?'#94a3b8':'#fff' }}>
+                <button onClick={()=>pickFolder(def.key)} disabled={setupBusy} style={{ padding:'6px 12px', borderRadius:8, border:'none', cursor:'pointer', fontWeight:700, fontSize:11, fontFamily:'inherit', background:status==='connected'?'rgba(255,255,255,0.05)':'linear-gradient(135deg,#7c3aed,#3b82f6)', color:status==='connected'?'#f4fff9':'#fff' }}>
                   {status==='connected' ? 'Change' : status==='saved' ? 'Re-pick' : 'Pick folder'}
                 </button>
                 {status==='connected' && (
@@ -1947,7 +1946,7 @@ export default function App() {
         })}
       </div>
 
-      <p style={{ color:'#334155', fontSize:11, marginTop:8 }}>Chrome only · files stay on your device · pick once, remembered forever</p>
+      <p style={{ color:'#f4fff9', fontSize:11, marginTop:8 }}>Chrome only · files stay on your device · pick once, remembered forever</p>
       {dirs.tasks && (
         <div style={{ display:'flex', gap:10, alignItems:'center' }}>
           <button onClick={finishFolderSetup} disabled={setupBusy} style={btnPrimary}>Done</button>
@@ -1959,7 +1958,7 @@ export default function App() {
     </div>
   );
 
-  if (!bootDone) return <div style={{ height:'100vh', display:'flex', alignItems:'center', justifyContent:'center', background:'#09090e', color:'#475569' }}>Loading…</div>;
+  if (!bootDone) return <div style={{ height:'100vh', display:'flex', alignItems:'center', justifyContent:'center', background:'#09090e', color:'#f4fff9' }}>Loading…</div>;
 
   // ── Main UI ──
   return (
@@ -1998,14 +1997,14 @@ export default function App() {
           <div style={{ padding:'11px 13px', borderRadius:10, background:'rgba(124,58,237,0.08)', border:'1px solid rgba(124,58,237,0.18)' }}>
             <div style={{ fontSize:9, color:'#7c3aed', fontWeight:800, letterSpacing:'0.1em', marginBottom:3 }}>{headerLabel}</div>
             <div style={{ fontWeight:800, fontSize:23, letterSpacing:'-0.03em', fontVariantNumeric:'tabular-nums' }}>{headerMetric}</div>
-            <div style={{ fontSize:10, color:'#475569', marginTop:2 }}>{headerDetail}</div>
+            <div style={{ fontSize:10, color:'#f4fff9', marginTop:2 }}>{headerDetail}</div>
           </div>
         </div>
 
         {view === 'tasks' ? (
           <>
             <div style={{ padding:'8px 10px', borderBottom:'1px solid rgba(255,255,255,0.06)' }}>
-              <div style={{ fontSize:9, color:'#475569', fontWeight:700, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:6 }}>Quick Track</div>
+              <div style={{ fontSize:9, color:'#f4fff9', fontWeight:700, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:6 }}>Quick Track</div>
               <QuickItem id="__email__"   label="📧 Email"   onStart={()=>start('__email__')} onStop={stop}/>
 
               {timer?.taskId==='__adhoc__' ? (
@@ -2019,16 +2018,16 @@ export default function App() {
                 </div>
               ) : showAdHoc ? (
                 <div style={{ padding:'8px 10px', borderRadius:9, background:'rgba(255,255,255,0.03)', border:'1px solid rgba(255,255,255,0.08)' }}>
-                  <div style={{ fontSize:11, color:'#64748b', marginBottom:6 }}>🎯 What are you working on?</div>
+                  <div style={{ fontSize:11, color:'#f4fff9', marginBottom:6 }}>🎯 What are you working on?</div>
                   <div style={{ display:'flex', gap:6 }}>
                     <input value={adHocInput} onChange={e=>setAdHocInput(e.target.value)} onKeyDown={e=>e.key==='Enter'&&startAdHoc()} autoFocus placeholder="e.g. Proposal draft…"
                       style={{ flex:1, padding:'6px 10px', borderRadius:7, background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.1)', color:'#e2e8f0', fontSize:12, outline:'none', fontFamily:'inherit' }}/>
                     <button onClick={startAdHoc} disabled={!adHocInput.trim()} style={{ padding:'6px 10px', borderRadius:7, border:'none', cursor:'pointer', fontWeight:700, fontSize:11, fontFamily:'inherit', background:'linear-gradient(135deg,#7c3aed,#3b82f6)', color:'#fff', opacity:adHocInput.trim()?1:0.4 }}>▶</button>
-                    <button onClick={()=>{setShowAdHoc(false);setAdHocInput('');}} style={{ padding:'6px 8px', borderRadius:7, border:'none', cursor:'pointer', background:'rgba(255,255,255,0.05)', color:'#64748b', fontSize:12 }}>✕</button>
+                    <button onClick={()=>{setShowAdHoc(false);setAdHocInput('');}} style={{ padding:'6px 8px', borderRadius:7, border:'none', cursor:'pointer', background:'rgba(255,255,255,0.05)', color:'#f4fff9', fontSize:12 }}>✕</button>
                   </div>
                 </div>
               ) : (
-                <button onClick={()=>setShowAdHoc(true)} style={{ width:'100%', padding:'7px 10px', borderRadius:9, border:'1px dashed rgba(255,255,255,0.1)', background:'transparent', color:'#475569', fontSize:12, fontWeight:600, cursor:'pointer', textAlign:'left', fontFamily:'inherit' }}>
+                <button onClick={()=>setShowAdHoc(true)} style={{ width:'100%', padding:'7px 10px', borderRadius:9, border:'1px dashed rgba(255,255,255,0.1)', background:'transparent', color:'#f4fff9', fontSize:12, fontWeight:600, cursor:'pointer', textAlign:'left', fontFamily:'inherit' }}>
                   🎯 + Ad-hoc task…
                 </button>
               )}
@@ -2050,7 +2049,7 @@ export default function App() {
 
             <div style={{ display:'flex', gap:3, padding:'4px 10px 8px', borderBottom:'1px solid rgba(255,255,255,0.06)' }}>
               {['all','today','overdue','done'].map(f => (
-                <button key={f} onClick={()=>setFilt(f)} style={{ flex:1, padding:'5px 0', borderRadius:7, border:'none', cursor:'pointer', fontSize:10, fontWeight:600, textTransform:'capitalize', fontFamily:'inherit', background:filt===f?'rgba(124,58,237,0.15)':'transparent', color:filt===f?'#a78bfa':'#475569' }}>{f}</button>
+                <button key={f} onClick={()=>setFilt(f)} style={{ flex:1, padding:'5px 0', borderRadius:7, border:'none', cursor:'pointer', fontSize:10, fontWeight:600, textTransform:'capitalize', fontFamily:'inherit', background:filt===f?'rgba(124,58,237,0.15)':'transparent', color:filt===f?'#a78bfa':'#f4fff9' }}>{f}</button>
               ))}
             </div>
             <div style={{ padding:'7px 10px 8px', borderBottom:'1px solid rgba(255,255,255,0.06)' }}>
@@ -2060,14 +2059,14 @@ export default function App() {
               </div>
               {savedFilters.map(sf => (
                 <div key={sf.name} style={{ display:'flex', gap:5, alignItems:'center', marginTop:4 }}>
-                  <button onClick={()=>applySavedFilter(sf)} style={{ flex:1, minWidth:0, textAlign:'left', padding:'5px 7px', borderRadius:7, border:'1px solid rgba(255,255,255,0.05)', background:'rgba(255,255,255,0.02)', color:'#94a3b8', cursor:'pointer', fontSize:10, fontFamily:'inherit', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{sf.name}</button>
+                  <button onClick={()=>applySavedFilter(sf)} style={{ flex:1, minWidth:0, textAlign:'left', padding:'5px 7px', borderRadius:7, border:'1px solid rgba(255,255,255,0.05)', background:'rgba(255,255,255,0.02)', color:'#f4fff9', cursor:'pointer', fontSize:10, fontFamily:'inherit', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{sf.name}</button>
                   <button onClick={()=>deleteSavedFilter(sf.name)} style={{ width:22, height:22, borderRadius:7, border:'none', background:'rgba(239,68,68,0.08)', color:'#f87171', cursor:'pointer', fontSize:11 }}>x</button>
                 </div>
               ))}
             </div>
 
             <div style={{ flex:1, overflowY:'auto', padding:'6px 8px' }}>
-              {!filtered.length && <div style={{ color:'#475569', textAlign:'center', paddingTop:40, fontSize:12 }}>No tasks</div>}
+              {!filtered.length && <div style={{ color:'#f4fff9', textAlign:'center', paddingTop:40, fontSize:12 }}>No tasks</div>}
               {filtered.map(t => {
                 const running=timer?.taskId===t.id, active=sel===t.id, time=getTime(t.id);
                 const duplicateTitle = taskTitleCounts[(t.title || '').trim().toLowerCase()] > 1;
@@ -2102,19 +2101,19 @@ export default function App() {
               </button>
             </div>
             <div style={{ padding:'12px 14px', borderBottom:'1px solid rgba(255,255,255,0.06)' }}>
-              <div style={{ fontSize:9, color:'#475569', fontWeight:800, textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:7 }}>Meeting folder</div>
-              <div style={{ fontSize:12, color:dirs.meetings ? '#94a3b8' : '#fbbf24', lineHeight:1.45 }}>{dirs.meetings ? dirs.meetings.name : 'Pick a Meetings folder before saving notes.'}</div>
+              <div style={{ fontSize:9, color:'#f4fff9', fontWeight:800, textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:7 }}>Meeting folder</div>
+              <div style={{ fontSize:12, color:dirs.meetings ? '#f4fff9' : '#fbbf24', lineHeight:1.45 }}>{dirs.meetings ? dirs.meetings.name : 'Pick a Meetings folder before saving notes.'}</div>
             </div>
             <div style={{ flex:1, overflowY:'auto', padding:'8px' }}>
-              <div style={{ padding:'4px 6px 8px', color:'#475569', fontSize:10, fontWeight:800, textTransform:'uppercase', letterSpacing:'0.1em' }}>Saved meetings</div>
-              {!dirs.meetings && <div style={{ padding:'10px 8px', color:'#475569', fontSize:12, lineHeight:1.5 }}>Configure the Meetings folder to read saved meeting notes.</div>}
-              {dirs.meetings && !meetings.length && <div style={{ padding:'10px 8px', color:'#475569', fontSize:12, lineHeight:1.5 }}>Saved meeting notes will appear here after the folder is synced.</div>}
+              <div style={{ padding:'4px 6px 8px', color:'#f4fff9', fontSize:10, fontWeight:800, textTransform:'uppercase', letterSpacing:'0.1em' }}>Saved meetings</div>
+              {!dirs.meetings && <div style={{ padding:'10px 8px', color:'#f4fff9', fontSize:12, lineHeight:1.5 }}>Configure the Meetings folder to read saved meeting notes.</div>}
+              {dirs.meetings && !meetings.length && <div style={{ padding:'10px 8px', color:'#f4fff9', fontSize:12, lineHeight:1.5 }}>Saved meeting notes will appear here after the folder is synced.</div>}
               {meetings.map(m => {
                 const active = meetingSel === m.id && !meetingOpen;
                 return (
                   <div key={m.id} onClick={()=>setMeetingSel(m.id)} style={{ padding:'10px', marginBottom:4, borderRadius:10, cursor:'pointer', background:active?'rgba(124,58,237,0.1)':'rgba(255,255,255,0.02)', border:`1px solid ${active?'rgba(124,58,237,0.28)':'rgba(255,255,255,0.04)'}` }}>
                     <div style={{ fontSize:12, fontWeight:700, lineHeight:1.35, color:'#e2e8f0' }}>{m.title}</div>
-                    <div style={{ fontSize:10, color:'#475569', marginTop:3 }}>{m.date || m.filename}</div>
+                    <div style={{ fontSize:10, color:'#f4fff9', marginTop:3 }}>{m.date || m.filename}</div>
                   </div>
                 );
               })}
@@ -2131,19 +2130,19 @@ export default function App() {
               <input value={projectSearch} onChange={e=>setProjectSearch(e.target.value)} placeholder="Search projects..." style={{ ...inputBase, padding:'8px 10px', fontSize:12 }}/>
             </div>
             <div style={{ flex:1, overflowY:'auto', padding:'6px 8px' }}>
-              {!dirs.projects && <div style={{ color:'#475569', textAlign:'center', paddingTop:40, fontSize:12 }}>Pick your Projects folder in Configure folders</div>}
+              {!dirs.projects && <div style={{ color:'#f4fff9', textAlign:'center', paddingTop:40, fontSize:12 }}>Pick your Projects folder in Configure folders</div>}
               {filteredProjects.map(p => {
                 const active = projectSel === p.id;
                 return (
                   <div key={p.id} onClick={()=>setProjectSel(p.id)} style={{ padding:'10px', marginBottom:4, borderRadius:10, cursor:'pointer', background:active?'rgba(124,58,237,0.1)':'rgba(255,255,255,0.02)', border:`1px solid ${active?'rgba(124,58,237,0.28)':'rgba(255,255,255,0.04)'}` }}>
                     <div style={{ fontSize:12, fontWeight:700, lineHeight:1.35, color:'#e2e8f0' }}>{p.title}</div>
-                    <div style={{ fontSize:10, color:'#475569', marginTop:3 }}>{p.status || p.filename}</div>
+                    <div style={{ fontSize:10, color:'#f4fff9', marginTop:3 }}>{p.status || p.filename}</div>
                   </div>
                 );
               })}
             </div>
             <div style={{ padding:'8px 10px', borderTop:'1px solid rgba(255,255,255,0.04)' }}>
-              <button onClick={()=>setFolderSetupOpen(true)} style={{ width:'100%', padding:'7px 10px', borderRadius:8, border:'1px solid rgba(255,255,255,0.06)', background:'rgba(255,255,255,0.02)', color:'#64748b', fontSize:11, cursor:'pointer', fontFamily:'inherit' }}>
+              <button onClick={()=>setFolderSetupOpen(true)} style={{ width:'100%', padding:'7px 10px', borderRadius:8, border:'1px solid rgba(255,255,255,0.06)', background:'rgba(255,255,255,0.02)', color:'#f4fff9', fontSize:11, cursor:'pointer', fontFamily:'inherit' }}>
                 Configure project folders
               </button>
             </div>
@@ -2188,34 +2187,34 @@ export default function App() {
               <input value={peopleSearch} onChange={e=>setPeopleSearch(e.target.value)} placeholder="Search people..." style={{ ...inputBase, padding:'8px 10px', fontSize:12 }}/>
             </div>
             <div style={{ flex:1, overflowY:'auto', padding:'6px 8px' }}>
-              {!dirs.people && <div style={{ color:'#475569', textAlign:'center', paddingTop:40, fontSize:12 }}>Pick your People folder in Configure folders</div>}
+              {!dirs.people && <div style={{ color:'#f4fff9', textAlign:'center', paddingTop:40, fontSize:12 }}>Pick your People folder in Configure folders</div>}
               {filteredPeople.map(p => (
                 <div key={p.id} onClick={()=>setPersonSel(p.id)} style={{ padding:'10px', marginBottom:4, borderRadius:10, cursor:'pointer', background:personSel===p.id?'rgba(124,58,237,0.1)':'rgba(255,255,255,0.02)', border:`1px solid ${personSel===p.id?'rgba(124,58,237,0.28)':'rgba(255,255,255,0.04)'}` }}>
                   <div style={{ fontSize:12, fontWeight:700, lineHeight:1.35, color:'#e2e8f0' }}>{p.title}</div>
-                  <div style={{ fontSize:10, color:'#475569', marginTop:3 }}>{p.company || p.role || p.filename}</div>
+                  <div style={{ fontSize:10, color:'#f4fff9', marginTop:3 }}>{p.company || p.role || p.filename}</div>
                 </div>
               ))}
             </div>
             <div style={{ padding:'8px 10px', borderTop:'1px solid rgba(255,255,255,0.04)' }}>
-              <button onClick={()=>setFolderSetupOpen(true)} style={{ width:'100%', padding:'7px 10px', borderRadius:8, border:'1px solid rgba(255,255,255,0.06)', background:'rgba(255,255,255,0.02)', color:'#64748b', fontSize:11, cursor:'pointer', fontFamily:'inherit' }}>
+              <button onClick={()=>setFolderSetupOpen(true)} style={{ width:'100%', padding:'7px 10px', borderRadius:8, border:'1px solid rgba(255,255,255,0.06)', background:'rgba(255,255,255,0.02)', color:'#f4fff9', fontSize:11, cursor:'pointer', fontFamily:'inherit' }}>
                 Configure people folder
               </button>
             </div>
           </>
         ) : view === 'time' ? (
           <div style={{ flex:1, overflowY:'auto', padding:'14px 12px' }}>
-            <div style={{ fontSize:9, color:'#475569', fontWeight:800, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:9 }}>Daily time data</div>
+            <div style={{ fontSize:9, color:'#f4fff9', fontWeight:800, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:9 }}>Daily time data</div>
             <div style={{ padding:'12px', borderRadius:8, background:'rgba(255,255,255,0.025)', border:'1px solid rgba(255,255,255,0.06)', marginBottom:9 }}>
               <div style={{ fontSize:24, fontWeight:850, color:'#10b981', fontVariantNumeric:'tabular-nums' }}>{formatHoursMinutes(allTimeStats.summary.totalMinutes)}</div>
-              <div style={{ fontSize:11, color:'#64748b', marginTop:4 }}>{allTimeStats.summary.totalDays} counted days · {allTimeStats.summary.goalMet} hit goal</div>
+              <div style={{ fontSize:11, color:'#f4fff9', marginTop:4 }}>{allTimeStats.summary.totalDays} counted days · {allTimeStats.summary.goalMet} hit goal</div>
             </div>
-            <div style={{ padding:'12px', borderRadius:8, background:'rgba(255,255,255,0.025)', border:'1px solid rgba(255,255,255,0.06)', color:'#94a3b8', fontSize:12, lineHeight:1.55 }}>
+            <div style={{ padding:'12px', borderRadius:8, background:'rgba(255,255,255,0.025)', border:'1px solid rgba(255,255,255,0.06)', color:'#f4fff9', fontSize:12, lineHeight:1.55 }}>
               {dirs.daily ? `${allTimeStats.summary.dailyNotes} dated notes are ready for the Time tab.` : 'Connect Daily Notes to read Time Clock tables.'}
             </div>
           </div>
         ) : (
           <div style={{ flex:1, overflowY:'auto', padding:'10px' }}>
-            <div style={{ fontSize:9, color:'#475569', fontWeight:700, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:8 }}>Mission queues</div>
+            <div style={{ fontSize:9, color:'#f4fff9', fontWeight:700, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:8 }}>Mission queues</div>
             {[
               ['Overdue', missionOverdue, '#f87171'],
               ['Today', missionToday, '#fbbf24'],
@@ -2224,12 +2223,12 @@ export default function App() {
               <div key={label} style={{ marginBottom:12 }}>
                 <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:5 }}>
                   <span style={{ fontSize:11, color, fontWeight:800 }}>{label}</span>
-                  <span style={{ fontSize:10, color:'#475569', fontWeight:700 }}>{list.length}</span>
+                  <span style={{ fontSize:10, color:'#f4fff9', fontWeight:700 }}>{list.length}</span>
                 </div>
                 {list.slice(0, 4).map(t => (
                   <div key={t.id} onClick={()=>{ setView('tasks'); setSel(t.id); }} style={{ padding:'8px 9px', marginBottom:4, borderRadius:9, cursor:'pointer', background:'rgba(255,255,255,0.02)', border:'1px solid rgba(255,255,255,0.04)' }}>
                     <div style={{ fontSize:12, fontWeight:650, lineHeight:1.3 }}>{t.title}</div>
-                    <div style={{ fontSize:10, color:'#475569', marginTop:3 }}>{t.dateCreated ? `created ${t.dateCreated.slice(0,10)}` : 'created date unknown'}</div>
+                    <div style={{ fontSize:10, color:'#f4fff9', marginTop:3 }}>{t.dateCreated ? `created ${t.dateCreated.slice(0,10)}` : 'created date unknown'}</div>
                   </div>
                 ))}
               </div>
@@ -2239,7 +2238,7 @@ export default function App() {
 
         {(view === 'tasks' || view === 'mission' || view === 'time' || view === 'meetings' || view === 'people' || view === 'health') && (
           <div style={{ padding:'6px 10px 9px', borderTop:'1px solid rgba(255,255,255,0.04)' }}>
-            <button onClick={()=>setFolderSetupOpen(true)} style={{ width:'100%', padding:'5px 10px', background:'transparent', border:'none', color:'#334155', fontSize:10, cursor:'pointer', fontFamily:'inherit', textAlign:'center' }}>
+            <button onClick={()=>setFolderSetupOpen(true)} style={{ width:'100%', padding:'5px 10px', background:'transparent', border:'none', color:'#f4fff9', fontSize:10, cursor:'pointer', fontFamily:'inherit', textAlign:'center' }}>
               ⚙  Configure folders
             </button>
           </div>
@@ -2373,7 +2372,7 @@ export default function App() {
         />
 
       ) : !task ? (
-        <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', color:'#334155', fontSize:13 }}>← Select a task</div>
+        <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', color:'#f4fff9', fontSize:13 }}>← Select a task</div>
 
       ) : (
         <div style={{ flex:1, display:'flex', flexDirection:'column', overflow:'hidden' }}>
@@ -2384,8 +2383,8 @@ export default function App() {
                   <PBadge p={task.priority}/><SBadge s={task.status}/>
                   {task.due && <span style={{ fontSize:12, color:dueColor(task.due) }}>📅 {isToday(task.due)?'Due Today':isOver(task.due)?`Overdue · ${task.due}`:task.due}</span>}
                   {task.scheduled && <span style={{ fontSize:12, color:'#818cf8' }}>Scheduled {task.scheduled}</span>}
-                  {task.client && <span style={{ fontSize:12, color:'#475569' }}>· 👤 {task.client}</span>}
-                  {task.building && <span style={{ fontSize:12, color:'#475569' }}>· 🏢 {task.building}</span>}
+                  {task.client && <span style={{ fontSize:12, color:'#f4fff9' }}>· 👤 {task.client}</span>}
+                  {task.building && <span style={{ fontSize:12, color:'#f4fff9' }}>· 🏢 {task.building}</span>}
                 </div>
                 <h2 style={{ margin:0, fontSize:19, fontWeight:700, lineHeight:1.35, color:'#f1f5f9' }}>{task.title}</h2>
                 <div style={{ marginTop:11, display:'inline-flex', alignItems:'center', gap:8, padding:'7px 11px', borderRadius:9, border:`1px solid ${taskAge.border}`, background:taskAge.bg, color:taskAge.color, fontSize:12, fontWeight:850 }}>
@@ -2393,11 +2392,11 @@ export default function App() {
                 </div>
                 <div style={{ display:'flex', gap:9, alignItems:'end', flexWrap:'wrap', marginTop:13 }}>
                   <label style={{ display:'flex', flexDirection:'column', gap:4, minWidth:145 }}>
-                    <span style={{ fontSize:9, color:'#64748b', fontWeight:800, letterSpacing:'0.08em', textTransform:'uppercase' }}>Due</span>
+                    <span style={{ fontSize:9, color:'#f4fff9', fontWeight:800, letterSpacing:'0.08em', textTransform:'uppercase' }}>Due</span>
                     <input type="date" value={task.due || ''} onChange={e=>changeTaskDates(task.id, { due:e.target.value })} style={{ ...inputBase, padding:'7px 9px', fontSize:12 }}/>
                   </label>
                   <label style={{ display:'flex', flexDirection:'column', gap:4, minWidth:145 }}>
-                    <span style={{ fontSize:9, color:'#64748b', fontWeight:800, letterSpacing:'0.08em', textTransform:'uppercase' }}>Scheduled</span>
+                    <span style={{ fontSize:9, color:'#f4fff9', fontWeight:800, letterSpacing:'0.08em', textTransform:'uppercase' }}>Scheduled</span>
                     <input type="date" value={task.scheduled || ''} onChange={e=>changeTaskDates(task.id, { scheduled:e.target.value })} style={{ ...inputBase, padding:'7px 9px', fontSize:12 }}/>
                   </label>
                   <button onClick={()=>setTaskDatesToToday(task.id)} title="Set active task date fields to today" style={{ padding:'8px 12px', borderRadius:9, border:'1px solid rgba(16,185,129,0.32)', cursor:'pointer', fontWeight:800, fontSize:12, fontFamily:'inherit', background:'rgba(16,185,129,0.14)', color:'#10b981' }}>
@@ -2452,7 +2451,7 @@ export default function App() {
                 <button onClick={addNote} disabled={!note.trim()} style={{ padding:'10px 20px', borderRadius:10, border:'none', cursor:'pointer', fontWeight:600, fontSize:13, fontFamily:'inherit', background:'linear-gradient(135deg,#7c3aed,#3b82f6)', color:'#fff', opacity:note.trim()?1:0.35 }}>Add</button>
               </div>
               {!task.logs.length && (
-                <div style={{ color:'#334155', textAlign:'center', padding:'60px 0', fontSize:13 }}>
+                <div style={{ color:'#f4fff9', textAlign:'center', padding:'60px 0', fontSize:13 }}>
                   <div style={{ fontSize:28, marginBottom:10 }}>📝</div>Notes you add here write directly to your .md file
                 </div>
               )}
@@ -2463,7 +2462,7 @@ export default function App() {
             <aside style={{ minWidth:0, overflowY:'auto', padding:'18px 30px 18px 24px' }}>
               <div style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline', gap:12, marginBottom:12 }}>
                 <h3 style={{ margin:0, fontSize:14, color:'#f1f5f9' }}>Task Description</h3>
-                <span style={{ fontSize:10, color:'#475569', fontWeight:800 }}>{task.filename}</span>
+                <span style={{ fontSize:10, color:'#f4fff9', fontWeight:800 }}>{task.filename}</span>
               </div>
               <div style={{ borderRadius:10, border:'1px solid rgba(255,255,255,0.06)', background:'rgba(255,255,255,0.025)', padding:'14px 16px', minHeight:220 }}>
                 <MarkdownBody emptyText="No task description body yet.">{taskDescriptionText(task.raw)}</MarkdownBody>
@@ -2481,7 +2480,7 @@ export default function App() {
 function PeoplePanel({ people, selected, selectedId, draft, setDraft, onSelect, onSave, hasPeopleFolder, onNewPerson, onConfigure }) {
   if (!hasPeopleFolder) {
     return (
-      <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', color:'#475569', fontSize:13 }}>
+      <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', color:'#f4fff9', fontSize:13 }}>
         <button onClick={onConfigure} style={{ padding:'10px 18px', borderRadius:10, border:'none', cursor:'pointer', fontWeight:700, fontSize:13, fontFamily:'inherit', background:'linear-gradient(135deg,#7c3aed,#3b82f6)', color:'#fff' }}>Configure People folder</button>
       </div>
     );
@@ -2494,14 +2493,14 @@ function PeoplePanel({ people, selected, selectedId, draft, setDraft, onSelect, 
     <div style={{ flex:1, display:'grid', gridTemplateColumns:'minmax(230px, 0.28fr) minmax(560px, 1fr)', minHeight:0, overflow:'hidden' }}>
       <div style={{ borderRight:'1px solid rgba(255,255,255,0.06)', overflowY:'auto', padding:'14px 12px' }}>
         <button onClick={onNewPerson} style={{ width:'100%', padding:'8px 10px', borderRadius:8, border:'none', cursor:'pointer', fontWeight:800, fontSize:12, fontFamily:'inherit', background:'linear-gradient(135deg,#7c3aed,#3b82f6)', color:'#fff', marginBottom:10 }}>+ New Person</button>
-        {!people.length && <div style={{ color:'#475569', textAlign:'center', paddingTop:35, fontSize:12 }}>No people found</div>}
+        {!people.length && <div style={{ color:'#f4fff9', textAlign:'center', paddingTop:35, fontSize:12 }}>No people found</div>}
         {letters.map(letter => (
           <div key={letter} style={{ marginBottom:8 }}>
             <div style={{ position:'sticky', top:-14, zIndex:1, padding:'6px 2px 5px', background:'#09090e', borderBottom:'1px solid rgba(255,255,255,0.06)', fontSize:10, color:'#a78bfa', fontWeight:900, letterSpacing:'0.12em' }}>{letter}</div>
             {groups[letter].map(p => (
               <button key={p.id} onClick={()=>onSelect(p.id)} style={{ width:'100%', textAlign:'left', padding:'8px 10px', marginTop:4, borderRadius:8, border:`1px solid ${selectedId===p.id?'rgba(124,58,237,0.45)':'transparent'}`, background:selectedId===p.id?'rgba(124,58,237,0.12)':'transparent', color:'#e2e8f0', cursor:'pointer', fontFamily:'inherit' }}>
                 <div style={{ fontSize:13, fontWeight:800, lineHeight:1.3 }}>{p.title}</div>
-                {(p.company || p.role) && <div style={{ fontSize:10, color:'#64748b', marginTop:3, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{p.company || p.role}</div>}
+                {(p.company || p.role) && <div style={{ fontSize:10, color:'#f4fff9', marginTop:3, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{p.company || p.role}</div>}
               </button>
             ))}
           </div>
@@ -2514,7 +2513,7 @@ function PeoplePanel({ people, selected, selectedId, draft, setDraft, onSelect, 
             <div style={{ fontSize:10, color:'#a78bfa', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:7 }}>People</div>
             <h2 style={{ margin:0, fontSize:20, color:'#f1f5f9' }}>{selected ? selected.title : 'Select a person'}</h2>
             {selected && (
-              <div style={{ display:'flex', gap:10, flexWrap:'wrap', marginTop:7, color:'#64748b', fontSize:11 }}>
+              <div style={{ display:'flex', gap:10, flexWrap:'wrap', marginTop:7, color:'#f4fff9', fontSize:11 }}>
                 {selected.company && <span>{selected.company}</span>}
                 {selected.role && <span>{selected.role}</span>}
                 {selected.email && <span>{selected.email}</span>}
@@ -2528,7 +2527,7 @@ function PeoplePanel({ people, selected, selectedId, draft, setDraft, onSelect, 
             <div style={{ minWidth:0, minHeight:0, display:'flex', flexDirection:'column', overflow:'hidden' }}>
               <div style={{ padding:'16px 28px 10px', flexShrink:0, display:'flex', justifyContent:'space-between', gap:12, alignItems:'baseline' }}>
                 <h3 style={{ margin:0, fontSize:14, color:'#f1f5f9' }}>Notes</h3>
-                <span style={{ fontSize:10, color:'#475569', fontWeight:800 }}>{selected.filename}</span>
+                <span style={{ fontSize:10, color:'#f4fff9', fontWeight:800 }}>{selected.filename}</span>
               </div>
               <textarea value={draft} onChange={e=>setDraft(e.target.value)} spellCheck={false} style={{ flex:1, width:'100%', resize:'none', padding:'8px 28px 22px', background:'rgba(255,255,255,0.02)', border:'none', color:'#e2e8f0', outline:'none', fontFamily:'ui-monospace, SFMono-Regular, Consolas, monospace', fontSize:13, lineHeight:1.65 }}/>
             </div>
@@ -2538,7 +2537,7 @@ function PeoplePanel({ people, selected, selectedId, draft, setDraft, onSelect, 
             </div>
           </div>
         ) : (
-          <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', color:'#334155', fontSize:13 }}>Select or create a person</div>
+          <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', color:'#f4fff9', fontSize:13 }}>Select or create a person</div>
         )}
       </div>
     </div>
@@ -2551,7 +2550,7 @@ function TasksFolderRecoveryPanel({ issue, onConfigure }) {
       <div style={{ width:'min(560px,100%)', borderRadius:10, border:'1px solid rgba(248,113,113,0.22)', background:'rgba(248,113,113,0.06)', padding:24 }}>
         <div style={{ fontSize:10, color:'#f87171', fontWeight:800, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:10 }}>Tasks folder needs attention</div>
         <h2 style={{ margin:'0 0 10px', fontSize:22, color:'#f1f5f9' }}>Reconnect your Tasks folder</h2>
-        <p style={{ margin:'0 0 16px', color:'#94a3b8', fontSize:13, lineHeight:1.6 }}>
+        <p style={{ margin:'0 0 16px', color:'#f4fff9', fontSize:13, lineHeight:1.6 }}>
           {issue?.name ? `"${issue.name}" is not available at its saved location.` : 'The Tasks folder is not connected on this device.'} Pick the folder again and TaskDash will rescan it.
         </p>
         <button onClick={onConfigure} style={{ padding:'10px 18px', borderRadius:10, border:'none', cursor:'pointer', fontWeight:800, fontSize:13, fontFamily:'inherit', background:'linear-gradient(135deg,#7c3aed,#3b82f6)', color:'#fff' }}>Configure folders</button>
@@ -2567,7 +2566,7 @@ function MeetingPanel({ meetingOpen, meetingTitle, meetingNotes, meetingLinks, s
 
   if (!hasMeetingsFolder) {
     return (
-      <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', color:'#475569', fontSize:13 }}>
+      <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', color:'#f4fff9', fontSize:13 }}>
         <button onClick={onConfigure} style={{ padding:'10px 18px', borderRadius:10, border:'none', cursor:'pointer', fontWeight:700, fontSize:13, fontFamily:'inherit', background:'linear-gradient(135deg,#7c3aed,#3b82f6)', color:'#fff' }}>Configure Meetings folder</button>
       </div>
     );
@@ -2581,7 +2580,7 @@ function MeetingPanel({ meetingOpen, meetingTitle, meetingNotes, meetingLinks, s
             <div>
               <div style={{ fontSize:10, color:'#10b981', fontWeight:800, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:8 }}>Saved meeting</div>
               <h2 style={{ margin:0, fontSize:22, color:'#f1f5f9' }}>{savedMeeting.title}</h2>
-              <div style={{ fontSize:12, color:'#64748b', marginTop:6 }}>{savedMeeting.date || savedMeeting.filename}</div>
+              <div style={{ fontSize:12, color:'#f4fff9', marginTop:6 }}>{savedMeeting.date || savedMeeting.filename}</div>
             </div>
             <button onClick={onStart} style={{ padding:'10px 16px', borderRadius:10, border:'none', cursor:'pointer', fontWeight:800, fontSize:13, fontFamily:'inherit', background:'linear-gradient(135deg,#7c3aed,#3b82f6)', color:'#fff', flexShrink:0 }}>+ Start Meeting</button>
           </div>
@@ -2634,11 +2633,11 @@ function MeetingPanel({ meetingOpen, meetingTitle, meetingNotes, meetingLinks, s
             <ChipMulti value={meetingLinks.people || []} onChange={value=>setLinks('people', value)} options={refs.people || []} placeholder="Add people..." />
           </Field>
         </div>
-        <div style={{ fontSize:10, color:'#475569', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.1em' }}>Notes</div>
+        <div style={{ fontSize:10, color:'#f4fff9', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.1em' }}>Notes</div>
         <textarea value={meetingNotes} onChange={e => setMeetingNotes(e.target.value)}
           placeholder="Type your meeting notes here... markdown supported"
           style={{ flex:1, padding:'14px', borderRadius:10, resize:'none', background:'rgba(255,255,255,0.03)', border:'1px solid rgba(255,255,255,0.08)', color:'#e2e8f0', fontSize:13, lineHeight:1.7, outline:'none', fontFamily:'inherit' }}/>
-        <div style={{ fontSize:11, color:'#334155' }}>
+        <div style={{ fontSize:11, color:'#f4fff9' }}>
           Will save as: {filename}
         </div>
       </div>
@@ -2662,10 +2661,10 @@ function HealthPanel({ diagnostics, dirs, backups, onForceSync, syncBusy, onConf
         <div>
           <div style={{ fontSize:10, color:'#a78bfa', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:8 }}>Vault Health</div>
           <h2 style={{ margin:0, fontSize:19, fontWeight:700, color:'#f1f5f9' }}>Sync and file checks</h2>
-          <div style={{ fontSize:12, color:'#64748b', marginTop:5 }}>Automatic sync runs only while this app is open and folder permission is active.</div>
+          <div style={{ fontSize:12, color:'#f4fff9', marginTop:5 }}>Automatic sync runs only while this app is open and folder permission is active.</div>
         </div>
         <div style={{ display:'flex', gap:8 }}>
-          <button onClick={onConfigure} style={{ padding:'9px 13px', borderRadius:10, border:'1px solid rgba(255,255,255,0.08)', cursor:'pointer', fontWeight:800, fontSize:12, fontFamily:'inherit', background:'rgba(255,255,255,0.03)', color:'#94a3b8' }}>Folders</button>
+          <button onClick={onConfigure} style={{ padding:'9px 13px', borderRadius:10, border:'1px solid rgba(255,255,255,0.08)', cursor:'pointer', fontWeight:800, fontSize:12, fontFamily:'inherit', background:'rgba(255,255,255,0.03)', color:'#f4fff9' }}>Folders</button>
           <button onClick={onForceSync} disabled={syncBusy} style={{ padding:'9px 16px', borderRadius:10, border:'none', cursor:syncBusy?'wait':'pointer', fontWeight:800, fontSize:13, fontFamily:'inherit', background:'linear-gradient(135deg,#7c3aed,#3b82f6)', color:'#fff' }}>{syncBusy ? 'Syncing...' : 'Force Sync'}</button>
         </div>
       </div>
@@ -2673,7 +2672,7 @@ function HealthPanel({ diagnostics, dirs, backups, onForceSync, syncBusy, onConf
         <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(150px,1fr))', gap:10, marginBottom:16 }}>
           {Object.entries(diagnostics.counts).map(([key, value]) => (
             <div key={key} style={{ borderRadius:8, border:'1px solid rgba(255,255,255,0.06)', background:'rgba(255,255,255,0.025)', padding:'12px' }}>
-              <div style={{ fontSize:10, color:'#64748b', textTransform:'uppercase', fontWeight:800 }}>{key.replace(/([A-Z])/g, ' $1')}</div>
+              <div style={{ fontSize:10, color:'#f4fff9', textTransform:'uppercase', fontWeight:800 }}>{key.replace(/([A-Z])/g, ' $1')}</div>
               <div style={{ fontSize:24, fontWeight:850, color:'#f1f5f9', marginTop:4 }}>{value}</div>
             </div>
           ))}
@@ -2688,9 +2687,9 @@ function HealthPanel({ diagnostics, dirs, backups, onForceSync, syncBusy, onConf
                 <div style={{ minWidth:0 }}>
                   <div style={{ fontSize:12, color:issueColor(issue), fontWeight:850, textTransform:'uppercase' }}>{issue.level}</div>
                   <div style={{ fontSize:13, color:'#e2e8f0', marginTop:4 }}>{issue.text}</div>
-                  {issue.detail && <div style={{ fontSize:11, color:'#64748b', marginTop:4, overflowWrap:'anywhere' }}>{issue.detail}</div>}
+                  {issue.detail && <div style={{ fontSize:11, color:'#f4fff9', marginTop:4, overflowWrap:'anywhere' }}>{issue.detail}</div>}
                 </div>
-                <button onClick={folderIssue ? onConfigure : onForceSync} style={{ padding:'6px 9px', borderRadius:8, border:'1px solid rgba(255,255,255,0.08)', background:'rgba(255,255,255,0.035)', color:folderIssue?'#c4b5fd':'#94a3b8', cursor:'pointer', fontWeight:800, fontSize:11, fontFamily:'inherit', flexShrink:0 }}>
+                <button onClick={folderIssue ? onConfigure : onForceSync} style={{ padding:'6px 9px', borderRadius:8, border:'1px solid rgba(255,255,255,0.08)', background:'rgba(255,255,255,0.035)', color:folderIssue?'#c4b5fd':'#f4fff9', cursor:'pointer', fontWeight:800, fontSize:11, fontFamily:'inherit', flexShrink:0 }}>
                   {folderIssue ? 'Fix' : 'Recheck'}
                 </button>
               </div>
@@ -2699,14 +2698,14 @@ function HealthPanel({ diagnostics, dirs, backups, onForceSync, syncBusy, onConf
         </section>
         <section style={{ borderRadius:8, border:'1px solid rgba(255,255,255,0.06)', background:'rgba(255,255,255,0.025)', padding:'14px' }}>
           <h3 style={{ margin:'0 0 10px', fontSize:14, color:'#f1f5f9' }}>Recent Local Backups</h3>
-          {!backups.length && <div style={{ color:'#64748b', fontSize:13 }}>No backups captured yet. The next text write keeps the previous version locally in this browser.</div>}
+          {!backups.length && <div style={{ color:'#f4fff9', fontSize:13 }}>No backups captured yet. The next text write keeps the previous version locally in this browser.</div>}
           {backups.slice(0, 8).map((backup, i) => (
             <div key={`${backup.at}-${i}`} style={{ padding:'10px 11px', marginBottom:7, borderRadius:8, background:'rgba(255,255,255,0.02)', border:'1px solid rgba(255,255,255,0.05)' }}>
               <div style={{ display:'flex', justifyContent:'space-between', gap:12, alignItems:'flex-start' }}>
                 <div style={{ minWidth:0 }}>
                   <div style={{ fontSize:12, color:'#e2e8f0', fontWeight:800 }}>{backup.filename}</div>
-                  <div style={{ fontSize:10, color:'#64748b', marginTop:3 }}>{new Date(backup.at).toLocaleString()} · {backup.size || backup.content?.length || 0} chars</div>
-                  {backup.preview && <div style={{ fontSize:11, color:'#64748b', marginTop:5, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{backup.preview}</div>}
+                  <div style={{ fontSize:10, color:'#f4fff9', marginTop:3 }}>{new Date(backup.at).toLocaleString()} · {backup.size || backup.content?.length || 0} chars</div>
+                  {backup.preview && <div style={{ fontSize:11, color:'#f4fff9', marginTop:5, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{backup.preview}</div>}
                 </div>
                 <div style={{ display:'flex', gap:6, flexShrink:0 }}>
                   <button onClick={()=>setSelectedBackup(backup)} style={{ padding:'6px 9px', borderRadius:8, border:'1px solid rgba(255,255,255,0.08)', background:'rgba(255,255,255,0.035)', color:'#c4b5fd', cursor:'pointer', fontWeight:800, fontSize:11, fontFamily:'inherit' }}>Inspect</button>
@@ -2723,15 +2722,15 @@ function HealthPanel({ diagnostics, dirs, backups, onForceSync, syncBusy, onConf
             <div style={{ padding:'14px 16px', borderBottom:'1px solid rgba(255,255,255,0.08)', display:'flex', justifyContent:'space-between', alignItems:'center', gap:14 }}>
               <div style={{ minWidth:0 }}>
                 <div style={{ fontSize:13, color:'#f1f5f9', fontWeight:850 }}>{selectedBackup.filename}</div>
-                <div style={{ fontSize:11, color:'#64748b', marginTop:3 }}>{new Date(selectedBackup.at).toLocaleString()}</div>
+                <div style={{ fontSize:11, color:'#f4fff9', marginTop:3 }}>{new Date(selectedBackup.at).toLocaleString()}</div>
               </div>
               <div style={{ display:'flex', gap:8 }}>
-                <button onClick={()=>copyBackup(selectedBackup)} style={{ padding:'8px 11px', borderRadius:8, border:'1px solid rgba(255,255,255,0.08)', background:'rgba(255,255,255,0.035)', color:'#94a3b8', cursor:'pointer', fontWeight:800, fontSize:12, fontFamily:'inherit' }}>Copy</button>
+                <button onClick={()=>copyBackup(selectedBackup)} style={{ padding:'8px 11px', borderRadius:8, border:'1px solid rgba(255,255,255,0.08)', background:'rgba(255,255,255,0.035)', color:'#f4fff9', cursor:'pointer', fontWeight:800, fontSize:12, fontFamily:'inherit' }}>Copy</button>
                 <button onClick={()=>onRestoreBackup?.(selectedBackup)} style={{ padding:'8px 11px', borderRadius:8, border:'1px solid rgba(16,185,129,0.2)', background:'rgba(16,185,129,0.08)', color:'#10b981', cursor:'pointer', fontWeight:800, fontSize:12, fontFamily:'inherit' }}>Restore</button>
                 <button onClick={()=>setSelectedBackup(null)} style={{ padding:'8px 11px', borderRadius:8, border:'1px solid rgba(255,255,255,0.08)', background:'rgba(255,255,255,0.035)', color:'#f87171', cursor:'pointer', fontWeight:800, fontSize:12, fontFamily:'inherit' }}>Close</button>
               </div>
             </div>
-            <pre style={{ margin:0, padding:16, overflow:'auto', color:'#cbd5e1', background:'rgba(255,255,255,0.025)', fontSize:12, lineHeight:1.55, whiteSpace:'pre-wrap', overflowWrap:'anywhere', fontFamily:'ui-monospace, SFMono-Regular, Consolas, monospace' }}>{selectedBackup.content}</pre>
+            <pre style={{ margin:0, padding:16, overflow:'auto', color:'#f4fff9', background:'rgba(255,255,255,0.025)', fontSize:12, lineHeight:1.55, whiteSpace:'pre-wrap', overflowWrap:'anywhere', fontFamily:'ui-monospace, SFMono-Regular, Consolas, monospace' }}>{selectedBackup.content}</pre>
           </div>
         </div>
       )}
@@ -2756,7 +2755,7 @@ function TimeDashboardPanel({ notes, hasDailyFolder, onConfigure }) {
   const weekdayTargetBottom = `${Math.min(100, (TARGET_WORK_MINUTES / weekdayMaxMinutes) * 100)}%`;
   const tickEvery = Math.max(1, Math.ceil(stats.days.length / 7));
   const toneForMinutes = (minutes) => ({
-    empty: { fill:'rgba(255,255,255,0.08)', border:'rgba(255,255,255,0.08)', text:'#475569' },
+    empty: { fill:'rgba(255,255,255,0.08)', border:'rgba(255,255,255,0.08)', text:'#f4fff9' },
     target: { fill:'linear-gradient(180deg,#6ee7b7,#059669)', border:'rgba(52,211,153,0.42)', text:'#34d399' },
     below: { fill:'linear-gradient(180deg,#fde68a,#d97706)', border:'rgba(251,191,36,0.42)', text:'#fbbf24' },
     above: { fill:'linear-gradient(180deg,#fda4af,#dc2626)', border:'rgba(248,113,113,0.42)', text:'#f87171' },
@@ -2772,7 +2771,7 @@ function TimeDashboardPanel({ notes, hasDailyFolder, onConfigure }) {
 
   if (!hasDailyFolder) {
     return (
-      <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', color:'#475569', fontSize:13 }}>
+      <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', color:'#f4fff9', fontSize:13 }}>
         <button onClick={onConfigure} style={{ padding:'10px 18px', borderRadius:10, border:'none', cursor:'pointer', fontWeight:800, fontSize:13, fontFamily:'inherit', background:'linear-gradient(135deg,#0f766e,#2563eb)', color:'#fff' }}>Configure Daily Notes folder</button>
       </div>
     );
@@ -2784,27 +2783,27 @@ function TimeDashboardPanel({ notes, hasDailyFolder, onConfigure }) {
         <div style={{ minWidth:0 }}>
           <div style={{ fontSize:10, color:'#67e8f9', fontWeight:800, textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:6 }}>Time Clock</div>
           <h2 style={{ margin:0, fontSize:23, color:'#f8fafc', letterSpacing:0 }}>Work rhythm</h2>
-          <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap', marginTop:8, color:'#cbd5e1', fontSize:11, fontWeight:700 }}>
+          <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap', marginTop:8, color:'#f4fff9', fontSize:11, fontWeight:700 }}>
             <span>{stats.summary.dailyNotes} daily notes</span>
-            <span style={{ color:'#475569' }}>|</span>
+            <span style={{ color:'#f4fff9' }}>|</span>
             <span>{formatHoursMinutes(stats.summary.totalMinutes)}</span>
-            <span style={{ color:'#475569' }}>|</span>
+            <span style={{ color:'#f4fff9' }}>|</span>
             <span>goal {formatHoursMinutes(TARGET_WORK_MINUTES)}</span>
           </div>
         </div>
         <div style={{ display:'grid', gridTemplateColumns:'repeat(2,minmax(124px,1fr)) auto', gap:8, alignItems:'end', padding:'9px', borderRadius:8, background:'rgba(6,10,20,0.72)', border:'1px solid rgba(255,255,255,0.12)', backdropFilter:'blur(10px)' }}>
           <label style={{ minWidth:0 }}>
-            <span style={{ display:'block', fontSize:9, color:'#94a3b8', fontWeight:800, textTransform:'uppercase', marginBottom:5 }}>Start</span>
+            <span style={{ display:'block', fontSize:9, color:'#f4fff9', fontWeight:800, textTransform:'uppercase', marginBottom:5 }}>Start</span>
             <input type="date" min={firstDate} max={endDate || lastDate} value={rangeStart} onChange={e=>setStartDate(e.target.value)}
               style={{ ...inputBase, minWidth:0, padding:'8px 9px', fontSize:12 }} />
           </label>
           <label style={{ minWidth:0 }}>
-            <span style={{ display:'block', fontSize:9, color:'#94a3b8', fontWeight:800, textTransform:'uppercase', marginBottom:5 }}>End</span>
+            <span style={{ display:'block', fontSize:9, color:'#f4fff9', fontWeight:800, textTransform:'uppercase', marginBottom:5 }}>End</span>
             <input type="date" min={startDate || firstDate} max={lastDate} value={rangeEnd} onChange={e=>setEndDate(e.target.value)}
               style={{ ...inputBase, minWidth:0, padding:'8px 9px', fontSize:12 }} />
           </label>
           <button onClick={()=>{ setStartDate(''); setEndDate(''); }} disabled={!startDate && !endDate}
-            style={{ height:35, padding:'0 12px', borderRadius:8, border:'1px solid rgba(255,255,255,0.1)', background:'rgba(255,255,255,0.055)', color:'#cbd5e1', cursor:startDate || endDate ? 'pointer' : 'not-allowed', opacity:startDate || endDate ? 1 : 0.42, fontSize:11, fontWeight:800, fontFamily:'inherit' }}>
+            style={{ height:35, padding:'0 12px', borderRadius:8, border:'1px solid rgba(255,255,255,0.1)', background:'rgba(255,255,255,0.055)', color:'#f4fff9', cursor:startDate || endDate ? 'pointer' : 'not-allowed', opacity:startDate || endDate ? 1 : 0.42, fontSize:11, fontWeight:800, fontFamily:'inherit' }}>
             All
           </button>
         </div>
@@ -2816,9 +2815,9 @@ function TimeDashboardPanel({ notes, hasDailyFolder, onConfigure }) {
             <div style={{ display:'flex', justifyContent:'space-between', gap:12, alignItems:'baseline', marginBottom:10 }}>
               <div>
                 <h3 style={{ margin:0, fontSize:15, color:'#f8fafc' }}>Daily totals</h3>
-                <div style={{ fontSize:11, color:'#64748b', marginTop:4 }}>{rangeStart || 'No start'} to {rangeEnd || 'No end'}</div>
+                <div style={{ fontSize:11, color:'#f4fff9', marginTop:4 }}>{rangeStart || 'No start'} to {rangeEnd || 'No end'}</div>
               </div>
-              <div style={{ display:'flex', gap:8, flexWrap:'wrap', justifyContent:'flex-end', color:'#94a3b8', fontSize:10, fontWeight:800 }}>
+              <div style={{ display:'flex', gap:8, flexWrap:'wrap', justifyContent:'flex-end', color:'#f4fff9', fontSize:10, fontWeight:800 }}>
                 <span style={{ color:'#34d399' }}>green target</span>
                 <span style={{ color:'#fbbf24' }}>yellow below</span>
                 <span style={{ color:'#f87171' }}>red above</span>
@@ -2838,7 +2837,7 @@ function TimeDashboardPanel({ notes, hasDailyFolder, onConfigure }) {
                       return (
                         <div key={day.date} title={`${day.date} · ${formatHoursMinutes(day.totalMinutes)} · ${day.label}`} style={{ flex:'1 1 0', minWidth:0, height:'100%', position:'relative' }}>
                           <div style={{ position:'absolute', left:'50%', bottom:0, width:stats.days.length > 70 ? '100%' : stats.days.length > 32 ? '72%' : 7, maxWidth:7, minWidth:stats.days.length > 70 ? 1 : 3, transform:'translateX(-50%)', minHeight:day.totalMinutes ? 0 : 3, height:`${barHeight}%`, borderRadius:'5px 5px 2px 2px', background:tone.fill, border:`1px solid ${tone.border}` }} />
-                          {showTick && <div style={{ position:'absolute', left:-12, right:-12, bottom:-21, textAlign:'center', fontSize:9, lineHeight:1, color:'#64748b', fontWeight:800, whiteSpace:'nowrap' }}>{day.date.slice(5)}</div>}
+                          {showTick && <div style={{ position:'absolute', left:-12, right:-12, bottom:-21, textAlign:'center', fontSize:9, lineHeight:1, color:'#f4fff9', fontWeight:800, whiteSpace:'nowrap' }}>{day.date.slice(5)}</div>}
                         </div>
                       );
                     })}
@@ -2846,7 +2845,7 @@ function TimeDashboardPanel({ notes, hasDailyFolder, onConfigure }) {
                 </div>
               </div>
             ) : (
-              <div style={{ flex:1, minHeight:0, borderRadius:8, border:'1px solid rgba(255,255,255,0.05)', background:'rgba(15,23,42,0.4)', display:'flex', alignItems:'center', justifyContent:'center', color:'#475569', fontSize:13 }}>No dated Time Clock notes in range</div>
+              <div style={{ flex:1, minHeight:0, borderRadius:8, border:'1px solid rgba(255,255,255,0.05)', background:'rgba(15,23,42,0.4)', display:'flex', alignItems:'center', justifyContent:'center', color:'#f4fff9', fontSize:13 }}>No dated Time Clock notes in range</div>
             )}
           </section>
 
@@ -2854,9 +2853,9 @@ function TimeDashboardPanel({ notes, hasDailyFolder, onConfigure }) {
             <div style={{ display:'flex', justifyContent:'space-between', gap:12, alignItems:'baseline', marginBottom:10 }}>
               <div>
                 <h3 style={{ margin:0, fontSize:15, color:'#f8fafc' }}>Average week</h3>
-                <div style={{ fontSize:11, color:'#64748b', marginTop:4 }}>Average tracked total by weekday</div>
+                <div style={{ fontSize:11, color:'#f4fff9', marginTop:4 }}>Average tracked total by weekday</div>
               </div>
-              <div style={{ fontSize:11, color:'#94a3b8', fontWeight:800 }}>Mon to Sun</div>
+              <div style={{ fontSize:11, color:'#f4fff9', fontWeight:800 }}>Mon to Sun</div>
             </div>
             <div style={{ flex:1, minHeight:0, padding:'12px 10px 27px', borderRadius:8, border:'1px solid rgba(255,255,255,0.05)', background:'rgba(15,23,42,0.52)' }}>
               <div style={{ height:'100%', position:'relative' }}>
@@ -2872,7 +2871,7 @@ function TimeDashboardPanel({ notes, hasDailyFolder, onConfigure }) {
                       <div style={{ position:'absolute', left:'32%', right:'32%', bottom:0, height:`${barHeight}%`, minHeight:day.averageMinutes ? 0 : 3, borderRadius:'6px 6px 2px 2px', background:tone.fill, border:`1px solid ${tone.border}` }} />
                       <div style={{ position:'absolute', left:0, right:0, bottom:-27, textAlign:'center' }}>
                         <div style={{ fontSize:10, color:'#e2e8f0', fontWeight:850 }}>{day.label}</div>
-                        <div style={{ fontSize:9, color:'#475569', fontWeight:750 }}>{day.count}</div>
+                        <div style={{ fontSize:9, color:'#f4fff9', fontWeight:750 }}>{day.count}</div>
                       </div>
                     </div>
                   );
@@ -2886,15 +2885,15 @@ function TimeDashboardPanel({ notes, hasDailyFolder, onConfigure }) {
         <aside style={{ minWidth:0, minHeight:0, display:'grid', gridTemplateColumns:'repeat(2,minmax(0,1fr))', gridAutoRows:'minmax(0,1fr)', gap:9 }}>
           {summaryCards.map(([label, value, color]) => (
             <div key={label} style={{ minHeight:0, padding:'11px', borderRadius:8, border:'1px solid rgba(255,255,255,0.07)', background:'rgba(255,255,255,0.03)', display:'flex', flexDirection:'column', justifyContent:'space-between' }}>
-              <div style={{ fontSize:10, color:'#64748b', fontWeight:850, textTransform:'uppercase', letterSpacing:'0.08em' }}>{label}</div>
+              <div style={{ fontSize:10, color:'#f4fff9', fontWeight:850, textTransform:'uppercase', letterSpacing:'0.08em' }}>{label}</div>
               <div style={{ marginTop:8, color, fontSize:label.includes('time') || label.includes('Average') ? 19 : 25, lineHeight:1, fontWeight:900, fontVariantNumeric:'tabular-nums', overflowWrap:'anywhere' }}>{value}</div>
             </div>
           ))}
           <div style={{ minHeight:0, padding:'11px', borderRadius:8, border:'1px solid rgba(255,255,255,0.07)', background:'rgba(255,255,255,0.03)', display:'flex', flexDirection:'column', justifyContent:'space-between' }}>
-            <div style={{ fontSize:10, color:'#64748b', fontWeight:850, textTransform:'uppercase', letterSpacing:'0.08em' }}>Daily notes</div>
+            <div style={{ fontSize:10, color:'#f4fff9', fontWeight:850, textTransform:'uppercase', letterSpacing:'0.08em' }}>Daily notes</div>
             <div style={{ color:'#f8fafc', fontSize:25, lineHeight:1, fontWeight:900, fontVariantNumeric:'tabular-nums' }}>{stats.summary.dailyNotes}</div>
           </div>
-          <div style={{ gridColumn:'1 / -1', minHeight:0, padding:'11px', borderRadius:8, border:'1px solid rgba(255,255,255,0.07)', background:'rgba(255,255,255,0.03)', color:'#94a3b8', fontSize:10, fontWeight:800, lineHeight:1.5 }}>
+          <div style={{ gridColumn:'1 / -1', minHeight:0, padding:'11px', borderRadius:8, border:'1px solid rgba(255,255,255,0.07)', background:'rgba(255,255,255,0.03)', color:'#f4fff9', fontSize:10, fontWeight:800, lineHeight:1.5 }}>
             <div style={{ color:'#34d399' }}>Target band: +/-5% of 7h 15m</div>
             <div style={{ color:'#fbbf24' }}>Below band</div>
             <div style={{ color:'#f87171' }}>Above band</div>
@@ -2917,9 +2916,9 @@ function MissionControlPanel({ today, overdue, recurrent, selectedId, liveId, ge
           </div>
           <div style={{ display:'flex', gap:6, alignItems:'center', flexWrap:'wrap' }}>
             <PBadge p={t.priority}/><SBadge s={t.status}/>
-            {t.due && <span style={{ fontSize:10, color:isOver(t.due)?'#f87171':isToday(t.due)?'#fbbf24':'#64748b', fontWeight:700 }}>due {t.due}</span>}
+            {t.due && <span style={{ fontSize:10, color:isOver(t.due)?'#f87171':isToday(t.due)?'#fbbf24':'#f4fff9', fontWeight:700 }}>due {t.due}</span>}
             {t.scheduled && <span style={{ fontSize:10, color:'#818cf8', fontWeight:700 }}>scheduled {t.scheduled}</span>}
-            <span style={{ fontSize:10, color:'#475569' }}>{t.dateCreated ? `created ${t.dateCreated.slice(0,10)}` : 'created date unknown'}</span>
+            <span style={{ fontSize:10, color:'#f4fff9' }}>{t.dateCreated ? `created ${t.dateCreated.slice(0,10)}` : 'created date unknown'}</span>
           </div>
         </div>
         <div style={{ display:'flex', justifyContent:'flex-end', marginTop:10 }}>
@@ -2952,40 +2951,27 @@ function MissionControlPanel({ today, overdue, recurrent, selectedId, liveId, ge
                 ['⌂', 'Properties', vaultTotals.properties, '#38bdf8'],
                 ['👤', 'People', vaultTotals.people, '#14b8a6'],
               ].map(([icon, label, count, color]) => (
-                <span key={label} title={`Total ${label.toLowerCase()}`} style={{ display:'inline-flex', alignItems:'center', gap:6, minHeight:26, padding:'4px 8px', borderRadius:8, border:`1px solid ${color}33`, background:`${color}12`, color:'#cbd5e1', fontSize:11, fontWeight:800, lineHeight:1, fontVariantNumeric:'tabular-nums' }}>
+                <span key={label} title={`Total ${label.toLowerCase()}`} style={{ display:'inline-flex', alignItems:'center', gap:6, minHeight:26, padding:'4px 8px', borderRadius:8, border:`1px solid ${color}33`, background:`${color}12`, color:'#f4fff9', fontSize:11, fontWeight:800, lineHeight:1, fontVariantNumeric:'tabular-nums' }}>
                   <span style={{ color, fontSize:13, lineHeight:1 }}>{icon}</span>
                   <span style={{ color:'#f8fafc' }}>{count}</span>
-                  <span style={{ color:'#64748b', fontWeight:700 }}>{label}</span>
+                  <span style={{ color:'#f4fff9', fontWeight:700 }}>{label}</span>
                 </span>
               ))}
             </div>
           </div>
-          <div style={{ fontSize:12, color:'#64748b', marginTop:5 }}>{dailyNote ? dailyNote.filename : hasDailyFolder ? 'Creating today daily note...' : 'Daily notes folder not configured'}</div>
+          <div style={{ fontSize:12, color:'#f4fff9', marginTop:5 }}>{dailyNote ? dailyNote.filename : hasDailyFolder ? 'Creating today daily note...' : 'Daily notes folder not configured'}</div>
         </div>
         <div style={{ display:'flex', gap:8 }}>
-          <button onClick={onConfigure} style={{ padding:'9px 13px', borderRadius:10, border:'1px solid rgba(255,255,255,0.08)', cursor:'pointer', fontWeight:800, fontSize:12, fontFamily:'inherit', background:'rgba(255,255,255,0.03)', color:'#94a3b8' }}>{hasDailyFolder ? 'Daily folder set' : 'Set Daily folder'}</button>
+          <button onClick={onConfigure} style={{ padding:'9px 13px', borderRadius:10, border:'1px solid rgba(255,255,255,0.08)', cursor:'pointer', fontWeight:800, fontSize:12, fontFamily:'inherit', background:'rgba(255,255,255,0.03)', color:'#f4fff9' }}>{hasDailyFolder ? 'Daily folder set' : 'Set Daily folder'}</button>
         </div>
       </div>
-      <div style={{ padding:'16px 30px 0' }}>
-        <TodayHero
-          workedMinutes={workStats(workNotes[tod()]).totalMinutes}
-          goalMinutes={TARGET_WORK_MINUTES}
-          clockIn={(workNotes[tod()]?.timeClock || []).find(e => e.event === 'Clock in')?.time || ''}
-          week={currentWeekDates.map(d => ({
-            day: new Date(`${d}T12:00:00`).toLocaleDateString('en-US', { weekday: 'short' }),
-            date: d,
-            minutes: workStats(workNotes[d]).totalMinutes,
-          }))}
-          shippedThisWeek={completedToday.length}
-        />
-      </div>
-      <div style={{ flex:1, minHeight:0, display:'grid', gridTemplateColumns:'minmax(360px,0.42fr) minmax(520px,1fr)', overflow:'hidden' }}>
+      <div style={{ flex:1, minHeight:0, display:'grid', gridTemplateColumns:'minmax(440px,0.55fr) minmax(460px,1fr)', overflow:'hidden' }}>
         <div style={{ minWidth:0, minHeight:0, overflowY:'auto', padding:'16px', borderRight:'1px solid rgba(255,255,255,0.06)' }}>
         <section style={{ borderRadius:8, border:'1px solid rgba(255,255,255,0.06)', background:'rgba(255,255,255,0.025)', padding:'13px', marginBottom:12 }}>
           <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:14, marginBottom:10 }}>
             <div>
               <h3 style={{ margin:0, fontSize:14, color:'#f1f5f9' }}>Time Clock</h3>
-              <div style={{ fontSize:11, color:'#64748b', marginTop:3 }}>Stored in today's daily note</div>
+              <div style={{ fontSize:11, color:'#f4fff9', marginTop:3 }}>Stored in today's daily note</div>
             </div>
           </div>
           <div style={{ display:'grid', gridTemplateColumns:'repeat(4,minmax(0,1fr))', gap:6, marginBottom:10 }}>
@@ -2996,18 +2982,18 @@ function MissionControlPanel({ today, overdue, recurrent, selectedId, liveId, ge
               ['Break finish', 'GO', '#818cf8'],
             ].map(([event, icon, color]) => (
               <button key={event} onClick={()=>onTimeClockEvent(event)} disabled={!hasDailyFolder} title={event}
-                style={{ minWidth:0, padding:'6px 5px', borderRadius:8, border:`1px solid ${hasDailyFolder ? color : 'rgba(255,255,255,0.08)'}`, cursor:hasDailyFolder?'pointer':'not-allowed', fontWeight:800, fontSize:10, fontFamily:'inherit', background:'rgba(255,255,255,0.025)', color:hasDailyFolder?color:'#475569', opacity:hasDailyFolder?1:0.45, whiteSpace:'nowrap' }}>
+                style={{ minWidth:0, padding:'6px 5px', borderRadius:8, border:`1px solid ${hasDailyFolder ? color : 'rgba(255,255,255,0.08)'}`, cursor:hasDailyFolder?'pointer':'not-allowed', fontWeight:800, fontSize:10, fontFamily:'inherit', background:'rgba(255,255,255,0.025)', color:hasDailyFolder?color:'#f4fff9', opacity:hasDailyFolder?1:0.45, whiteSpace:'nowrap' }}>
                 <span style={{ display:'inline-flex', alignItems:'center', justifyContent:'center', width:16, height:16, marginRight:4, borderRadius:5, background:hasDailyFolder?`${color}22`:'rgba(255,255,255,0.04)', border:`1px solid ${hasDailyFolder ? color : 'rgba(255,255,255,0.08)'}`, fontSize:7, fontWeight:900, verticalAlign:'middle' }}>{icon}</span>{event}
               </button>
             ))}
           </div>
           <div style={{ display:'flex', gap:7, flexWrap:'wrap' }}>
             {(dailyNote?.timeClock || []).slice(-5).map((row, i) => (
-              <span key={`${row.time}-${row.event}-${i}`} style={{ fontSize:11, color:'#94a3b8', padding:'4px 8px', borderRadius:14, background:'rgba(255,255,255,0.035)', border:'1px solid rgba(255,255,255,0.05)' }}>
+              <span key={`${row.time}-${row.event}-${i}`} style={{ fontSize:11, color:'#f4fff9', padding:'4px 8px', borderRadius:14, background:'rgba(255,255,255,0.035)', border:'1px solid rgba(255,255,255,0.05)' }}>
                 {row.time} · {row.event}
               </span>
             ))}
-            {!dailyNote?.timeClock?.length && <span style={{ fontSize:12, color:'#334155' }}>No clock events yet today</span>}
+            {!dailyNote?.timeClock?.length && <span style={{ fontSize:12, color:'#f4fff9' }}>No clock events yet today</span>}
           </div>
         </section>
 
@@ -3042,14 +3028,14 @@ function MissionControlPanel({ today, overdue, recurrent, selectedId, liveId, ge
               <section key={key} style={{ borderRadius:8, border:'1px solid rgba(255,255,255,0.06)', background:'rgba(255,255,255,0.025)', padding:'12px', minWidth:0 }}>
                 <div style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline', marginBottom:8 }}>
                   <h3 style={{ margin:0, fontSize:13, color:'#f1f5f9' }}>{label}</h3>
-                  <span style={{ fontSize:10, color:'#64748b', fontWeight:800 }}>{items.length}</span>
+                  <span style={{ fontSize:10, color:'#f4fff9', fontWeight:800 }}>{items.length}</span>
                 </div>
                 <div style={{ minHeight:46, marginBottom:9 }}>
                   {items.length ? items.slice(-2).map((item, i) => (
                     <div key={i} style={{ marginBottom:5, overflow:'hidden', display:'-webkit-box', WebkitLineClamp:2, WebkitBoxOrient:'vertical' }}>
                       <MarkdownBody compact>{item}</MarkdownBody>
                     </div>
-                  )) : <div style={{ fontSize:12, color:'#334155', paddingTop:8 }}>Nothing written yet</div>}
+                  )) : <div style={{ fontSize:12, color:'#f4fff9', paddingTop:8 }}>Nothing written yet</div>}
                 </div>
                 <div style={{ display:'flex', gap:7 }}>
                   <input value={dailyInputs[key] || ''} onChange={e=>setDailyInputs(prev => ({ ...prev, [key]: e.target.value }))} onKeyDown={e=>{ if(e.key==='Enter') onAddDailyEntry(key); }} disabled={!hasDailyFolder}
@@ -3063,31 +3049,31 @@ function MissionControlPanel({ today, overdue, recurrent, selectedId, liveId, ge
           <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:12, marginBottom:12, flexShrink:0 }}>
             <div>
               <h3 style={{ margin:0, fontSize:15, color:'#f1f5f9' }}>Task Queues</h3>
-              <div style={{ fontSize:11, color:'#64748b', marginTop:3 }}>Today, overdue, and recurrent work stay visible beside your hours.</div>
+              <div style={{ fontSize:11, color:'#f4fff9', marginTop:3 }}>Today, overdue, and recurrent work stay visible beside your hours.</div>
             </div>
           </div>
           <section style={{ borderRadius:8, border:'1px solid rgba(255,255,255,0.06)', background:'rgba(255,255,255,0.025)', padding:'12px', marginBottom:12, flexShrink:0 }}>
             <div style={{ display:'flex', justifyContent:'space-between', gap:12, marginBottom:9 }}>
               <div>
                 <h3 style={{ margin:0, fontSize:13, color:'#f1f5f9' }}>Daily Review</h3>
-                <div style={{ fontSize:11, color:'#64748b', marginTop:3 }}>Quick end-of-day pulse</div>
+                <div style={{ fontSize:11, color:'#f4fff9', marginTop:3 }}>Quick end-of-day pulse</div>
               </div>
-              <div style={{ textAlign:'right', fontSize:11, color:'#94a3b8', fontWeight:800 }}>
+              <div style={{ textAlign:'right', fontSize:11, color:'#f4fff9', fontWeight:800 }}>
                 {formatHoursMinutes(currentWeekDates.reduce((sum, dateStr) => sum + workStats(workNotes[dateStr]).totalMinutes, 0))} this week
               </div>
             </div>
             <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:8 }}>
               <div style={{ padding:'8px 9px', borderRadius:8, background:'rgba(16,185,129,0.07)', border:'1px solid rgba(16,185,129,0.13)' }}>
                 <div style={{ fontSize:18, fontWeight:850, color:'#10b981' }}>{completedToday.length}</div>
-                <div style={{ fontSize:10, color:'#64748b' }}>closed today</div>
+                <div style={{ fontSize:10, color:'#f4fff9' }}>closed today</div>
               </div>
               <div style={{ padding:'8px 9px', borderRadius:8, background:'rgba(251,191,36,0.07)', border:'1px solid rgba(251,191,36,0.13)' }}>
                 <div style={{ fontSize:18, fontWeight:850, color:'#fbbf24' }}>{tomorrowTasks.length}</div>
-                <div style={{ fontSize:10, color:'#64748b' }}>tomorrow</div>
+                <div style={{ fontSize:10, color:'#f4fff9' }}>tomorrow</div>
               </div>
               <div style={{ padding:'8px 9px', borderRadius:8, background:'rgba(248,113,113,0.07)', border:'1px solid rgba(248,113,113,0.13)' }}>
                 <div style={{ fontSize:18, fontWeight:850, color:'#f87171' }}>{overdue.length}</div>
-                <div style={{ fontSize:10, color:'#64748b' }}>overdue</div>
+                <div style={{ fontSize:10, color:'#f4fff9' }}>overdue</div>
               </div>
             </div>
           </section>
@@ -3099,9 +3085,9 @@ function MissionControlPanel({ today, overdue, recurrent, selectedId, liveId, ge
                   <h3 style={{ margin:0, fontSize:16, color:'#f1f5f9' }}>{s.title}</h3>
                   <span style={{ fontSize:20, fontWeight:850, color:s.color }}>{s.items.length}</span>
                 </div>
-                <div style={{ fontSize:11, color:'#64748b', marginTop:3 }}>{s.subtitle}</div>
+                <div style={{ fontSize:11, color:'#f4fff9', marginTop:3 }}>{s.subtitle}</div>
               </div>
-              {!s.items.length && <div style={{ color:'#334155', fontSize:13, padding:'32px 8px', textAlign:'center' }}>Clear</div>}
+              {!s.items.length && <div style={{ color:'#f4fff9', fontSize:13, padding:'32px 8px', textAlign:'center' }}>Clear</div>}
               {s.items.map(renderTask)}
             </section>
           ))}
@@ -3120,15 +3106,15 @@ function WorkCalendar({ month, selectedDate, notes, onMonthChange, onSelectDate,
   return (
     <section style={{ borderRadius:8, border:'1px solid rgba(255,255,255,0.06)', background:'rgba(255,255,255,0.025)', padding:'13px', minHeight:285 }}>
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:11 }}>
-        <button onClick={()=>onMonthChange(prevMonth(month))} disabled={!hasDailyFolder} style={{ width:28, height:28, borderRadius:8, border:'1px solid rgba(255,255,255,0.08)', background:'rgba(255,255,255,0.03)', color:'#94a3b8', cursor:hasDailyFolder?'pointer':'not-allowed', fontWeight:900 }}>‹</button>
+        <button onClick={()=>onMonthChange(prevMonth(month))} disabled={!hasDailyFolder} style={{ width:28, height:28, borderRadius:8, border:'1px solid rgba(255,255,255,0.08)', background:'rgba(255,255,255,0.03)', color:'#f4fff9', cursor:hasDailyFolder?'pointer':'not-allowed', fontWeight:900 }}>‹</button>
         <div style={{ textAlign:'center' }}>
           <h3 style={{ margin:0, fontSize:14, color:'#f1f5f9' }}>Work Calendar</h3>
-          <div style={{ fontSize:11, color:'#64748b', marginTop:3 }}>{monthLabel(month)}</div>
+          <div style={{ fontSize:11, color:'#f4fff9', marginTop:3 }}>{monthLabel(month)}</div>
         </div>
-        <button onClick={()=>onMonthChange(nextMonth(month))} disabled={!hasDailyFolder} style={{ width:28, height:28, borderRadius:8, border:'1px solid rgba(255,255,255,0.08)', background:'rgba(255,255,255,0.03)', color:'#94a3b8', cursor:hasDailyFolder?'pointer':'not-allowed', fontWeight:900 }}>›</button>
+        <button onClick={()=>onMonthChange(nextMonth(month))} disabled={!hasDailyFolder} style={{ width:28, height:28, borderRadius:8, border:'1px solid rgba(255,255,255,0.08)', background:'rgba(255,255,255,0.03)', color:'#f4fff9', cursor:hasDailyFolder?'pointer':'not-allowed', fontWeight:900 }}>›</button>
       </div>
       <div style={{ display:'grid', gridTemplateColumns:'repeat(7,1fr)', gap:5, marginBottom:5 }}>
-        {['M','T','W','T','F','S','S'].map((d, i) => <div key={`${d}-${i}`} style={{ fontSize:9, color:'#475569', textAlign:'center', fontWeight:800 }}>{d}</div>)}
+        {['M','T','W','T','F','S','S'].map((d, i) => <div key={`${d}-${i}`} style={{ fontSize:9, color:'#f4fff9', textAlign:'center', fontWeight:800 }}>{d}</div>)}
       </div>
       <div style={{ display:'grid', gridTemplateColumns:'repeat(7,1fr)', gap:5 }}>
         {cells.map((dateStr, i) => {
@@ -3136,7 +3122,7 @@ function WorkCalendar({ month, selectedDate, notes, onMonthChange, onSelectDate,
           const stats = workStats(notes[dateStr]);
           const status = notes[dateStr]?.workStatus;
           const selected = selectedDate === dateStr;
-          const accent = status === 'holiday' ? '#38bdf8' : status === 'sick-leave' ? '#f87171' : status === 'bank-holiday' ? '#fbbf24' : stats.totalMinutes ? '#10b981' : '#334155';
+          const accent = status === 'holiday' ? '#38bdf8' : status === 'sick-leave' ? '#f87171' : status === 'bank-holiday' ? '#fbbf24' : stats.totalMinutes ? '#10b981' : '#f4fff9';
           return (
             <button key={dateStr} onClick={()=>onSelectDate(dateStr)} disabled={!hasDailyFolder}
               title={`${dateStr} · ${formatMinutes(stats.totalMinutes)} · ${stats.label}`}
@@ -3147,7 +3133,7 @@ function WorkCalendar({ month, selectedDate, notes, onMonthChange, onSelectDate,
           );
         })}
       </div>
-      <div style={{ display:'flex', gap:8, flexWrap:'wrap', marginTop:10, color:'#64748b', fontSize:10 }}>
+      <div style={{ display:'flex', gap:8, flexWrap:'wrap', marginTop:10, color:'#f4fff9', fontSize:10 }}>
         <span>Target 435 min</span>
         <span>Green worked</span>
         <span>Yellow bank holiday</span>
@@ -3178,11 +3164,11 @@ function WorkHoursPanel({ selectedDate, selectedNote, notes, onSaveRows, onStatu
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:14, marginBottom:12 }}>
         <div>
           <h3 style={{ margin:0, fontSize:14, color:'#f1f5f9' }}>Hours</h3>
-          <div style={{ fontSize:11, color:'#64748b', marginTop:3 }}>{selectedDate} · {stats.label}</div>
+          <div style={{ fontSize:11, color:'#f4fff9', marginTop:3 }}>{selectedDate} · {stats.label}</div>
         </div>
         <div style={{ textAlign:'right' }}>
           <div style={{ fontSize:22, fontWeight:850, color:weekTotalMinutes >= WEEK_TARGET_MINUTES ? '#10b981' : '#fbbf24' }}>{formatHoursMinutes(weekTotalMinutes)}</div>
-          <div style={{ fontSize:10, color:'#64748b' }}>week target {formatHoursMinutes(WEEK_TARGET_MINUTES)}</div>
+          <div style={{ fontSize:10, color:'#f4fff9' }}>week target {formatHoursMinutes(WEEK_TARGET_MINUTES)}</div>
         </div>
       </div>
 
@@ -3198,9 +3184,9 @@ function WorkHoursPanel({ selectedDate, selectedNote, notes, onSaveRows, onStatu
             const isLeave = day.status && day.status !== 'workday';
             return (
               <div key={day.dateStr} style={{ minWidth:0, height:'100%', position:'relative' }}>
-                <div style={{ position:'absolute', left:0, right:0, bottom:`calc(${barHeight}% + 5px)`, textAlign:'center', fontSize:9, color:isSelected?'#c4b5fd':'#64748b', fontWeight:800 }}>{formatMinutes(day.totalMinutes)}</div>
+                <div style={{ position:'absolute', left:0, right:0, bottom:`calc(${barHeight}% + 5px)`, textAlign:'center', fontSize:9, color:isSelected?'#c4b5fd':'#f4fff9', fontWeight:800 }}>{formatMinutes(day.totalMinutes)}</div>
                 <div style={{ position:'absolute', left:'15%', right:'15%', bottom:0, height:`${barHeight}%`, borderRadius:'7px 7px 3px 3px', background:isLeave?'rgba(56,189,248,0.38)':day.totalMinutes >= TARGET_WORK_MINUTES?'linear-gradient(180deg,#34d399,#10b981)':'linear-gradient(180deg,#fbbf24,#7c3aed)', border:isSelected?'1px solid rgba(196,181,253,0.85)':'1px solid rgba(255,255,255,0.08)' }} />
-                <div style={{ position:'absolute', left:0, right:0, bottom:-21, textAlign:'center', fontSize:10, color:isSelected?'#f1f5f9':'#475569', fontWeight:800 }}>{dateFromStr(day.dateStr).toLocaleDateString('en-US', { weekday:'short' })}</div>
+                <div style={{ position:'absolute', left:0, right:0, bottom:-21, textAlign:'center', fontSize:10, color:isSelected?'#f1f5f9':'#f4fff9', fontWeight:800 }}>{dateFromStr(day.dateStr).toLocaleDateString('en-US', { weekday:'short' })}</div>
               </div>
             );
           })}
@@ -3211,7 +3197,7 @@ function WorkHoursPanel({ selectedDate, selectedNote, notes, onSaveRows, onStatu
       <div style={{ display:'grid', gridTemplateColumns:'repeat(4,minmax(95px,1fr))', gap:8, marginBottom:10 }}>
         {WORK_EVENT_ORDER.map(event => (
           <label key={event} style={{ minWidth:0 }}>
-            <span style={{ display:'block', fontSize:9, color:'#64748b', fontWeight:800, textTransform:'uppercase', marginBottom:4 }}>{event}</span>
+            <span style={{ display:'block', fontSize:9, color:'#f4fff9', fontWeight:800, textTransform:'uppercase', marginBottom:4 }}>{event}</span>
             <input type="time" value={draft[event] || ''} onChange={e=>setDraftTime(event, e.target.value)} disabled={!canEditTimes}
               style={{ width:'100%', boxSizing:'border-box', padding:'7px 8px', borderRadius:8, background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.08)', color:'#e2e8f0', fontSize:12, outline:'none', fontFamily:'inherit', opacity:canEditTimes?1:0.45 }} />
           </label>
@@ -3227,7 +3213,7 @@ function WorkHoursPanel({ selectedDate, selectedNote, notes, onSaveRows, onStatu
           style={{ padding:'8px 12px', borderRadius:8, border:'none', cursor:canSave?'pointer':'not-allowed', fontWeight:800, fontSize:12, fontFamily:'inherit', background:'rgba(124,58,237,0.2)', color:'#c4b5fd', opacity:canSave?1:0.4 }}>
           Save hours
         </button>
-        <div style={{ fontSize:11, color:'#64748b' }}>{stats.creditedDay ? 'Leave days credit 435 minutes automatically.' : 'Breaks subtract from the day total.'}</div>
+        <div style={{ fontSize:11, color:'#f4fff9' }}>{stats.creditedDay ? 'Leave days credit 435 minutes automatically.' : 'Breaks subtract from the day total.'}</div>
       </div>
     </section>
   );
@@ -3236,7 +3222,7 @@ function WorkHoursPanel({ selectedDate, selectedNote, notes, onSaveRows, onStatu
 function ProjectPanel({ projects, selected, selectedId, draft, setDraft, onSelect, onSave, onNewProject, hasProjectsFolder, onConfigure }) {
   if (!hasProjectsFolder) {
     return (
-      <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', color:'#475569', fontSize:13 }}>
+      <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', color:'#f4fff9', fontSize:13 }}>
         <button onClick={onConfigure} style={{ padding:'10px 18px', borderRadius:10, border:'none', cursor:'pointer', fontWeight:700, fontSize:13, fontFamily:'inherit', background:'linear-gradient(135deg,#7c3aed,#3b82f6)', color:'#fff' }}>Configure Projects folder</button>
       </div>
     );
@@ -3246,11 +3232,11 @@ function ProjectPanel({ projects, selected, selectedId, draft, setDraft, onSelec
     <div style={{ flex:1, display:'grid', gridTemplateColumns:'minmax(260px, 0.38fr) minmax(420px, 1fr)', minHeight:0, overflow:'hidden' }}>
       <div style={{ borderRight:'1px solid rgba(255,255,255,0.06)', overflowY:'auto', padding:'18px 16px' }}>
         <button onClick={onNewProject} style={{ width:'100%', padding:'9px 12px', borderRadius:9, border:'none', cursor:'pointer', fontWeight:800, fontSize:12, fontFamily:'inherit', background:'linear-gradient(135deg,#7c3aed,#3b82f6)', color:'#fff', marginBottom:12 }}>+ New Project</button>
-        {!projects.length && <div style={{ color:'#475569', textAlign:'center', paddingTop:35, fontSize:12 }}>No project files</div>}
+        {!projects.length && <div style={{ color:'#f4fff9', textAlign:'center', paddingTop:35, fontSize:12 }}>No project files</div>}
         {projects.map(p => (
           <button key={p.id} onClick={()=>onSelect(p.id)} style={{ width:'100%', textAlign:'left', padding:'11px 12px', marginBottom:6, borderRadius:9, border:`1px solid ${selectedId===p.id?'rgba(124,58,237,0.45)':'rgba(255,255,255,0.05)'}`, background:selectedId===p.id?'rgba(124,58,237,0.1)':'rgba(255,255,255,0.02)', color:'#e2e8f0', cursor:'pointer', fontFamily:'inherit' }}>
             <div style={{ fontSize:13, fontWeight:800, lineHeight:1.3 }}>{p.title}</div>
-            <div style={{ fontSize:10, color:'#64748b', marginTop:4 }}>{p.status || p.filename}</div>
+            <div style={{ fontSize:10, color:'#f4fff9', marginTop:4 }}>{p.status || p.filename}</div>
           </button>
         ))}
       </div>
@@ -3259,7 +3245,7 @@ function ProjectPanel({ projects, selected, selectedId, draft, setDraft, onSelec
           <div style={{ minWidth:0 }}>
             <div style={{ fontSize:10, color:'#a78bfa', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:7 }}>Projects</div>
             <h2 style={{ margin:0, fontSize:20, color:'#f1f5f9' }}>{selected ? selected.title : 'Select a project'}</h2>
-            {selected && <div style={{ fontSize:11, color:'#64748b', marginTop:5 }}>{selected.filename}</div>}
+            {selected && <div style={{ fontSize:11, color:'#f4fff9', marginTop:5 }}>{selected.filename}</div>}
           </div>
           <button onClick={onSave} disabled={!selected} style={{ padding:'9px 18px', borderRadius:10, border:'none', cursor:selected?'pointer':'not-allowed', fontWeight:800, fontSize:13, fontFamily:'inherit', background:'linear-gradient(135deg,#7c3aed,#3b82f6)', color:'#fff', opacity:selected?1:0.35 }}>Save</button>
         </div>
@@ -3272,7 +3258,7 @@ function ProjectPanel({ projects, selected, selectedId, draft, setDraft, onSelec
             </div>
           </div>
         ) : (
-          <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', color:'#334155', fontSize:13 }}>Select or create a project</div>
+          <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', color:'#f4fff9', fontSize:13 }}>Select or create a project</div>
         )}
       </div>
     </div>
@@ -3284,7 +3270,7 @@ function PropertyPanel({ properties, selected, selectedId, images, loadError, on
   const imageFor = p => p?.coverName ? images[p.coverName.toLowerCase()] : null;
   if (!hasPropertiesFolder) {
     return (
-      <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', color:'#475569', fontSize:13 }}>
+      <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', color:'#f4fff9', fontSize:13 }}>
         <div style={{ textAlign:'center' }}>
           <div style={{ fontSize:32, marginBottom:10 }}>🏢</div>
           <button onClick={onConfigure} style={{ padding:'10px 18px', borderRadius:10, border:'none', cursor:'pointer', fontWeight:700, fontSize:13, fontFamily:'inherit', background:'linear-gradient(135deg,#7c3aed,#3b82f6)', color:'#fff' }}>Configure Properties folder</button>
@@ -3410,7 +3396,7 @@ function NewProjectPanel({ onCancel, onCreate, refs }) {
           <h2 style={{ margin:0, fontSize:19, fontWeight:700, color:'#f1f5f9' }}>Create a project note</h2>
         </div>
         <div style={{ display:'flex', gap:8 }}>
-          <button onClick={onCancel} style={{ padding:'9px 16px', borderRadius:10, border:'1px solid rgba(255,255,255,0.1)', cursor:'pointer', fontWeight:700, fontSize:13, fontFamily:'inherit', background:'transparent', color:'#94a3b8' }}>Cancel</button>
+          <button onClick={onCancel} style={{ padding:'9px 16px', borderRadius:10, border:'1px solid rgba(255,255,255,0.1)', cursor:'pointer', fontWeight:700, fontSize:13, fontFamily:'inherit', background:'transparent', color:'#f4fff9' }}>Cancel</button>
           <button onClick={submit} disabled={busy || !form.title.trim()} style={{ padding:'9px 22px', borderRadius:10, border:'none', cursor:'pointer', fontWeight:700, fontSize:13, fontFamily:'inherit', background:'linear-gradient(135deg,#7c3aed,#3b82f6)', color:'#fff', opacity:(busy||!form.title.trim())?0.4:1 }}>
             {busy ? 'Creating...' : 'Create Project'}
           </button>
@@ -3421,7 +3407,7 @@ function NewProjectPanel({ onCancel, onCreate, refs }) {
         <form onSubmit={submit} style={{ maxWidth:720 }}>
           <Field label="Project name">
             <input autoFocus value={form.title} onChange={e=>set('title', e.target.value)} placeholder="e.g. Union Module 4" style={{ ...inputBase, fontSize:16, fontWeight:600, padding:'10px 14px' }}/>
-            <div style={{ fontSize:10, color:'#475569', marginTop:4 }}>Filename will be <code style={{ color:'#94a3b8' }}>{form.title.trim() ? projectFilename(form.title) : 'Project - <title>.md'}</code></div>
+            <div style={{ fontSize:10, color:'#f4fff9', marginTop:4 }}>Filename will be <code style={{ color:'#f4fff9' }}>{form.title.trim() ? projectFilename(form.title) : 'Project - <title>.md'}</code></div>
           </Field>
           <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:11 }}>
             <Field label="Status">
@@ -3485,7 +3471,7 @@ function NewPropertyPanel({ onCancel, onCreate, refs, hasAttachmentsFolder, onCo
           <h2 style={{ margin:0, fontSize:19, fontWeight:700, color:'#f1f5f9' }}>Create a property note</h2>
         </div>
         <div style={{ display:'flex', gap:8 }}>
-          <button onClick={onCancel} style={{ padding:'9px 16px', borderRadius:10, border:'1px solid rgba(255,255,255,0.1)', cursor:'pointer', fontWeight:700, fontSize:13, fontFamily:'inherit', background:'transparent', color:'#94a3b8' }}>Cancel</button>
+          <button onClick={onCancel} style={{ padding:'9px 16px', borderRadius:10, border:'1px solid rgba(255,255,255,0.1)', cursor:'pointer', fontWeight:700, fontSize:13, fontFamily:'inherit', background:'transparent', color:'#f4fff9' }}>Cancel</button>
           <button onClick={submit} disabled={busy || !form.title.trim()} style={{ padding:'9px 22px', borderRadius:10, border:'none', cursor:'pointer', fontWeight:700, fontSize:13, fontFamily:'inherit', background:'linear-gradient(135deg,#7c3aed,#3b82f6)', color:'#fff', opacity:(busy||!form.title.trim())?0.4:1, boxShadow:'0 4px 16px rgba(124,58,237,0.4)' }}>
             {busy ? 'Creating...' : 'Create Property'}
           </button>
@@ -3496,7 +3482,7 @@ function NewPropertyPanel({ onCancel, onCreate, refs, hasAttachmentsFolder, onCo
         <form onSubmit={submit} style={{ maxWidth:720 }}>
           <Field label="Property name">
             <input autoFocus value={form.title} onChange={e=>set('title', e.target.value)} placeholder="e.g. 20 Kildare Street" style={{ ...inputBase, fontSize:16, fontWeight:600, padding:'10px 14px' }}/>
-            <div style={{ fontSize:10, color:'#475569', marginTop:4 }}>Filename will be <code style={{ color:'#94a3b8' }}>{slug}.md</code></div>
+            <div style={{ fontSize:10, color:'#f4fff9', marginTop:4 }}>Filename will be <code style={{ color:'#f4fff9' }}>{slug}.md</code></div>
           </Field>
 
           <Field label={`Client${refs.clients.length?` · ${refs.clients.length} available`:''}`}>
@@ -3517,7 +3503,7 @@ function NewPropertyPanel({ onCancel, onCreate, refs, hasAttachmentsFolder, onCo
           <Field label="Cover image">
             {hasAttachmentsFolder ? (
               <label style={{ ...inputBase, display:'flex', alignItems:'center', justifyContent:'space-between', gap:10, cursor:'pointer' }}>
-                <span style={{ color:form.coverFile?'#e2e8f0':'#64748b', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                <span style={{ color:form.coverFile?'#e2e8f0':'#f4fff9', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
                   {form.coverFile ? form.coverFile.name : 'Choose an image...'}
                 </span>
                 <span style={{ color:'#c4b5fd', fontWeight:800, fontSize:11, flexShrink:0 }}>Browse</span>
@@ -3570,7 +3556,7 @@ function NewPersonPanel({ onCancel, onCreate, refs, hasPeopleFolder, onConfigure
           <h2 style={{ margin:0, fontSize:19, fontWeight:700, color:'#f1f5f9' }}>Create a person note</h2>
         </div>
         <div style={{ display:'flex', gap:8 }}>
-          <button onClick={onCancel} style={{ padding:'9px 16px', borderRadius:10, border:'1px solid rgba(255,255,255,0.1)', cursor:'pointer', fontWeight:700, fontSize:13, fontFamily:'inherit', background:'transparent', color:'#94a3b8' }}>Cancel</button>
+          <button onClick={onCancel} style={{ padding:'9px 16px', borderRadius:10, border:'1px solid rgba(255,255,255,0.1)', cursor:'pointer', fontWeight:700, fontSize:13, fontFamily:'inherit', background:'transparent', color:'#f4fff9' }}>Cancel</button>
           <button onClick={hasPeopleFolder ? submit : onConfigure} disabled={busy || (hasPeopleFolder && !form.name.trim())} style={{ padding:'9px 22px', borderRadius:10, border:'none', cursor:'pointer', fontWeight:700, fontSize:13, fontFamily:'inherit', background:'linear-gradient(135deg,#7c3aed,#3b82f6)', color:'#fff', opacity:(busy || (hasPeopleFolder && !form.name.trim()))?0.4:1 }}>
             {hasPeopleFolder ? (busy ? 'Creating...' : 'Create Person') : 'Configure People Folder'}
           </button>
@@ -3581,7 +3567,7 @@ function NewPersonPanel({ onCancel, onCreate, refs, hasPeopleFolder, onConfigure
         <form onSubmit={submit} style={{ maxWidth:720 }}>
           <Field label="Person name">
             <input autoFocus value={form.name} onChange={e=>set('name', e.target.value)} placeholder="e.g. Jane Smith" style={{ ...inputBase, fontSize:16, fontWeight:600, padding:'10px 14px' }}/>
-            <div style={{ fontSize:10, color:'#475569', marginTop:4 }}>Filename will be <code style={{ color:'#94a3b8' }}>{form.name.trim() ? `${safeFilename(form.name)}.md` : '<person-name>.md'}</code></div>
+            <div style={{ fontSize:10, color:'#f4fff9', marginTop:4 }}>Filename will be <code style={{ color:'#f4fff9' }}>{form.name.trim() ? `${safeFilename(form.name)}.md` : '<person-name>.md'}</code></div>
           </Field>
 
           <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:11 }}>
@@ -3681,7 +3667,7 @@ function NewTaskPanel({ onCancel, onCreate, refs }) {
           <h2 style={{ margin:0, fontSize:19, fontWeight:700, color:'#f1f5f9' }}>Create a task in your Tasks folder</h2>
         </div>
         <div style={{ display:'flex', gap:8 }}>
-          <button onClick={onCancel} style={{ padding:'9px 16px', borderRadius:10, border:'1px solid rgba(255,255,255,0.1)', cursor:'pointer', fontWeight:700, fontSize:13, fontFamily:'inherit', background:'transparent', color:'#94a3b8' }}>Cancel</button>
+          <button onClick={onCancel} style={{ padding:'9px 16px', borderRadius:10, border:'1px solid rgba(255,255,255,0.1)', cursor:'pointer', fontWeight:700, fontSize:13, fontFamily:'inherit', background:'transparent', color:'#f4fff9' }}>Cancel</button>
           <button onClick={submit} disabled={busy || !canCreate} style={{ padding:'9px 22px', borderRadius:10, border:'none', cursor:'pointer', fontWeight:700, fontSize:13, fontFamily:'inherit', background:'linear-gradient(135deg,#7c3aed,#3b82f6)', color:'#fff', opacity:(busy||!canCreate)?0.4:1, boxShadow:'0 4px 16px rgba(124,58,237,0.4)' }}>
             {busy ? 'Creating…' : 'Create Task'}
           </button>
@@ -3696,7 +3682,7 @@ function NewTaskPanel({ onCancel, onCreate, refs }) {
               style={{ ...inputBase, fontSize:14, padding:'10px 14px', border:quickPreview?.dueInvalid?'1px solid rgba(248,113,113,0.45)':inputBase.border }}/>
             {quickPreview && (
               <div style={{ marginTop:7, display:'flex', gap:6, flexWrap:'wrap', alignItems:'center' }}>
-                {quickPreview.title && <span style={{ fontSize:10, color:'#94a3b8', padding:'3px 7px', borderRadius:14, background:'rgba(255,255,255,0.035)', border:'1px solid rgba(255,255,255,0.06)' }}>title: {quickPreview.title}</span>}
+                {quickPreview.title && <span style={{ fontSize:10, color:'#f4fff9', padding:'3px 7px', borderRadius:14, background:'rgba(255,255,255,0.035)', border:'1px solid rgba(255,255,255,0.06)' }}>title: {quickPreview.title}</span>}
                 {quickPreview.due && <span style={{ fontSize:10, color:'#fbbf24', padding:'3px 7px', borderRadius:14, background:'rgba(251,191,36,0.08)', border:'1px solid rgba(251,191,36,0.16)' }}>due: {quickPreview.due}</span>}
                 <span style={{ fontSize:10, color:'#818cf8', padding:'3px 7px', borderRadius:14, background:'rgba(129,140,248,0.08)', border:'1px solid rgba(129,140,248,0.16)' }}>priority: {quickPreview.priority}</span>
                 {quickPreview.extraTags && <span style={{ fontSize:10, color:'#c4b5fd', padding:'3px 7px', borderRadius:14, background:'rgba(124,58,237,0.1)', border:'1px solid rgba(124,58,237,0.18)' }}>tags: {quickPreview.extraTags}</span>}
@@ -3712,7 +3698,7 @@ function NewTaskPanel({ onCancel, onCreate, refs }) {
               <ComboInput value={titleParts.link} onChange={v=>setTitlePart('link', v)} options={titleLinkOptions} placeholder="Optional property/client..." />
               <input value={titleParts.name} onChange={e=>setTitlePart('name', e.target.value)} placeholder="Task name..." style={inputBase}/>
             </div>
-            <div style={{ fontSize:10, color:'#475569', marginTop:4 }}>Filename will be <code style={{ color:'#94a3b8' }}>{form.title.trim() ? safeFilename(form.title) : '<title>'}.md</code></div>
+            <div style={{ fontSize:10, color:'#f4fff9', marginTop:4 }}>Filename will be <code style={{ color:'#f4fff9' }}>{form.title.trim() ? safeFilename(form.title) : '<title>'}.md</code></div>
           </Field>
 
           <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:11 }}>
@@ -3749,7 +3735,7 @@ function NewTaskPanel({ onCancel, onCreate, refs }) {
             <Field label="Recurrent">
               <label style={{ ...inputBase, display:'flex', alignItems:'center', gap:9, cursor:'pointer', minHeight:34 }}>
                 <input type="checkbox" checked={form.recurrent} onChange={e=>set('recurrent', e.target.checked)} style={{ accentColor:'#7c3aed' }}/>
-                <span style={{ color:'#94a3b8', fontSize:13 }}>Mark as recurrent</span>
+                <span style={{ color:'#f4fff9', fontSize:13 }}>Mark as recurrent</span>
               </label>
             </Field>
           </div>
@@ -3773,7 +3759,7 @@ function NewTaskPanel({ onCancel, onCreate, refs }) {
 
           <Field label="Extra tags (comma-separated)">
             <input value={form.extraTags} onChange={e=>set('extraTags', e.target.value)} placeholder="admin, urgent…" style={inputBase}/>
-            <div style={{ fontSize:10, color:'#475569', marginTop:4 }}>The tag <code style={{ color:'#94a3b8' }}>task</code> is added automatically.</div>
+            <div style={{ fontSize:10, color:'#f4fff9', marginTop:4 }}>The tag <code style={{ color:'#f4fff9' }}>task</code> is added automatically.</div>
           </Field>
 
           <Field label="Details / initial log (optional)">
