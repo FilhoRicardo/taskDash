@@ -21,9 +21,11 @@ export function parseFrontmatter(txt) {
 const wl = s => s ? s.replace(/^\[\[|\]\]$/g, '') : null;
 const fileBase = name => name.replace(/\\/g, '/').split('/').pop();
 const basename = name => fileBase(name).replace(/\.md$/i, '');
-const ignoredName = name => {
+const ignoredName = (name, { includeUnderscore = false } = {}) => {
   const base = basename(name).trim().toLowerCase();
-  return base === 'index' || base.startsWith('_');
+  if (base === 'index') return true;
+  if (!includeUnderscore && base.startsWith('_')) return true;
+  return false;
 };
 const isProjectName = name => /^project\b/i.test(basename(name).trim());
 const titleFromName = name => basename(name)
@@ -205,15 +207,15 @@ export function parsePerson(name, txt) {
   };
 }
 
-export async function readMdFiles(dir, acc = [], prefix = '') {
+export async function readMdFiles(dir, acc = [], prefix = '', options = {}) {
   for await (const [name, h] of dir.entries()) {
     try {
-      if (ignoredName(name)) continue;
+      if (ignoredName(name, options)) continue;
       const rel = prefix ? `${prefix}/${name}` : name;
       if (h.kind==='file' && name.endsWith('.md') && name !== 'timetracker.md')
         acc.push({ name: rel, handle:h, text: await (await h.getFile()).text() });
       else if (h.kind==='directory' && !name.startsWith('.'))
-        await readMdFiles(h, acc, rel);
+        await readMdFiles(h, acc, rel, options);
     } catch(e) {
       console.warn(`Skipped unreadable markdown entry: ${name}`, e);
     }

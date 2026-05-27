@@ -82,6 +82,14 @@ async function readHandleText(handle) {
   return await (await handle.getFile()).text();
 }
 
+async function removeFileAtPath(rootDir, path) {
+  const parts = path.split('/').filter(Boolean);
+  const name = parts.pop();
+  let dir = rootDir;
+  for (const part of parts) dir = await dir.getDirectoryHandle(part);
+  await dir.removeEntry(name);
+}
+
 function Toast({ msg, onClose }) {
   return (
     <div style={{ position:'fixed', top:16, left:'50%', transform:'translateX(-50%)', zIndex:999,
@@ -768,7 +776,7 @@ export default function App() {
 
   const loadProperties = useCallback(async (dir) => {
     try {
-      const raw = await readMdFiles(dir);
+      const raw = await readMdFiles(dir, [], '', { includeUnderscore: true });
       let skipped = 0;
       const parsed = raw.flatMap(f => {
         try { return [parseProperty(f.name, f.text)]; }
@@ -798,7 +806,7 @@ export default function App() {
 
   const loadProjects = useCallback(async (dir) => {
     try {
-      const raw = (await readMdFiles(dir)).filter(f => /^project\b/i.test(f.name.replace(/\.md$/i, '').trim()));
+      const raw = (await readMdFiles(dir, [], '', { includeUnderscore: true })).filter(f => /^project\b/i.test(f.name.replace(/\.md$/i, '').trim()));
       const parsed = raw.map(f => parseProject(f.name, f.text))
         .sort((a,b) => a.title.localeCompare(b.title));
       setProjects(parsed);
@@ -812,7 +820,7 @@ export default function App() {
 
   const loadPeople = useCallback(async (dir) => {
     try {
-      const raw = await readMdFiles(dir);
+      const raw = await readMdFiles(dir, [], '', { includeUnderscore: true });
       const parsed = raw.map(f => parsePerson(f.name, f.text))
         .sort((a,b) => a.title.localeCompare(b.title));
       setPeople(parsed);
@@ -826,7 +834,7 @@ export default function App() {
 
   const loadMeetings = useCallback(async (dir) => {
     try {
-      const raw = await readMdFiles(dir);
+      const raw = await readMdFiles(dir, [], '', { includeUnderscore: true });
       const parsed = raw.map(f => parseMeeting(f.name, f.text))
         .sort((a, b) => (b.dateCreated || b.date || '').localeCompare(a.dateCreated || a.date || '') || a.title.localeCompare(b.title));
       setMeetings(parsed);
@@ -1328,6 +1336,15 @@ export default function App() {
       if (timer?.taskId === sel) await stop();
       const latest = await readHandleText(handle);
       const updated = markTaskDone(latest);
+      if (dirs.done && !sel.startsWith('__done__/')) {
+        const filename = await uniqueFileNameInDir(dirs.done, sel.split('/').pop());
+        const doneHandle = await dirs.done.getFileHandle(filename, { create:true });
+        await writeFile(doneHandle, updated);
+        await removeFileAtPath(dirs.tasks, sel);
+        await loadFiles(dirs.tasks, dirs.done);
+        setToast(`✅ "${task.title}" moved to Done / Archive`);
+        return;
+      }
       await writeFile(handle, updated);
       const updatedTask = parseTask(task.id, updated);
       const nextTasks = tasks.map(t => t.id===sel ? updatedTask : t);
