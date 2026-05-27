@@ -10,27 +10,29 @@
  */
 
 :root {
-  /* Accent — change --accent-h to shift across the OKLCH hue ring. */
-  --accent-h: 170;
-  --accent:       oklch(0.64 0.12 var(--accent-h));
-  --accent-soft:  oklch(0.64 0.12 var(--accent-h) / 0.18);
-  --accent-line:  oklch(0.72 0.10 var(--accent-h) / 0.42);
+  /* Accent — default dark green. Change --accent-h to shift across the OKLCH hue ring.
+   *   155 = forest green (default), 175 = teal, 210 = cyan, 250 = blue, 290 = violet, 350 = pink. */
+  --accent-h: 155;
+  --accent:       oklch(0.62 0.14 var(--accent-h));
+  --accent-soft:  oklch(0.62 0.14 var(--accent-h) / 0.22);
+  --accent-line:  oklch(0.62 0.14 var(--accent-h) / 0.5);
 
-  --good: oklch(0.74 0.16 160);
-  --warn: oklch(0.78 0.16 70);
-  --bad:  oklch(0.7 0.2 25);
+  --good: oklch(0.78 0.16 160);
+  --warn: oklch(0.82 0.16 70);
+  --bad:  oklch(0.74 0.2 25);
 
-  --ink:        #f4fff9;
-  --ink-dim:    #d7f5e8;
-  --ink-muted:  #a9d8c9;
-  --ink-faint:  #82b7a7;
+  /* High-contrast ink stack — brighter than dark slate to read on the glass panes. */
+  --ink:        oklch(0.98 0.005 270);
+  --ink-dim:    oklch(0.88 0.01 270);
+  --ink-muted:  oklch(0.74 0.015 270);
+  --ink-faint:  oklch(0.58 0.015 270);
 
-  --glass-bg:        rgba(2, 31, 28, 0.34);
-  --glass-bg-strong: rgba(1, 23, 21, 0.58);
-  --glass-line:        rgba(154, 221, 202, 0.14);
-  --glass-line-strong: rgba(169, 216, 201, 0.24);
-  --glass-inset:  inset 0 1px 0 rgba(255,255,255,0.10);
-  --glass-shadow: 0 24px 60px -20px rgba(0,0,0,0.55), 0 4px 14px -8px rgba(0,0,0,0.5);
+  --glass-bg:        rgba(255,255,255,0.07);
+  --glass-bg-strong: rgba(255,255,255,0.10);
+  --glass-line:        rgba(255,255,255,0.14);
+  --glass-line-strong: rgba(255,255,255,0.22);
+  --glass-inset:  inset 0 1px 0 rgba(255,255,255,0.14);
+  --glass-shadow: 0 24px 60px -20px rgba(0,0,0,0.6), 0 4px 14px -8px rgba(0,0,0,0.55);
 
   --r-sm: 10px;
   --r-md: 14px;
@@ -46,43 +48,26 @@
  */
 body {
   /* override the flat black from index.css */
-  background: #000b0a;
-  font-size: 14px;
+  background: #07070b;
 }
+/* ── Solid dark green backdrop ─── */
 .wallpaper {
   position: fixed; inset: 0; z-index: 0; overflow: hidden; pointer-events: none;
-  background:
-    linear-gradient(165deg, rgba(0, 8, 7, 0.92) 0%, rgba(2, 38, 34, 0.8) 44%, rgba(1, 17, 15, 0.96) 100%),
-    radial-gradient(circle at 28% 18%, rgba(11, 73, 64, 0.52), transparent 42%),
-    radial-gradient(circle at 72% 78%, rgba(0, 57, 49, 0.48), transparent 44%),
-    #000b0a;
+  background: #0a1812;
 }
 .wallpaper::before, .wallpaper::after, .wallpaper > .blob {
-  content: ""; position: absolute; border-radius: 50%;
-  filter: blur(96px); opacity: 0.34; mix-blend-mode: screen;
-}
-.wallpaper::before {
-  width: 56vw; height: 56vw; left: -10vw; top: -18vw;
-  background: oklch(0.55 0.22 var(--accent-h));
-}
-.wallpaper::after {
-  width: 50vw; height: 50vw; right: -14vw; bottom: -18vw;
-  background: oklch(0.62 0.18 calc(var(--accent-h) + 60));
-}
-.wallpaper > .blob {
-  width: 40vw; height: 40vw; right: 20vw; top: 30vh;
-  background: oklch(0.58 0.18 calc(var(--accent-h) - 50));
+  display: none;
 }
 
 /* ── App shell ─── 3-pane grid: rail · sidebar · main ── */
 .shell {
   display: grid;
-  grid-template-columns: 64px minmax(320px, 340px) minmax(0, 1fr);
+  grid-template-columns: 60px 280px 1fr;
   height: 100vh;
   position: relative;
   z-index: 1;
-  padding: 14px;
-  gap: 12px;
+  padding: 8px;
+  gap: 8px;
   color: var(--ink);
   background: transparent !important;
 }
@@ -161,11 +146,11 @@ body {
   display: inline-flex; align-items: center; gap: 6px;
   height: 22px; padding: 0 10px; border-radius: 999px;
   font-size: 10.5px; font-weight: 600; letter-spacing: 0.02em;
-  background: rgba(255,255,255,0.06); color: var(--ink-dim);
-  border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(255,255,255,0.08); color: var(--ink-dim);
+  border: 1px solid rgba(255,255,255,0.12);
 }
-.tdg-chip.accent { background: var(--accent-soft); color: oklch(0.92 0.05 var(--accent-h)); border-color: var(--accent-line); }
-.tdg-chip.good   { background: oklch(0.74 0.16 160 / 0.15); color: oklch(0.92 0.1 160); border-color: oklch(0.74 0.16 160 / 0.32); }
+.tdg-chip.accent { background: var(--accent-soft); color: oklch(0.95 0.06 var(--accent-h)); border-color: var(--accent-line); }
+.tdg-chip.good   { background: oklch(0.74 0.16 160 / 0.18); color: oklch(0.95 0.1 160); border-color: oklch(0.74 0.16 160 / 0.38); }
 
 .tdg-ring-wrap   { position: relative; width: 88px; height: 88px; flex-shrink: 0; }
 .tdg-ring-wrap svg { transform: rotate(-90deg); }
@@ -174,11 +159,3 @@ body {
 
 @keyframes tdg-barIn { from { transform: scaleY(0.05); opacity: 0; } to { transform: scaleY(1); opacity: 1; } }
 .tdg-bar { transform-origin: bottom; animation: tdg-barIn 0.5s cubic-bezier(.2,.7,.2,1) both; }
-
-@media (max-width: 1100px) {
-  .shell {
-    grid-template-columns: 60px minmax(280px, 310px) minmax(0, 1fr);
-    gap: 10px;
-    padding: 10px;
-  }
-}
