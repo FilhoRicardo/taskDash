@@ -1007,6 +1007,10 @@ export default function App() {
       await ensureDailyNote(available.daily);
       await loadTimeNotes(available.daily);
     }
+    if (Object.keys(available).length) {
+      setLastSync(Date.now());
+      setNeedsRefresh(false);
+    }
   }, [loadFiles, loadRefs, loadProjects, loadProperties, loadPeople, loadMeetings, loadAttachmentImages, ensureDailyNote, loadTimeNotes, clearUnavailableFolderData]);
 
   useEffect(() => {
@@ -2346,7 +2350,7 @@ export default function App() {
           />
         )
       ) : view === 'health' ? (
-        <HealthPanel diagnostics={diagnostics} dirs={dirs} backups={writeBackups} onForceSync={forceSyncAll} syncBusy={syncBusy} onConfigure={()=>setFolderSetupOpen(true)} onRestoreBackup={restoreBackup}/>
+        <HealthPanel diagnostics={diagnostics} dirs={dirs} backups={writeBackups} lastSync={lastSync} needsRefresh={needsRefresh} onForceSync={forceSyncAll} syncBusy={syncBusy} onConfigure={()=>setFolderSetupOpen(true)} onRestoreBackup={restoreBackup}/>
       ) : view === 'tasks' && !dirs.tasks ? (
         <TasksFolderRecoveryPanel issue={folderIssues.tasks} onConfigure={()=>setFolderSetupOpen(true)}/>
       ) : newPersonOpen ? (
@@ -2647,9 +2651,19 @@ function MeetingPanel({ meetingOpen, meetingTitle, meetingNotes, meetingLinks, s
   );
 }
 
-function HealthPanel({ diagnostics, dirs, backups, onForceSync, syncBusy, onConfigure, onRestoreBackup }) {
+function HealthPanel({ diagnostics, dirs, backups, lastSync, needsRefresh, onForceSync, syncBusy, onConfigure, onRestoreBackup }) {
   const [selectedBackup, setSelectedBackup] = useState(null);
   const issueColor = issue => issue.level === 'error' ? '#f87171' : issue.level === 'warning' ? '#fbbf24' : '#818cf8';
+  const connectedFolders = Object.entries(dirs || {});
+  const scanRows = Object.entries(diagnostics.folderStats || {})
+    .flatMap(([key, value]) => {
+      if (value && typeof value === 'object') {
+        return Object.entries(value).map(([childKey, childValue]) => [`${key}.${childKey}`, childValue]);
+      }
+      return [[key, value]];
+    })
+    .filter(([, value]) => value !== undefined && value !== null);
+  const syncText = lastSync ? new Date(lastSync).toLocaleString() : 'Not synced yet';
   const copyBackup = async (backup) => {
     try {
       await navigator.clipboard.writeText(backup.content || '');
@@ -2671,6 +2685,22 @@ function HealthPanel({ diagnostics, dirs, backups, onForceSync, syncBusy, onConf
         </div>
       </div>
       <div style={{ flex:1, overflowY:'auto', padding:'20px 30px' }}>
+        <section style={{ borderRadius:8, border:`1px solid ${needsRefresh ? 'rgba(251,191,36,0.24)' : 'rgba(16,185,129,0.18)'}`, background:needsRefresh?'rgba(251,191,36,0.055)':'rgba(16,185,129,0.045)', padding:'14px', marginBottom:14, display:'flex', justifyContent:'space-between', gap:18, alignItems:'flex-start', flexWrap:'wrap' }}>
+          <div>
+            <h3 style={{ margin:'0 0 6px', fontSize:14, color:'#f1f5f9' }}>Sync Status</h3>
+            <div style={{ fontSize:12, color:needsRefresh?'#fbbf24':'#10b981', fontWeight:800 }}>{needsRefresh ? 'Refresh recommended' : 'Current'}</div>
+            <div style={{ fontSize:11, color:'#f4fff9', marginTop:4 }}>Last full sync: {syncText}</div>
+          </div>
+          <div style={{ display:'flex', gap:7, flexWrap:'wrap', justifyContent:'flex-end' }}>
+            {connectedFolders.length ? connectedFolders.map(([key, handle]) => (
+              <span key={key} style={{ fontSize:11, color:'#e2e8f0', padding:'5px 8px', borderRadius:14, background:'rgba(255,255,255,0.035)', border:'1px solid rgba(255,255,255,0.06)' }}>
+                {key}: {handle.name}
+              </span>
+            )) : (
+              <span style={{ fontSize:12, color:'#f4fff9' }}>No folders connected</span>
+            )}
+          </div>
+        </section>
         <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(150px,1fr))', gap:10, marginBottom:16 }}>
           {Object.entries(diagnostics.counts).map(([key, value]) => (
             <div key={key} style={{ borderRadius:8, border:'1px solid rgba(255,255,255,0.06)', background:'rgba(255,255,255,0.025)', padding:'12px' }}>
@@ -2679,6 +2709,18 @@ function HealthPanel({ diagnostics, dirs, backups, onForceSync, syncBusy, onConf
             </div>
           ))}
         </div>
+        {!!scanRows.length && (
+          <section style={{ borderRadius:8, border:'1px solid rgba(255,255,255,0.06)', background:'rgba(255,255,255,0.025)', padding:'14px', marginBottom:14 }}>
+            <h3 style={{ margin:'0 0 10px', fontSize:14, color:'#f1f5f9' }}>Last Scan Counts</h3>
+            <div style={{ display:'flex', gap:7, flexWrap:'wrap' }}>
+              {scanRows.map(([key, value]) => (
+                <span key={key} style={{ fontSize:11, color:'#e2e8f0', padding:'5px 8px', borderRadius:14, background:'rgba(255,255,255,0.035)', border:'1px solid rgba(255,255,255,0.06)' }}>
+                  {key}: {value}
+                </span>
+              ))}
+            </div>
+          </section>
+        )}
         <section style={{ borderRadius:8, border:'1px solid rgba(255,255,255,0.06)', background:'rgba(255,255,255,0.025)', padding:'14px', marginBottom:14 }}>
           <h3 style={{ margin:'0 0 10px', fontSize:14, color:'#f1f5f9' }}>Issues</h3>
           {!diagnostics.issues.length && <div style={{ color:'#10b981', fontSize:13 }}>No obvious issues found.</div>}
