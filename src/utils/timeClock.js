@@ -1,5 +1,5 @@
 export const TARGET_WORK_MINUTES = 7.25 * 60;
-export const TARGET_WORK_TOLERANCE = TARGET_WORK_MINUTES * 0.05;
+export const TARGET_WORK_TOLERANCE = 15;
 export const WEEK_TARGET_MINUTES = TARGET_WORK_MINUTES * 5;
 export const WORK_CHART_MAX_MINUTES = 600;
 export const WORK_EVENT_ORDER = ['Clock in', 'Break start', 'Break finish', 'Clock out'];
