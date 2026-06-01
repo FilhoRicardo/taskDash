@@ -6,7 +6,7 @@ import TodayHero from './TodayHero.jsx';
 import { parseTask, parseProperty, parseProject, parseDailyNote, parseMeeting, parsePerson, readMdFiles, readDirNames, readImageFiles } from './utils/parser.js';
 import { idbGet, idbSet, idbDel, lsGet, lsSet, lsDel } from './utils/storage.js';
 import { fmt, tod, isToday, isOver, longDate, appendNoteToMd, appendPropertyCommentToMd, updateCommentLog, deleteCommentLog, appendDailySectionEntry, appendDailyTimeClockEvent, buildDailyNoteMd, buildTrackerRow, appendTrackerRow, buildMeetingMd, buildNewTaskMd, buildNewPropertyMd, buildNewProjectMd, buildNewPersonMd, finishRecurrentTaskInstance, markTaskDone, postponeTaskDates, postponeTaskDatesByMonths, replaceDailyTimeClockRows, setDailyWorkStatus, setPropertyCover, touchDateModified, updateTaskDates } from './utils/formatter.js';
-import { TARGET_WORK_MINUTES, WEEK_TARGET_MINUTES, WORK_CHART_MAX_MINUTES, WORK_EVENT_ORDER, WORK_STATUS_LABELS, dashboardStats, minutesFromTime, workStats } from './utils/timeClock.js';
+import { TARGET_WORK_MINUTES, TARGET_WORK_TOLERANCE, WEEK_TARGET_MINUTES, WORK_CHART_MAX_MINUTES, WORK_EVENT_ORDER, WORK_STATUS_LABELS, dashboardStats, goalBand, minutesFromTime, workStats } from './utils/timeClock.js';
 
 const REFRESH_MS  = 5 * 60 * 1000;
 const WARN_MS     = 60 * 60 * 1000;
@@ -159,6 +159,60 @@ function noteBodyText(raw = '') {
     .replace(/^---\n[\s\S]*?\n---\n?/, '')
     .replace(/^#\s+.+\n?/, '')
     .trim();
+}
+
+function markdownSectionText(raw = '', heading) {
+  const text = String(raw || '').replace(/\r\n/g, '\n');
+  const match = text.match(new RegExp(`(^|\\n)##\\s+${heading.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}[ \\t]*(?=\\n|$)`, 'i'));
+  if (!match) return '';
+  const start = match.index + match[0].length;
+  const rest = text.slice(start);
+  const next = rest.search(/\n##\s+/);
+  return rest.slice(0, next === -1 ? undefined : next).trim();
+}
+
+function splitIntoBulletPoints(text = '') {
+  const compact = String(text || '').replace(/\r\n/g, '\n').trim();
+  if (!compact) return [];
+  if (/^-\s+/m.test(compact)) {
+    return compact
+      .split('\n')
+      .map(line => line.trim())
+      .filter(line => /^-\s+/.test(line))
+      .map(line => line.replace(/^-\s+/, ''));
+  }
+  const sentences = compact
+    .replace(/\n+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .split(/(?<=[.!?])\s+(?=[A-Z])/)
+    .map(sentence => sentence.trim())
+    .filter(Boolean);
+  const bullets = [];
+  for (let index = 0; index < sentences.length; index += 2) bullets.push(sentences.slice(index, index + 2).join(' '));
+  return bullets;
+}
+
+function parseMeetingView(raw = '') {
+  const body = noteBodyText(raw);
+  const field = label => body.match(new RegExp(`\\*\\*${label}:\\*\\*\\s*(.+)`, 'i'))?.[1]?.trim() || '';
+  const linkedContext = markdownSectionText(body, 'Linked context')
+    .split('\n')
+    .map(line => line.trim())
+    .map(line => line.match(/^- \*\*(.+?):\*\*\s*(.+)$/))
+    .filter(Boolean)
+    .map(([, label, value]) => ({
+      label,
+      values: value.split(',').map(item => item.trim().replace(/^\[\[|\]\]$/g, '')).filter(Boolean),
+    }));
+  const notes = splitIntoBulletPoints(markdownSectionText(body, 'Notes'));
+  return {
+    date: field('Date'),
+    start: field('Start'),
+    end: field('End'),
+    duration: field('Duration'),
+    linkedContext,
+    notes,
+  };
 }
 
 function MarkdownBody({ children, emptyText = 'No Markdown content yet.', compact = false }) {
@@ -464,6 +518,20 @@ function formatHoursMinutes(minutes) {
   const h = Math.floor(mins / 60);
   const m = mins % 60;
   return `${h}h ${String(m).padStart(2, '0')}m`;
+}
+
+function rangeBand(minutes, targetMinutes, toleranceMinutes) {
+  if (!minutes) return 'empty';
+  if (minutes < targetMinutes - toleranceMinutes) return 'below';
+  if (minutes > targetMinutes + toleranceMinutes) return 'above';
+  return 'target';
+}
+
+function workBandTone(minutes, targetMinutes = TARGET_WORK_MINUTES, toleranceMinutes = TARGET_WORK_TOLERANCE) {
+  const band = rangeBand(minutes, targetMinutes, toleranceMinutes);
+  if (band === 'target') return { band, fill:'#1fd47b', text:'#1fd47b', glow:'0 0 22px rgba(31,212,123,0.18)' };
+  if (band === 'empty') return { band, fill:'rgba(255,255,255,0.08)', text:'#f8fff9', glow:'none' };
+  return { band, fill:'#ef4444', text:'#f87171', glow:'0 0 18px rgba(239,68,68,0.16)' };
 }
 
 function timeDraftFromRows(rows = []) {
@@ -2406,9 +2474,9 @@ export default function App() {
           weekDates={weekDates(tod())}
           vaultTotals={vaultTotals}
           recentMeetings={meetings.slice(0, 4)}
-          recentPeople={people.slice(0, 6)}
+          recentProperties={properties.slice(0, 6)}
           onOpenMeetings={()=>setView('meetings')}
-          onOpenPeople={()=>setView('people')}
+          onOpenProperties={()=>setView('properties')}
         />
       ) : view === 'hours' ? (
         <HoursPanel
@@ -2752,6 +2820,13 @@ function MeetingPanel({ meetingOpen, meetingTitle, meetingNotes, meetingLinks, s
 
   if (!meetingOpen) {
     if (savedMeeting) {
+      const meetingView = parseMeetingView(savedMeeting.raw);
+      const summaryCards = [
+        ['Date', meetingView.date || savedMeeting.date || 'Unknown'],
+        ['Start', meetingView.start || '--'],
+        ['End', meetingView.end || '--'],
+        ['Duration', meetingView.duration || '--'],
+      ];
       return (
         <div style={{ flex:1, overflowY:'auto', padding:'22px 30px' }}>
           <div style={{ display:'flex', justifyContent:'space-between', gap:18, alignItems:'flex-start', marginBottom:18 }}>
@@ -2762,8 +2837,46 @@ function MeetingPanel({ meetingOpen, meetingTitle, meetingNotes, meetingLinks, s
             </div>
             <button onClick={onStart} style={{ padding:'10px 16px', borderRadius:10, border:'none', cursor:'pointer', fontWeight:800, fontSize:13, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff', flexShrink:0 }}>+ Start Meeting</button>
           </div>
-          <div style={{ borderRadius:10, border:'1px solid rgba(255,255,255,0.06)', background:'rgba(255,255,255,0.025)', padding:'16px 18px' }}>
-            <MarkdownBody>{noteBodyText(savedMeeting.raw)}</MarkdownBody>
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(4,minmax(0,1fr))', gap:10, marginBottom:12 }}>
+            {summaryCards.map(([label, value]) => (
+              <div key={label} style={{ borderRadius:14, border:'1px solid rgba(255,255,255,0.06)', background:'rgba(255,255,255,0.025)', padding:'12px 14px' }}>
+                <div style={{ fontSize:9, color:BRAND_LABEL, fontWeight:800, textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:5 }}>{label}</div>
+                <div style={{ fontSize:14, color:'#f8fff9', fontWeight:800 }}>{value}</div>
+              </div>
+            ))}
+          </div>
+          {!!meetingView.linkedContext.length && (
+            <div style={{ borderRadius:14, border:'1px solid rgba(255,255,255,0.06)', background:'rgba(255,255,255,0.025)', padding:'14px 16px', marginBottom:12 }}>
+              <div style={{ fontSize:10, color:BRAND_LABEL, fontWeight:800, textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:10 }}>Linked context</div>
+              <div style={{ display:'grid', gap:10 }}>
+                {meetingView.linkedContext.map(group => (
+                  <div key={group.label}>
+                    <div style={{ fontSize:11, color:'#f8fff9', fontWeight:800, marginBottom:6 }}>{group.label}</div>
+                    <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
+                      {group.values.map(value => (
+                        <span key={`${group.label}-${value}`} style={{ padding:'5px 9px', borderRadius:999, background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.08)', color:'#f4fff9', fontSize:10, fontWeight:700 }}>
+                          {value}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          <div style={{ borderRadius:14, border:'1px solid rgba(255,255,255,0.06)', background:'rgba(255,255,255,0.025)', padding:'16px 18px' }}>
+            <div style={{ fontSize:10, color:BRAND_LABEL, fontWeight:800, textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:10 }}>Notes</div>
+            {meetingView.notes.length ? (
+              <ul style={{ margin:0, paddingLeft:18, display:'grid', gap:10, color:'#e2e8f0', lineHeight:1.6 }}>
+                {meetingView.notes.map((item, index) => (
+                  <li key={`${savedMeeting.id}-note-${index}`} style={{ paddingLeft:4 }}>
+                    <MarkdownBody compact>{item}</MarkdownBody>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <MarkdownBody>{noteBodyText(savedMeeting.raw)}</MarkdownBody>
+            )}
           </div>
         </div>
       );
@@ -2960,6 +3073,8 @@ function HoursPanel({ selectedDate, selectedNote, notes, month, onSelectDate, on
   const todayStats = workStats(todayNote);
   const selectedStats = workStats(selectedNote);
   const selectedEvents = selectedNote?.timeClock || [];
+  const todayTone = workBandTone(todayStats.totalMinutes);
+  const selectedTone = workBandTone(selectedStats.totalMinutes);
 
   if (!hasDailyFolder) {
     return (
@@ -2970,8 +3085,8 @@ function HoursPanel({ selectedDate, selectedNote, notes, month, onSelectDate, on
   }
 
   return (
-    <div style={{ flex:1, minHeight:0, overflowY:'auto', padding:'22px 28px 24px' }}>
-      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:18, marginBottom:16, flexWrap:'wrap' }}>
+    <div style={{ flex:1, minHeight:0, overflowY:'auto', padding:'18px 24px 20px' }}>
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:18, marginBottom:14, flexWrap:'wrap' }}>
         <div>
           <div style={{ fontSize:10, color:BRAND_LABEL, fontWeight:800, textTransform:'uppercase', letterSpacing:'0.14em', marginBottom:6 }}>Hours</div>
           <h2 style={{ margin:0, fontSize:30, color:'#f8fff9', letterSpacing:'-0.04em' }}>Time clock</h2>
@@ -2984,74 +3099,72 @@ function HoursPanel({ selectedDate, selectedNote, notes, month, onSelectDate, on
         </button>
       </div>
 
-      <div style={{ display:'grid', gridTemplateColumns:'minmax(300px,0.98fr) minmax(320px,1.02fr)', gap:16, marginBottom:16 }}>
-        <div style={{ display:'grid', gap:16 }}>
-          <section className="glass-thin" style={{ borderRadius:18, padding:'16px' }}>
-            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline', gap:12, marginBottom:14 }}>
-              <div>
-                <div style={{ fontSize:11, color:BRAND_LABEL, fontWeight:800, textTransform:'uppercase', letterSpacing:'0.14em', marginBottom:5 }}>Punch today</div>
-                <div style={{ fontSize:14, color:'#f8fff9', fontWeight:700 }}>{todayKey}</div>
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(260px,1fr))', gap:14, marginBottom:14, alignItems:'start' }}>
+        <section className="glass-thin" style={{ borderRadius:18, padding:'14px' }}>
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline', gap:12, marginBottom:12 }}>
+            <div>
+              <div style={{ fontSize:11, color:BRAND_LABEL, fontWeight:800, textTransform:'uppercase', letterSpacing:'0.14em', marginBottom:5 }}>Punch today</div>
+              <div style={{ fontSize:14, color:'#f8fff9', fontWeight:700 }}>{todayKey}</div>
+            </div>
+            <div style={{ fontSize:22, fontWeight:850, color:todayTone.text, fontVariantNumeric:'tabular-nums' }}>{formatHoursMinutes(todayStats.totalMinutes)}</div>
+          </div>
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(2,minmax(0,1fr))', gap:8, marginBottom:10 }}>
+            {WORK_EVENT_ORDER.map(event => (
+              <button
+                key={event}
+                onClick={()=>onTimeClockEvent(event)}
+                style={{ padding:'10px 11px', borderRadius:12, border:'1px solid rgba(255,255,255,0.08)', background:'rgba(255,255,255,0.04)', color:'#f4fff9', fontSize:12, fontWeight:800, cursor:'pointer', fontFamily:'inherit', textAlign:'left' }}
+              >
+                {event}
+              </button>
+            ))}
+          </div>
+          <div style={{ fontSize:11, color:'rgba(244,255,249,0.58)', marginBottom:8 }}>Quick actions always stamp the current time into today&apos;s daily note.</div>
+          <div style={{ display:'grid', gap:7 }}>
+            {(todayNote?.timeClock || []).length ? (todayNote.timeClock || []).map((row, index) => (
+              <div key={`${row.event}-${row.time}-${index}`} style={{ display:'flex', justifyContent:'space-between', gap:12, padding:'8px 10px', borderRadius:12, background:'rgba(255,255,255,0.035)', border:'1px solid rgba(255,255,255,0.06)' }}>
+                <span style={{ fontSize:12, color:'#f8fff9', fontWeight:700 }}>{row.event}</span>
+                <span style={{ fontSize:12, color:'rgba(244,255,249,0.68)', fontVariantNumeric:'tabular-nums' }}>{row.time}</span>
               </div>
-              <div style={{ fontSize:24, fontWeight:850, color:'#10b981', fontVariantNumeric:'tabular-nums' }}>{formatHoursMinutes(todayStats.totalMinutes)}</div>
-            </div>
-            <div style={{ display:'grid', gridTemplateColumns:'repeat(2,minmax(0,1fr))', gap:8, marginBottom:12 }}>
-              {WORK_EVENT_ORDER.map(event => (
-                <button
-                  key={event}
-                  onClick={()=>onTimeClockEvent(event)}
-                  style={{ padding:'11px 12px', borderRadius:12, border:'1px solid rgba(255,255,255,0.08)', background:'rgba(255,255,255,0.04)', color:'#f4fff9', fontSize:12, fontWeight:800, cursor:'pointer', fontFamily:'inherit', textAlign:'left' }}
-                >
-                  {event}
-                </button>
-              ))}
-            </div>
-            <div style={{ fontSize:11, color:'rgba(244,255,249,0.58)', marginBottom:10 }}>Quick actions always stamp the current time into today&apos;s daily note.</div>
-            <div style={{ display:'grid', gap:8 }}>
-              {(todayNote?.timeClock || []).length ? (todayNote.timeClock || []).map((row, index) => (
-                <div key={`${row.event}-${row.time}-${index}`} style={{ display:'flex', justifyContent:'space-between', gap:12, padding:'9px 11px', borderRadius:12, background:'rgba(255,255,255,0.035)', border:'1px solid rgba(255,255,255,0.06)' }}>
-                  <span style={{ fontSize:12, color:'#f8fff9', fontWeight:700 }}>{row.event}</span>
-                  <span style={{ fontSize:12, color:'rgba(244,255,249,0.68)', fontVariantNumeric:'tabular-nums' }}>{row.time}</span>
-                </div>
-              )) : (
-                <div style={{ padding:'12px', borderRadius:12, background:'rgba(255,255,255,0.03)', border:'1px solid rgba(255,255,255,0.06)', color:'rgba(244,255,249,0.6)', fontSize:12 }}>
-                  No punches logged today yet.
-                </div>
-              )}
-            </div>
-          </section>
+            )) : (
+              <div style={{ padding:'10px 12px', borderRadius:12, background:'rgba(255,255,255,0.03)', border:'1px solid rgba(255,255,255,0.06)', color:'rgba(244,255,249,0.6)', fontSize:12 }}>
+                No punches logged today yet.
+              </div>
+            )}
+          </div>
+        </section>
 
-          <section className="glass-thin" style={{ borderRadius:18, padding:'16px' }}>
-            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline', gap:12, marginBottom:12 }}>
-              <div>
-                <div style={{ fontSize:11, color:BRAND_LABEL, fontWeight:800, textTransform:'uppercase', letterSpacing:'0.14em', marginBottom:5 }}>Selected day</div>
-                <div style={{ fontSize:14, color:'#f8fff9', fontWeight:700 }}>{selectedDate}</div>
-              </div>
-              <div style={{ fontSize:12, color:'rgba(244,255,249,0.68)' }}>{selectedStats.label}</div>
+        <section className="glass-thin" style={{ borderRadius:18, padding:'14px' }}>
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline', gap:12, marginBottom:10 }}>
+            <div>
+              <div style={{ fontSize:11, color:BRAND_LABEL, fontWeight:800, textTransform:'uppercase', letterSpacing:'0.14em', marginBottom:5 }}>Selected day</div>
+              <div style={{ fontSize:14, color:'#f8fff9', fontWeight:700 }}>{selectedDate}</div>
             </div>
-            <div style={{ display:'grid', gridTemplateColumns:'repeat(2,minmax(0,1fr))', gap:10, marginBottom:12 }}>
-              <div style={{ padding:'12px', borderRadius:14, background:'rgba(255,255,255,0.035)', border:'1px solid rgba(255,255,255,0.06)' }}>
-                <div style={{ fontSize:9, color:BRAND_LABEL, fontWeight:800, textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:5 }}>Worked</div>
-                <div style={{ fontSize:24, fontWeight:850, color:'#10b981', fontVariantNumeric:'tabular-nums' }}>{formatHoursMinutes(selectedStats.totalMinutes)}</div>
-              </div>
-              <div style={{ padding:'12px', borderRadius:14, background:'rgba(255,255,255,0.035)', border:'1px solid rgba(255,255,255,0.06)' }}>
-                <div style={{ fontSize:9, color:BRAND_LABEL, fontWeight:800, textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:5 }}>Breaks</div>
-                <div style={{ fontSize:24, fontWeight:850, color:'#f8fff9', fontVariantNumeric:'tabular-nums' }}>{formatMinutes(selectedStats.breakMinutes)}</div>
-              </div>
+            <div style={{ fontSize:12, color:'rgba(244,255,249,0.68)' }}>{selectedStats.label}</div>
+          </div>
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(2,minmax(0,1fr))', gap:10, marginBottom:10 }}>
+            <div style={{ padding:'12px', borderRadius:14, background:'rgba(255,255,255,0.035)', border:'1px solid rgba(255,255,255,0.06)' }}>
+              <div style={{ fontSize:9, color:BRAND_LABEL, fontWeight:800, textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:5 }}>Worked</div>
+              <div style={{ fontSize:22, fontWeight:850, color:selectedTone.text, fontVariantNumeric:'tabular-nums' }}>{formatHoursMinutes(selectedStats.totalMinutes)}</div>
             </div>
-            <div style={{ display:'grid', gap:8 }}>
-              {selectedEvents.length ? selectedEvents.map((row, index) => (
-                <div key={`${selectedDate}-${row.event}-${row.time}-${index}`} style={{ display:'flex', justifyContent:'space-between', gap:12, padding:'9px 11px', borderRadius:12, background:'rgba(255,255,255,0.035)', border:'1px solid rgba(255,255,255,0.06)' }}>
-                  <span style={{ fontSize:12, color:'#f8fff9', fontWeight:700 }}>{row.event}</span>
-                  <span style={{ fontSize:12, color:'rgba(244,255,249,0.68)', fontVariantNumeric:'tabular-nums' }}>{row.time}</span>
-                </div>
-              )) : (
-                <div style={{ padding:'12px', borderRadius:12, background:'rgba(255,255,255,0.03)', border:'1px solid rgba(255,255,255,0.06)', color:'rgba(244,255,249,0.6)', fontSize:12 }}>
-                  This date has no saved clock events yet. Use the fields below to add or edit times manually.
-                </div>
-              )}
+            <div style={{ padding:'12px', borderRadius:14, background:'rgba(255,255,255,0.035)', border:'1px solid rgba(255,255,255,0.06)' }}>
+              <div style={{ fontSize:9, color:BRAND_LABEL, fontWeight:800, textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:5 }}>Breaks</div>
+              <div style={{ fontSize:22, fontWeight:850, color:'#f8fff9', fontVariantNumeric:'tabular-nums' }}>{formatMinutes(selectedStats.breakMinutes)}</div>
             </div>
-          </section>
-        </div>
+          </div>
+          <div style={{ display:'grid', gap:7 }}>
+            {selectedEvents.length ? selectedEvents.map((row, index) => (
+              <div key={`${selectedDate}-${row.event}-${row.time}-${index}`} style={{ display:'flex', justifyContent:'space-between', gap:12, padding:'8px 10px', borderRadius:12, background:'rgba(255,255,255,0.035)', border:'1px solid rgba(255,255,255,0.06)' }}>
+                <span style={{ fontSize:12, color:'#f8fff9', fontWeight:700 }}>{row.event}</span>
+                <span style={{ fontSize:12, color:'rgba(244,255,249,0.68)', fontVariantNumeric:'tabular-nums' }}>{row.time}</span>
+              </div>
+            )) : (
+              <div style={{ padding:'10px 12px', borderRadius:12, background:'rgba(255,255,255,0.03)', border:'1px solid rgba(255,255,255,0.06)', color:'rgba(244,255,249,0.6)', fontSize:12 }}>
+                This date has no saved clock events yet. Use the fields below to add or edit times manually.
+              </div>
+            )}
+          </div>
+        </section>
 
         <WorkCalendar
           month={month}
@@ -3096,30 +3209,17 @@ function TimeDashboardPanel({ notes, trackerRows, tasks, hasDailyFolder, onConfi
   const chartMaxMinutes = Math.max(WORK_CHART_MAX_MINUTES, TARGET_WORK_MINUTES, ...chartDays.map(day => day.totalMinutes));
   const targetBottom = `${Math.min(100, (TARGET_WORK_MINUTES / chartMaxMinutes) * 100)}%`;
   const tickEvery = Math.max(1, Math.ceil(chartDays.length / 7));
-  const trackedRows = trackerRows.filter(row => row.date >= range.start && row.date <= range.end);
-  const tasksByFilename = tasks.reduce((map, task) => {
-    map[String(task.filename || '').toLowerCase()] = task;
-    return map;
-  }, {});
-  const contextTotals = trackedRows.reduce((map, row) => {
-    const task = tasksByFilename[row.taskLabel.toLowerCase()];
-    const key = task?.contexts?.[0] || task?.projects?.[0] || task?.client || task?.building || (!row.linked ? row.taskLabel : 'Uncategorized');
-    map[key] = (map[key] || 0) + row.minutes;
-    return map;
-  }, {});
-  const taskTotals = trackedRows.reduce((map, row) => {
-    const task = tasksByFilename[row.taskLabel.toLowerCase()];
-    const key = task?.title || row.taskLabel;
-    map[key] = (map[key] || 0) + row.minutes;
-    return map;
-  }, {});
-  const topContexts = Object.entries(contextTotals).sort((a, b) => b[1] - a[1]).slice(0, 5);
-  const topTasks = Object.entries(taskTotals).sort((a, b) => b[1] - a[1]).slice(0, 5);
   const metricCards = [
     { label:`Total ${range.metric}`, value:formatHoursMinutes(stats.summary.totalMinutes), detail:`${stats.summary.totalDays} counted day${stats.summary.totalDays === 1 ? '' : 's'}` },
-    { label:'Daily average', value:formatHoursMinutes(stats.summary.averageMinutes), detail:`goal ${formatHoursMinutes(TARGET_WORK_MINUTES)}` },
+    { label:'Daily average', value:formatHoursMinutes(stats.summary.averageMinutes), detail:`target ${formatHoursMinutes(TARGET_WORK_MINUTES)} +/- ${TARGET_WORK_TOLERANCE} min` },
     { label:'Today', value:formatHoursMinutes(todayStats.totalMinutes), detail:todayStats.totalMinutes ? todayStats.label : 'no time logged yet' },
   ];
+  const bandTone = minutes => {
+    const band = goalBand(minutes);
+    if (band === 'target') return { fill:'#1fd47b', glow:'0 0 22px rgba(31,212,123,0.18)' };
+    if (band === 'empty') return { fill:'rgba(255,255,255,0.08)', glow:'none' };
+    return { fill:'#ef4444', glow:'0 0 18px rgba(239,68,68,0.16)' };
+  };
 
   if (!hasDailyFolder) {
     return (
@@ -3130,7 +3230,7 @@ function TimeDashboardPanel({ notes, trackerRows, tasks, hasDailyFolder, onConfi
   }
 
   return (
-    <div style={{ flex:1, minHeight:0, overflowY:'auto', padding:'22px 28px 24px' }}>
+    <div style={{ flex:1, minHeight:0, overflowY:'auto', padding:'18px 24px 20px' }}>
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:18, marginBottom:16, flexWrap:'wrap' }}>
         <div>
           <div style={{ fontSize:10, color:BRAND_LABEL, fontWeight:800, textTransform:'uppercase', letterSpacing:'0.14em', marginBottom:6 }}>Time dashboard · {range.label.toLowerCase()}</div>
@@ -3163,7 +3263,7 @@ function TimeDashboardPanel({ notes, trackerRows, tasks, hasDailyFolder, onConfi
         ))}
       </div>
 
-      <section className="glass-thin" style={{ borderRadius:18, padding:'16px', marginBottom:16 }}>
+      <section className="glass-thin" style={{ borderRadius:18, padding:'16px' }}>
         <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:14, marginBottom:14, flexWrap:'wrap' }}>
           <div>
             <div style={{ fontSize:11, color:BRAND_LABEL, fontWeight:800, textTransform:'uppercase', letterSpacing:'0.14em', marginBottom:5 }}>{range.metric}</div>
@@ -3171,11 +3271,11 @@ function TimeDashboardPanel({ notes, trackerRows, tasks, hasDailyFolder, onConfi
           </div>
           <div style={{ display:'flex', gap:12, flexWrap:'wrap', fontSize:10, fontWeight:800 }}>
             <span style={{ color:'#34d399' }}>goal met</span>
-            <span style={{ color:'#7dd3a7' }}>partial</span>
-            <span style={{ color:'rgba(244,255,249,0.56)' }}>target: {formatHoursMinutes(TARGET_WORK_MINUTES)}</span>
+            <span style={{ color:'#ef4444' }}>outside band</span>
+            <span style={{ color:'rgba(244,255,249,0.56)' }}>target: {formatHoursMinutes(TARGET_WORK_MINUTES)} +/- {TARGET_WORK_TOLERANCE} min</span>
           </div>
         </div>
-        <div style={{ minHeight:300, borderRadius:16, background:'linear-gradient(180deg,rgba(10,34,22,0.88),rgba(8,25,18,0.82))', border:'1px solid rgba(255,255,255,0.05)', padding:'18px 16px 28px' }}>
+        <div style={{ minHeight:360, borderRadius:16, background:'linear-gradient(180deg,rgba(10,34,22,0.88),rgba(8,25,18,0.82))', border:'1px solid rgba(255,255,255,0.05)', padding:'18px 16px 28px' }}>
           {chartDays.length ? (
             <div style={{ height:'100%', position:'relative' }}>
               <div style={{ position:'absolute', left:0, right:0, bottom:targetBottom, borderTop:'1px dashed rgba(188,255,214,0.38)' }} />
@@ -3183,10 +3283,10 @@ function TimeDashboardPanel({ notes, trackerRows, tasks, hasDailyFolder, onConfi
                 {chartDays.map((day, index) => {
                   const pct = Math.min(100, (day.totalMinutes / chartMaxMinutes) * 100);
                   const showTick = chartDays.length <= 10 || index === 0 || index === chartDays.length - 1 || index % tickEvery === 0;
-                  const barColor = day.totalMinutes >= TARGET_WORK_MINUTES ? '#1fd47b' : day.totalMinutes > 0 ? '#148b53' : 'rgba(255,255,255,0.08)';
+                  const tone = bandTone(day.totalMinutes);
                   return (
                     <div key={day.date} title={`${day.date} · ${formatHoursMinutes(day.totalMinutes)} · ${day.label}`} style={{ flex:'1 1 0', minWidth:0, position:'relative' }}>
-                      <div style={{ position:'absolute', left:'50%', bottom:0, transform:'translateX(-50%)', width:chartDays.length > 40 ? '100%' : '76%', maxWidth:18, minHeight:day.totalMinutes ? 0 : 4, height:`${day.totalMinutes ? Math.max(4, pct) : 0}%`, borderRadius:'10px 10px 4px 4px', background:barColor, boxShadow:day.totalMinutes >= TARGET_WORK_MINUTES ? '0 0 22px rgba(31,212,123,0.18)' : 'none' }} />
+                      <div style={{ position:'absolute', left:'50%', bottom:0, transform:'translateX(-50%)', width:chartDays.length > 40 ? '100%' : '76%', maxWidth:18, minHeight:day.totalMinutes ? 0 : 4, height:`${day.totalMinutes ? Math.max(4, pct) : 0}%`, borderRadius:'10px 10px 4px 4px', background:tone.fill, boxShadow:tone.glow }} />
                       {showTick && (
                         <div style={{ position:'absolute', left:-10, right:-10, bottom:-20, textAlign:'center', fontSize:10, color:'rgba(244,255,249,0.6)', fontWeight:700, whiteSpace:'nowrap' }}>
                           {new Date(`${day.date}T12:00:00`).toLocaleDateString('en-US', { weekday:'short' })}
@@ -3204,50 +3304,11 @@ function TimeDashboardPanel({ notes, trackerRows, tasks, hasDailyFolder, onConfi
           )}
         </div>
       </section>
-
-      <div style={{ display:'grid', gridTemplateColumns:'minmax(260px,1fr) minmax(260px,0.9fr)', gap:16 }}>
-        <section className="glass-thin" style={{ borderRadius:18, padding:'16px' }}>
-          <div style={{ fontSize:11, color:BRAND_LABEL, fontWeight:800, textTransform:'uppercase', letterSpacing:'0.14em', marginBottom:12 }}>By context</div>
-          {topContexts.length ? topContexts.map(([label, minutes]) => {
-            const width = topContexts[0][1] ? `${(minutes / topContexts[0][1]) * 100}%` : '0%';
-            return (
-              <div key={label} style={{ marginBottom:12 }}>
-                <div style={{ display:'flex', justifyContent:'space-between', gap:12, alignItems:'baseline', marginBottom:6 }}>
-                  <span style={{ fontSize:12, color:'#f8fff9', fontWeight:700 }}>{label}</span>
-                  <span style={{ fontSize:11, color:'rgba(244,255,249,0.62)', fontVariantNumeric:'tabular-nums' }}>{formatHoursMinutes(minutes)}</span>
-                </div>
-                <div style={{ height:7, borderRadius:999, background:'rgba(255,255,255,0.06)' }}>
-                  <div style={{ height:'100%', width, borderRadius:999, background:'linear-gradient(90deg,#22c55e,#86efac)' }} />
-                </div>
-              </div>
-            );
-          }) : (
-            <div style={{ color:'rgba(244,255,249,0.6)', fontSize:12, lineHeight:1.55 }}>
-              Start and stop task timers to populate context totals here.
-            </div>
-          )}
-        </section>
-
-        <section className="glass-thin" style={{ borderRadius:18, padding:'16px' }}>
-          <div style={{ fontSize:11, color:BRAND_LABEL, fontWeight:800, textTransform:'uppercase', letterSpacing:'0.14em', marginBottom:12 }}>Top tasks</div>
-          {topTasks.length ? topTasks.map(([label, minutes], index) => (
-            <div key={label} style={{ display:'grid', gridTemplateColumns:'24px minmax(0,1fr) auto', gap:10, alignItems:'baseline', padding:'8px 0', borderBottom:index === topTasks.length - 1 ? 'none' : '1px solid rgba(255,255,255,0.06)' }}>
-              <span style={{ fontSize:10, color:'rgba(244,255,249,0.42)', fontWeight:800 }}>{String(index + 1).padStart(2, '0')}</span>
-              <span style={{ fontSize:12, color:'#f8fff9', fontWeight:700, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{label}</span>
-              <span style={{ fontSize:11, color:'rgba(244,255,249,0.62)', fontVariantNumeric:'tabular-nums' }}>{formatHoursMinutes(minutes)}</span>
-            </div>
-          )) : (
-            <div style={{ color:'rgba(244,255,249,0.6)', fontSize:12, lineHeight:1.55 }}>
-              No tracked tasks were found in this period yet.
-            </div>
-          )}
-        </section>
-      </div>
     </div>
   );
 }
 
-function MissionControlPanel({ today, overdue, recurrent, onNewTask, dailyNote, dailyInputs, setDailyInputs, onAddDailyEntry, workNotes, hasDailyFolder, onConfigure, completedToday = [], tomorrowTasks = [], weekDates: currentWeekDates = [], recentMeetings = [], recentPeople = [], onOpenMeetings, onOpenPeople }) {
+function MissionControlPanel({ today, overdue, recurrent, onNewTask, dailyNote, dailyInputs, setDailyInputs, onAddDailyEntry, workNotes, hasDailyFolder, onConfigure, completedToday = [], tomorrowTasks = [], weekDates: currentWeekDates = [], recentMeetings = [], recentProperties = [], onOpenMeetings, onOpenProperties }) {
   const [noteSection, setNoteSection] = useState('notes');
   const greetingHour = new Date().getHours();
   const greeting = greetingHour < 12 ? 'Good morning' : greetingHour < 18 ? 'Good afternoon' : 'Good evening';
@@ -3261,7 +3322,7 @@ function MissionControlPanel({ today, overdue, recurrent, onNewTask, dailyNote, 
   }));
   let streakDays = 0;
   for (const dateStr of [...currentWeekDates].reverse()) {
-    if (workStats(workNotes[dateStr]).totalMinutes >= TARGET_WORK_MINUTES) streakDays += 1;
+    if (goalBand(workStats(workNotes[dateStr]).totalMinutes) === 'target') streakDays += 1;
     else if (streakDays) break;
   }
 
@@ -3282,7 +3343,7 @@ function MissionControlPanel({ today, overdue, recurrent, onNewTask, dailyNote, 
           </div>
           <h2 style={{ margin:0, fontSize:32, fontWeight:800, letterSpacing:'-0.04em', color:'#f8fff9' }}>{greeting}.</h2>
           <div style={{ fontSize:13, color:'rgba(244,255,249,0.72)', marginTop:6, maxWidth:620 }}>
-            Queues stay in the sidebar. Use this view to steer the day, capture notes, and keep the most relevant people and meetings in view.
+            Queues stay in the sidebar. Use this view to steer the day, capture notes, and keep the most relevant meetings and property context in view.
           </div>
         </div>
         <div style={{ display:'flex', gap:8, flexShrink:0 }}>
@@ -3350,14 +3411,21 @@ function MissionControlPanel({ today, overdue, recurrent, onNewTask, dailyNote, 
           </div>
 
           <div style={{ flex:1, minHeight:0, borderRadius:16, border:'1px solid rgba(255,255,255,0.08)', background:'rgba(255,255,255,0.03)', padding:'14px 14px 12px', display:'flex', flexDirection:'column' }}>
-            <div style={{ flex:1, minHeight:0, overflowY:'auto', paddingRight:4 }}>
-              {activeItems.length ? activeItems.map((item, index) => (
-                <div key={`${activeNote.key}-${index}`} style={{ padding:'11px 12px', borderRadius:12, background:'rgba(255,255,255,0.035)', border:'1px solid rgba(255,255,255,0.06)', marginBottom:8 }}>
-                  <MarkdownBody compact>{item}</MarkdownBody>
-                </div>
-              )) : (
-                <div style={{ height:'100%', display:'flex', alignItems:'center', justifyContent:'center', textAlign:'center', padding:'24px 12px', color:'rgba(244,255,249,0.58)', fontSize:13 }}>
-                  {hasDailyFolder ? `Nothing in ${activeNote.label.toLowerCase()} yet.` : 'Set the Daily Notes folder to start capturing here.'}
+            <div style={{ flex:'0 0 auto', minHeight:120, paddingRight:4 }}>
+              <div style={{ fontSize:10, color:'rgba(244,255,249,0.56)', fontWeight:800, textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:10 }}>
+                Recent {activeNote.label.toLowerCase()}
+              </div>
+              {activeItems.length ? (
+                <ul style={{ margin:0, paddingLeft:18, display:'grid', gap:8, color:'#e2e8f0' }}>
+                  {activeItems.map((item, index) => (
+                    <li key={`${activeNote.key}-${index}`} style={{ paddingLeft:4 }}>
+                      <MarkdownBody compact>{item}</MarkdownBody>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <div style={{ color:'rgba(244,255,249,0.58)', fontSize:12 }}>
+                  {hasDailyFolder ? `No ${activeNote.label.toLowerCase()} bullet points yet.` : 'Set the Daily Notes folder to start capturing here.'}
                 </div>
               )}
             </div>
@@ -3369,9 +3437,10 @@ function MissionControlPanel({ today, overdue, recurrent, onNewTask, dailyNote, 
                 onKeyDown={e=>{ if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) onAddDailyEntry(activeNote.key); }}
                 disabled={!hasDailyFolder}
                 placeholder={hasDailyFolder ? activeNote.placeholder : 'Set daily folder first'}
-                rows={5}
+                rows={7}
                 style={{
                   width:'100%',
+                  minHeight:150,
                   padding:'12px 14px',
                   borderRadius:14,
                   resize:'vertical',
@@ -3454,18 +3523,18 @@ function MissionControlPanel({ today, overdue, recurrent, onNewTask, dailyNote, 
           <section className="glass-thin" style={{ borderRadius:18, padding:'14px' }}>
             <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:12, marginBottom:12 }}>
               <div>
-                <div style={{ fontSize:11, color:BRAND_LABEL, fontWeight:800, textTransform:'uppercase', letterSpacing:'0.14em', marginBottom:5 }}>People</div>
-                <div style={{ fontSize:13, color:'rgba(244,255,249,0.68)' }}>Keep the active relationships visible.</div>
+                <div style={{ fontSize:11, color:BRAND_LABEL, fontWeight:800, textTransform:'uppercase', letterSpacing:'0.14em', marginBottom:5 }}>Properties</div>
+                <div style={{ fontSize:13, color:'rgba(244,255,249,0.68)' }}>Keep the active sites and buildings visible.</div>
               </div>
-              <button onClick={onOpenPeople} style={{ padding:'6px 10px', borderRadius:999, border:'1px solid rgba(255,255,255,0.08)', background:'rgba(255,255,255,0.03)', color:'#f4fff9', fontSize:11, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>
+              <button onClick={onOpenProperties} style={{ padding:'6px 10px', borderRadius:999, border:'1px solid rgba(255,255,255,0.08)', background:'rgba(255,255,255,0.03)', color:'#f4fff9', fontSize:11, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>
                 All
               </button>
             </div>
             <div style={{ display:'grid', gap:8 }}>
-              {recentPeople.length ? recentPeople.map(person => (
+              {recentProperties.length ? recentProperties.map(property => (
                 <button
-                  key={person.id}
-                  onClick={onOpenPeople}
+                  key={property.id}
+                  onClick={onOpenProperties}
                   style={{
                     width:'100%',
                     textAlign:'left',
@@ -3482,18 +3551,18 @@ function MissionControlPanel({ today, overdue, recurrent, onNewTask, dailyNote, 
                   }}
                 >
                   <div style={{ width:30, height:30, borderRadius:999, background:BRAND_GRADIENT, color:'#fff', display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, fontWeight:800, flexShrink:0 }}>
-                    {initials(person.title)}
+                    {initials(property.title)}
                   </div>
                   <div style={{ minWidth:0 }}>
-                    <div style={{ fontSize:13, fontWeight:700, color:'#f8fff9', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{person.title}</div>
+                    <div style={{ fontSize:13, fontWeight:700, color:'#f8fff9', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{property.title}</div>
                     <div style={{ fontSize:11, color:'rgba(244,255,249,0.6)', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
-                      {[person.role, person.company].filter(Boolean).join(' · ') || person.filename}
+                      {property.client || property.summary || property.filename}
                     </div>
                   </div>
                 </button>
               )) : (
                 <div style={{ color:'rgba(244,255,249,0.58)', fontSize:13, textAlign:'center', padding:'10px 0 4px' }}>
-                  People you track will show up here.
+                  Properties you track will show up here.
                 </div>
               )}
             </div>
@@ -3510,8 +3579,8 @@ function WorkCalendar({ month, selectedDate, notes, onMonthChange, onSelectDate,
   const cells = [...Array(firstPad).fill(null), ...days];
 
   return (
-    <section className="glass-thin" style={{ borderRadius:18, padding:'16px', minHeight:285 }}>
-      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:13 }}>
+    <section className="glass-thin" style={{ borderRadius:18, padding:'14px', minHeight:0 }}>
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:11 }}>
         <button onClick={()=>onMonthChange(prevMonth(month))} disabled={!hasDailyFolder} style={{ width:32, height:32, borderRadius:10, border:'1px solid rgba(255,255,255,0.08)', background:'rgba(255,255,255,0.03)', color:'#f4fff9', cursor:hasDailyFolder?'pointer':'not-allowed', fontWeight:900 }}>‹</button>
         <div style={{ textAlign:'center' }}>
           <div style={{ fontSize:11, color:BRAND_LABEL, fontWeight:800, letterSpacing:'0.14em', textTransform:'uppercase', marginBottom:5 }}>Calendar</div>
@@ -3528,11 +3597,12 @@ function WorkCalendar({ month, selectedDate, notes, onMonthChange, onSelectDate,
           const stats = workStats(notes[dateStr]);
           const status = notes[dateStr]?.workStatus;
           const selected = selectedDate === dateStr;
-          const accent = status === 'holiday' ? '#38bdf8' : status === 'sick-leave' ? '#f87171' : status === 'bank-holiday' ? '#fbbf24' : stats.totalMinutes ? '#10b981' : '#f4fff9';
+          const tone = workBandTone(stats.totalMinutes);
+          const accent = status === 'holiday' ? '#38bdf8' : status === 'bank-holiday' ? '#fbbf24' : status === 'sick-leave' ? '#fb7185' : tone.fill;
           return (
             <button key={dateStr} onClick={()=>onSelectDate(dateStr)} disabled={!hasDailyFolder}
               title={`${dateStr} · ${formatMinutes(stats.totalMinutes)} · ${stats.label}`}
-              style={{ minHeight:44, borderRadius:12, border:`1px solid ${selected ? BRAND_BORDER_STRONG : 'rgba(255,255,255,0.06)'}`, background:selected?'rgba(34,197,94,0.14)':'rgba(255,255,255,0.025)', color:'#e2e8f0', cursor:hasDailyFolder?'pointer':'not-allowed', fontFamily:'inherit', padding:'4px 2px', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:3, boxShadow:selected ? '0 0 24px rgba(34,197,94,0.12)' : 'none' }}>
+              style={{ minHeight:42, borderRadius:12, border:`1px solid ${selected ? BRAND_BORDER_STRONG : 'rgba(255,255,255,0.06)'}`, background:selected?'rgba(34,197,94,0.14)':'rgba(255,255,255,0.025)', color:'#e2e8f0', cursor:hasDailyFolder?'pointer':'not-allowed', fontFamily:'inherit', padding:'4px 2px', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:3, boxShadow:selected ? '0 0 24px rgba(34,197,94,0.12)' : 'none' }}>
               <span style={{ fontSize:12, fontWeight:800 }}>{Number(dateStr.slice(-2))}</span>
               <span style={{ width:6, height:6, borderRadius:6, background:accent, opacity:status || stats.totalMinutes ? 1 : 0.35 }} />
             </button>
@@ -3540,7 +3610,8 @@ function WorkCalendar({ month, selectedDate, notes, onMonthChange, onSelectDate,
         })}
       </div>
       <div style={{ display:'flex', gap:8, flexWrap:'wrap', marginTop:12, color:'rgba(244,255,249,0.6)', fontSize:10 }}>
-        <span>Green worked</span>
+        <span>Green in band</span>
+        <span>Red outside band</span>
         <span>Blue holiday</span>
         <span>Yellow bank holiday</span>
       </div>
@@ -3556,6 +3627,8 @@ function WorkHoursPanel({ selectedDate, selectedNote, notes, onSaveRows, onStatu
   const weekTotalMinutes = weekStats.reduce((sum, day) => sum + day.totalMinutes, 0);
   const chartMaxMinutes = Math.max(WORK_CHART_MAX_MINUTES, TARGET_WORK_MINUTES, ...weekStats.map(day => day.totalMinutes));
   const targetBottom = `${Math.min(100, (TARGET_WORK_MINUTES / chartMaxMinutes) * 100)}%`;
+  const weekTolerance = TARGET_WORK_TOLERANCE * weekStats.length;
+  const weekTone = workBandTone(weekTotalMinutes, WEEK_TARGET_MINUTES, weekTolerance);
 
   useEffect(() => {
     setDraft(timeDraftFromRows(selectedNote?.timeClock || []));
@@ -3566,20 +3639,20 @@ function WorkHoursPanel({ selectedDate, selectedNote, notes, onSaveRows, onStatu
   const canSave = canEditTimes && Object.values(draft).some(Boolean);
 
   return (
-    <section className="glass-thin" style={{ borderRadius:18, padding:'16px', minHeight:285 }}>
-      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:14, marginBottom:12 }}>
+    <section className="glass-thin" style={{ borderRadius:18, padding:'14px' }}>
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:14, marginBottom:10, flexWrap:'wrap' }}>
         <div>
           <div style={{ fontSize:11, color:BRAND_LABEL, fontWeight:800, letterSpacing:'0.14em', textTransform:'uppercase', marginBottom:5 }}>Daily hours</div>
           <h3 style={{ margin:0, fontSize:18, color:'#f8fff9' }}>{selectedDate}</h3>
           <div style={{ fontSize:11, color:'#f4fff9', marginTop:4 }}>{stats.label}</div>
         </div>
         <div style={{ textAlign:'right' }}>
-          <div style={{ fontSize:28, fontWeight:850, color:weekTotalMinutes >= WEEK_TARGET_MINUTES ? '#10b981' : '#fbbf24', fontVariantNumeric:'tabular-nums' }}>{formatHoursMinutes(weekTotalMinutes)}</div>
-          <div style={{ fontSize:10, color:'#f4fff9' }}>week target {formatHoursMinutes(WEEK_TARGET_MINUTES)}</div>
+          <div style={{ fontSize:26, fontWeight:850, color:weekTone.text, fontVariantNumeric:'tabular-nums' }}>{formatHoursMinutes(weekTotalMinutes)}</div>
+          <div style={{ fontSize:10, color:'#f4fff9' }}>5 day target {formatHoursMinutes(WEEK_TARGET_MINUTES)} +/- {weekTolerance} min</div>
         </div>
       </div>
 
-      <div style={{ height:165, position:'relative', borderRadius:16, border:'1px solid rgba(255,255,255,0.05)', background:'linear-gradient(180deg,rgba(10,34,22,0.88),rgba(8,25,18,0.82))', padding:'16px 14px 28px', marginBottom:14 }}>
+      <div style={{ height:138, position:'relative', borderRadius:16, border:'1px solid rgba(255,255,255,0.05)', background:'linear-gradient(180deg,rgba(10,34,22,0.88),rgba(8,25,18,0.82))', padding:'14px 12px 26px', marginBottom:12 }}>
         <div style={{ position:'relative', height:'100%' }}>
           <div style={{ position:'absolute', left:0, right:0, bottom:targetBottom, borderTop:'1px dashed rgba(188,255,214,0.38)', zIndex:2 }} />
           <div style={{ position:'absolute', right:0, bottom:targetBottom, transform:'translateY(50%)', fontSize:9, color:'rgba(244,255,249,0.62)', background:'rgba(8,25,18,0.92)', padding:'1px 4px', zIndex:3 }}>{formatHoursMinutes(TARGET_WORK_MINUTES)}</div>
@@ -3589,10 +3662,18 @@ function WorkHoursPanel({ selectedDate, selectedNote, notes, onSaveRows, onStatu
             const barHeight = day.totalMinutes > 0 ? Math.max(3, pct) : 0;
             const isSelected = day.dateStr === selectedDate;
             const isLeave = day.status && day.status !== 'workday';
+            const tone = workBandTone(day.totalMinutes);
+            const fill = isLeave
+              ? day.status === 'bank-holiday'
+                ? 'rgba(251,191,36,0.58)'
+                : day.status === 'sick-leave'
+                  ? 'rgba(251,113,133,0.58)'
+                  : 'rgba(56,189,248,0.5)'
+              : tone.fill;
             return (
               <div key={day.dateStr} style={{ minWidth:0, height:'100%', position:'relative' }}>
-                <div style={{ position:'absolute', left:0, right:0, bottom:`calc(${barHeight}% + 5px)`, textAlign:'center', fontSize:9, color:isSelected?BRAND_TEXT:'#f4fff9', fontWeight:800 }}>{formatMinutes(day.totalMinutes)}</div>
-                <div style={{ position:'absolute', left:'15%', right:'15%', bottom:0, height:`${barHeight}%`, borderRadius:'10px 10px 4px 4px', background:isLeave?'rgba(56,189,248,0.5)':day.totalMinutes >= TARGET_WORK_MINUTES?'linear-gradient(180deg,#34d399,#10b981)':'linear-gradient(180deg,#16a34a,#0f6d44)', border:isSelected?`1px solid ${BRAND_TEXT}`:'1px solid rgba(255,255,255,0.08)' }} />
+                <div style={{ position:'absolute', left:0, right:0, bottom:`calc(${barHeight}% + 4px)`, textAlign:'center', fontSize:9, color:isSelected?BRAND_TEXT:'#f4fff9', fontWeight:800 }}>{formatMinutes(day.totalMinutes)}</div>
+                <div style={{ position:'absolute', left:'15%', right:'15%', bottom:0, height:`${barHeight}%`, borderRadius:'10px 10px 4px 4px', background:fill, boxShadow:isLeave ? 'none' : tone.glow, border:isSelected?`1px solid ${BRAND_TEXT}`:'1px solid rgba(255,255,255,0.08)' }} />
                 <div style={{ position:'absolute', left:0, right:0, bottom:-21, textAlign:'center', fontSize:10, color:isSelected?'#f1f5f9':'#f4fff9', fontWeight:800 }}>{dateFromStr(day.dateStr).toLocaleDateString('en-US', { weekday:'short' })}</div>
               </div>
             );
@@ -3601,7 +3682,7 @@ function WorkHoursPanel({ selectedDate, selectedNote, notes, onSaveRows, onStatu
         </div>
       </div>
 
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(4,minmax(95px,1fr))', gap:10, marginBottom:12 }}>
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(4,minmax(95px,1fr))', gap:10, marginBottom:10 }}>
         {WORK_EVENT_ORDER.map(event => (
           <label key={event} style={{ minWidth:0 }}>
             <span style={{ display:'block', fontSize:9, color:BRAND_LABEL, fontWeight:800, textTransform:'uppercase', marginBottom:5 }}>{event}</span>
@@ -3657,12 +3738,11 @@ function ProjectPanel({ projects, selected, selectedId, draft, setDraft, onSelec
           <button onClick={onSave} disabled={!selected} style={{ padding:'9px 18px', borderRadius:10, border:'none', cursor:selected?'pointer':'not-allowed', fontWeight:800, fontSize:13, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff', opacity:selected?1:0.35 }}>Save</button>
         </div>
         {selected ? (
-          <div style={{ flex:1, minHeight:0, display:'grid', gridTemplateColumns:'minmax(280px,1fr) minmax(260px,0.85fr)', overflow:'hidden' }}>
-            <textarea value={draft} onChange={e=>setDraft(e.target.value)} spellCheck={false} style={{ minWidth:0, width:'100%', height:'100%', resize:'none', padding:'18px 22px', background:'rgba(255,255,255,0.025)', border:'none', color:'#e2e8f0', outline:'none', fontFamily:'ui-monospace, SFMono-Regular, Consolas, monospace', fontSize:13, lineHeight:1.65 }}/>
-            <div style={{ minWidth:0, overflowY:'auto', padding:'18px 22px', borderLeft:'1px solid rgba(255,255,255,0.06)', background:'rgba(255,255,255,0.012)' }}>
-              <div style={{ fontSize:10, color:BRAND_LABEL, fontWeight:800, textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:12 }}>Preview</div>
-              <MarkdownBody emptyText="No project notes body yet.">{noteBodyText(draft)}</MarkdownBody>
+          <div style={{ flex:1, minHeight:0, display:'flex', flexDirection:'column', overflow:'hidden' }}>
+            <div style={{ padding:'14px 22px 10px', fontSize:11, color:'rgba(244,255,249,0.62)' }}>
+              Markdown editor only. The live preview pane was removed to keep this view focused and readable.
             </div>
+            <textarea value={draft} onChange={e=>setDraft(e.target.value)} spellCheck={false} style={{ minWidth:0, width:'100%', height:'100%', resize:'none', padding:'12px 22px 22px', background:'rgba(255,255,255,0.025)', border:'none', color:'#e2e8f0', outline:'none', fontFamily:'ui-monospace, SFMono-Regular, Consolas, monospace', fontSize:13, lineHeight:1.65 }}/>
           </div>
         ) : (
           <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', color:'#f4fff9', fontSize:13 }}>Select or create a project</div>
