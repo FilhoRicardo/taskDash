@@ -6,7 +6,7 @@ import TodayHero from './TodayHero.jsx';
 import { parseTask, parseProperty, parseProject, parseDailyNote, parseMeeting, parsePerson, readMdFiles, readDirNames, readImageFiles } from './utils/parser.js';
 import { idbGet, idbSet, idbDel, lsGet, lsSet, lsDel } from './utils/storage.js';
 import { fmt, tod, isToday, isOver, longDate, appendNoteToMd, appendPropertyCommentToMd, updateCommentLog, deleteCommentLog, appendDailySectionEntry, appendDailyTimeClockEvent, buildDailyNoteMd, buildTrackerRow, appendTrackerRow, buildMeetingMd, buildNewTaskMd, buildNewPropertyMd, buildNewProjectMd, buildNewPersonMd, finishRecurrentTaskInstance, markTaskDone, postponeTaskDates, postponeTaskDatesByMonths, replaceDailyTimeClockRows, setDailyWorkStatus, setPropertyCover, touchDateModified, updateTaskDates } from './utils/formatter.js';
-import { TARGET_WORK_MINUTES, WEEK_TARGET_MINUTES, WORK_CHART_MAX_MINUTES, WORK_EVENT_ORDER, WORK_STATUS_LABELS, dashboardStats, goalBand, minutesFromTime, workStats } from './utils/timeClock.js';
+import { TARGET_WORK_MINUTES, WEEK_TARGET_MINUTES, WORK_CHART_MAX_MINUTES, WORK_EVENT_ORDER, WORK_STATUS_LABELS, dashboardStats, minutesFromTime, workStats } from './utils/timeClock.js';
 
 const REFRESH_MS  = 5 * 60 * 1000;
 const WARN_MS     = 60 * 60 * 1000;
@@ -159,16 +159,6 @@ function noteBodyText(raw = '') {
     .replace(/^---\n[\s\S]*?\n---\n?/, '')
     .replace(/^#\s+.+\n?/, '')
     .trim();
-}
-
-function groupByInitial(items) {
-  return items.reduce((groups, item) => {
-    const first = (item.title || item.filename || '#').trim().charAt(0).toUpperCase();
-    const key = /[A-Z]/.test(first) ? first : '#';
-    groups[key] = groups[key] || [];
-    groups[key].push(item);
-    return groups;
-  }, {});
 }
 
 function MarkdownBody({ children, emptyText = 'No Markdown content yet.', compact = false }) {
@@ -458,6 +448,13 @@ function nextMonth(monthStr) {
   return tod(d).slice(0, 7);
 }
 
+function dateSpan(startDate, endDate) {
+  if (!startDate || !endDate || startDate > endDate) return [];
+  const dates = [];
+  for (let cursor = startDate; cursor <= endDate; cursor = addDays(cursor, 1)) dates.push(cursor);
+  return dates;
+}
+
 function formatMinutes(minutes) {
   return `${Math.max(0, Math.round(minutes || 0))} min`;
 }
@@ -482,6 +479,74 @@ function rowsFromTimeDraft(draft) {
     .map(event => ({ time: draft[event], event }))
     .filter(row => /^\d{2}:\d{2}$/.test(row.time || ''))
     .sort((a, b) => minutesFromTime(a.time) - minutesFromTime(b.time));
+}
+
+function splitNoteDocument(raw = '') {
+  const text = String(raw || '').replace(/\r\n/g, '\n');
+  const frontmatter = text.match(/^(---\n[\s\S]*?\n---\n?)/)?.[1] || '';
+  const afterFrontmatter = text.slice(frontmatter.length);
+  const heading = afterFrontmatter.match(/^(#\s+.+\n?)/)?.[1] || '';
+  const body = afterFrontmatter.slice(heading.length).replace(/^\n+/, '');
+  return { frontmatter, heading, body };
+}
+
+function replaceNoteBody(raw = '', nextBody = '') {
+  const { frontmatter, heading } = splitNoteDocument(raw);
+  const body = String(nextBody || '').replace(/^\n+/, '').trimEnd();
+  const parts = [frontmatter, heading].filter(Boolean);
+  const prefix = parts.join('');
+  if (!prefix) return body ? `${body}\n` : '';
+  return `${prefix}${body ? `\n${body}\n` : '\n'}`;
+}
+
+function normalizeLinkTarget(value = '') {
+  return String(value || '').trim().replace(/^\[\[|\]\]$/g, '').toLowerCase();
+}
+
+function includesWikiLink(raw = '', value = '') {
+  const token = normalizeLinkTarget(value);
+  if (!token) return false;
+  return String(raw || '').toLowerCase().includes(`[[${token}]]`);
+}
+
+function personLinkTokens(person) {
+  return [person?.title, person?.company]
+    .map(value => String(value || '').trim())
+    .filter(Boolean);
+}
+
+function personMetrics(person, tasks, meetings, isClosedTask) {
+  if (!person) return { waitingFor:0, meetings:0, tasksLinked:0 };
+  const tokens = personLinkTokens(person);
+  const matchesTask = (task) => {
+    const waitingFor = normalizeLinkTarget(task.waitingfor);
+    return tokens.some(token => waitingFor && waitingFor === normalizeLinkTarget(token))
+      || tokens.some(token => includesWikiLink(task.raw, token));
+  };
+  const matchesMeeting = (meeting) => tokens.some(token => includesWikiLink(meeting.raw, token));
+
+  return {
+    waitingFor: tasks.filter(task => !isClosedTask(task) && tokens.some(token => normalizeLinkTarget(task.waitingfor) === normalizeLinkTarget(token))).length,
+    meetings: meetings.filter(matchesMeeting).length,
+    tasksLinked: tasks.filter(matchesTask).length,
+  };
+}
+
+function parseTrackerRows(raw = '') {
+  return String(raw || '')
+    .split('\n')
+    .map(line => line.trim())
+    .map(line => {
+      const match = line.match(/^\|\s*(.+?)\s*\|\s*(.+?)\s*\|\s*(\d+)\s*\|$/);
+      if (!match || /^Date$/i.test(match[1]) || /^-+$/.test(match[1].replace(/\s+/g, ''))) return null;
+      const date = normalizeLinkTarget(match[1]);
+      const linked = /^\[\[.*\]\]$/.test(match[2].trim());
+      const taskLabel = match[2].trim().replace(/^\[\[|\]\]$/g, '');
+      return /^\d{4}-\d{2}-\d{2}$/.test(date)
+        ? { date, taskLabel, linked, minutes: Number(match[3]) || 0 }
+        : null;
+    })
+    .filter(Boolean);
 }
 
 function ComboInput({ value, onChange, options = [], placeholder }) {
@@ -615,6 +680,7 @@ export default function App() {
   const [tasks,         setTasks]         = useState([]);
   const [taskHandles,   setTaskHandles]   = useState({});
   const [trackerHandle, setTrackerHandle] = useState(null);
+  const [trackerRows,   setTrackerRows]   = useState([]);
   const [loading,       setLoading]       = useState(false);
   const [lastSync,      setLastSync]      = useState(null);
   const [needsRefresh,  setNeedsRefresh]  = useState(false);
@@ -778,7 +844,10 @@ export default function App() {
         if (!dir) throw new Error('No tasks folder configured');
         const th = await dir.getFileHandle('timetracker.md', { create:true });
         setTrackerHandle(th);
-      } catch {}
+        setTrackerRows(parseTrackerRows(await (await th.getFile()).text()));
+      } catch {
+        setTrackerRows([]);
+      }
       setLastSync(Date.now());
       setNeedsRefresh(false);
       setSel(prev => {
@@ -961,7 +1030,7 @@ export default function App() {
   }, []);
 
   const clearUnavailableFolderData = useCallback((keys) => {
-    if (keys.includes('tasks')) { setTasks([]); setTaskHandles({}); setTrackerHandle(null); setSel(null); }
+    if (keys.includes('tasks')) { setTasks([]); setTaskHandles({}); setTrackerHandle(null); setTrackerRows([]); setSel(null); }
     if (keys.includes('done')) setTasks(prev => prev.filter(t => !String(t.id).startsWith('__done__/')));
     if (keys.includes('projects')) { setProjects([]); setProjectHandles({}); setProjectSel(null); setProjectDraft(''); }
     if (keys.includes('properties')) { setProperties([]); setPropertyHandles({}); setPropertySel(null); setPropertyLoadError(''); }
@@ -1154,7 +1223,7 @@ export default function App() {
     setDirs(prev => { const c = {...prev}; delete c[key]; return c; });
     setSavedDirs(prev => { const c = {...prev}; delete c[key]; return c; });
     setFolderIssues(prev => { const c = {...prev}; delete c[key]; return c; });
-    if (key === 'tasks') { setTasks([]); setTaskHandles({}); setTrackerHandle(null); }
+    if (key === 'tasks') { setTasks([]); setTaskHandles({}); setTrackerHandle(null); setTrackerRows([]); }
     else if (key === 'done') await loadFiles(dirs.tasks, null);
     else if (key === 'projects') { setProjects([]); setProjectHandles({}); setProjectSel(null); setProjectDraft(''); }
     else if (key === 'properties') { setProperties([]); setPropertyHandles({}); setPropertySel(null); setPropertyLoadError(''); }
@@ -1174,7 +1243,7 @@ export default function App() {
     for (const def of FOLDER_DEFS) await idbDel(`vault_${def.key}`);
     lsDel(FOLDER_SETUP_SEEN);
     setDirs({}); setSavedDirs({}); setFolderIssues({});
-    setTasks([]); setTaskHandles({}); setTrackerHandle(null);
+    setTasks([]); setTaskHandles({}); setTrackerHandle(null); setTrackerRows([]);
     setProjects([]); setProjectHandles({}); setProjectSel(null); setProjectDraft('');
     setProperties([]); setPropertyHandles({}); setPropertySel(null); setPropertyLoadError('');
     setMeetings([]); setMeetingSel(null); setMeetingOpen(false); setMeetingTitle(''); setMeetingNotes(''); setMeetingLinks({ clients:[], properties:[], tasks:[], people:[] }); meetingTitleRef.current = ''; meetingNotesRef.current = ''; meetingStartRef.current = null;
@@ -1207,7 +1276,9 @@ export default function App() {
           ? tasks.find(t=>t.id===timer.taskId)?.filename || timer.taskId.replace('.md','')
           : timer.taskId==='__adhoc__' ? adHocRef.current
           : timer.taskId==='__email__' ? 'Email' : meetingTitleRef.current||'Meeting';
-        await writeFile(trackerHandle, appendTrackerRow(existing, buildTrackerRow(tod(), label, isLinked, dur)));
+        const nextTracker = appendTrackerRow(existing, buildTrackerRow(tod(), label, isLinked, dur));
+        await writeFile(trackerHandle, nextTracker);
+        setTrackerRows(parseTrackerRows(nextTracker));
       } catch(e) { console.error('timetracker write failed', e); }
     }
     setTimer(null); lsDel('activeTimer');
@@ -1864,6 +1935,13 @@ export default function App() {
   });
   const meetingTaskOptions = [...new Set(tasks.filter(isOpenTask).map(t => t.filename || t.title).filter(Boolean))].sort();
   const person = people.find(p => p.id === personSel);
+  const selectedWorkNote = workNotes[workDate];
+  const selectedWorkStats = workStats(selectedWorkNote);
+  const selectedWeekDates = weekDates(workDate);
+  const selectedWeekTotal = selectedWeekDates.reduce((sum, dateStr) => sum + workStats(workNotes[dateStr]).totalMinutes, 0);
+  const todayWorkStats = workStats(workNotes[tod()] || dailyNote);
+  const trailingWeekStats = dashboardStats(timeNotes, addDays(tod(), -6), tod());
+  const personSummary = personMetrics(person, tasks, meetings, isClosedTask);
   const tomorrow = addDays(tod(), 1);
   const completedToday = tasks.filter(t => (t.completedDate || '').slice(0, 10) === tod());
   const tomorrowTasks = openTasks.filter(t => t.due === tomorrow || t.scheduled === tomorrow).sort(byOldestCreated);
@@ -1874,19 +1952,20 @@ export default function App() {
     properties: properties.length,
     people: people.length,
   };
-  const allTimeStats = dashboardStats(timeNotes);
   const diagnostics = buildDiagnostics({ tasks, projects, properties, refs, dirs, folderStats, folderIssues, backups:writeBackups });
   const healthErrors = diagnostics.issues.filter(i => i.level === 'error').length;
   const healthWarnings = diagnostics.issues.filter(i => i.level === 'warning').length;
   const healthBadges = healthErrors + healthWarnings;
-  const headerLabel = view === 'mission' ? 'MISSION CONTROL' : view === 'tasks' ? "TODAY'S TOTAL" : view === 'time' ? 'TIME DASHBOARD' : view === 'meetings' ? 'MEETINGS' : view === 'projects' ? 'PROJECT LIBRARY' : view === 'properties' ? 'PROPERTY LIBRARY' : view === 'people' ? 'PEOPLE' : 'VAULT HEALTH';
-  const headerMetric = view === 'mission' ? missionToday.length + missionOverdue.length + missionRecurrent.length : view === 'tasks' ? fmt(totalToday) : view === 'time' ? allTimeStats.summary.totalDays : view === 'meetings' ? (meetingOpen ? fmt(getTime('__meeting__')) : meetings.length) : view === 'projects' ? projects.length : view === 'properties' ? properties.length : view === 'people' ? people.length : diagnostics.issues.length;
+  const headerLabel = view === 'mission' ? 'MISSION CONTROL' : view === 'tasks' ? "TODAY'S TOTAL" : view === 'hours' ? 'HOURS' : view === 'time' ? 'TIME DASHBOARD' : view === 'meetings' ? 'MEETINGS' : view === 'projects' ? 'PROJECT LIBRARY' : view === 'properties' ? 'PROPERTY LIBRARY' : view === 'people' ? 'PEOPLE' : 'VAULT HEALTH';
+  const headerMetric = view === 'mission' ? missionToday.length + missionOverdue.length + missionRecurrent.length : view === 'tasks' ? fmt(totalToday) : view === 'hours' ? formatHoursMinutes(selectedWorkStats.totalMinutes) : view === 'time' ? formatHoursMinutes(trailingWeekStats.summary.totalMinutes) : view === 'meetings' ? (meetingOpen ? fmt(getTime('__meeting__')) : meetings.length) : view === 'projects' ? projects.length : view === 'properties' ? properties.length : view === 'people' ? people.length : diagnostics.issues.length;
   const headerDetail = view === 'mission'
     ? `${missionToday.length} today · ${missionOverdue.length} overdue · ${missionRecurrent.length} recurrent · ${dirs.daily ? 'daily on' : 'daily off'}`
     : view === 'tasks'
       ? `${openTasks.length} open tasks · ${Object.values(refs).reduce((a,r)=>a+r.length,0)} refs`
+      : view === 'hours'
+        ? `${workDate} · ${selectedWorkStats.label} · ${formatHoursMinutes(selectedWeekTotal)} this week`
       : view === 'time'
-        ? `${formatHoursMinutes(allTimeStats.summary.totalMinutes)} from ${allTimeStats.summary.dailyNotes} dated daily notes`
+        ? `${formatHoursMinutes(trailingWeekStats.summary.totalMinutes)} in the last 7 days · ${trailingWeekStats.summary.goalMet} goal-hit days`
         : view === 'meetings'
           ? `${dirs.meetings ? dirs.meetings.name : 'No folder'} · ${meetingOpen ? 'meeting note open' : `${meetings.length} saved`}`
           : view === 'projects'
@@ -1894,7 +1973,7 @@ export default function App() {
             : view === 'properties'
               ? `${dirs.properties ? dirs.properties.name : 'No folder'} · ${dirs.attachments ? 'covers on' : 'covers off'}`
               : view === 'people'
-                ? `${dirs.people ? dirs.people.name : 'No folder'} · waiting-for source`
+                ? `${dirs.people ? dirs.people.name : 'No folder'} · ${personSummary.waitingFor} waiting-for · ${personSummary.meetings} meetings`
                 : `${healthErrors} errors · ${healthWarnings} warnings · ${writeBackups.length} backups`;
 
   const btnPrimary = { padding:'13px 34px', borderRadius:12, border:'none', cursor:'pointer', fontWeight:700, fontSize:14, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff', boxShadow:BRAND_SHADOW };
@@ -2225,15 +2304,40 @@ export default function App() {
               </button>
             </div>
           </>
+        ) : view === 'hours' ? (
+          <div style={{ flex:1, overflowY:'auto', padding:'14px 12px' }}>
+            <div style={{ fontSize:9, color:'#f4fff9', fontWeight:800, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:9 }}>Time clock</div>
+            {[
+              { label:'Today', value:formatHoursMinutes(todayWorkStats.totalMinutes), detail:todayWorkStats.label },
+              { label:'This week', value:formatHoursMinutes(selectedWeekTotal), detail:`${selectedWeekDates.length} working days in view` },
+              { label:workDate === tod() ? 'Selected day' : workDate, value:formatHoursMinutes(selectedWorkStats.totalMinutes), detail:selectedWorkStats.creditedDay ? 'credited day' : selectedWorkStats.complete ? 'clock complete' : 'needs times' },
+            ].map(card => (
+              <div key={card.label} style={{ padding:'12px', borderRadius:14, background:'rgba(255,255,255,0.025)', border:'1px solid rgba(255,255,255,0.06)', marginBottom:9 }}>
+                <div style={{ fontSize:9, color:BRAND_LABEL, fontWeight:800, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:6 }}>{card.label}</div>
+                <div style={{ fontSize:24, fontWeight:850, color:'#10b981', fontVariantNumeric:'tabular-nums' }}>{card.value}</div>
+                <div style={{ fontSize:11, color:'#f4fff9', marginTop:4 }}>{card.detail}</div>
+              </div>
+            ))}
+            <div style={{ padding:'12px', borderRadius:14, background:'rgba(255,255,255,0.025)', border:'1px solid rgba(255,255,255,0.06)', color:'#f4fff9', fontSize:12, lineHeight:1.55 }}>
+              Use this tab to punch in/out for today, correct past entries, and review the month from the calendar.
+            </div>
+          </div>
         ) : view === 'time' ? (
           <div style={{ flex:1, overflowY:'auto', padding:'14px 12px' }}>
-            <div style={{ fontSize:9, color:'#f4fff9', fontWeight:800, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:9 }}>Daily time data</div>
-            <div style={{ padding:'12px', borderRadius:8, background:'rgba(255,255,255,0.025)', border:'1px solid rgba(255,255,255,0.06)', marginBottom:9 }}>
-              <div style={{ fontSize:24, fontWeight:850, color:'#10b981', fontVariantNumeric:'tabular-nums' }}>{formatHoursMinutes(allTimeStats.summary.totalMinutes)}</div>
-              <div style={{ fontSize:11, color:'#f4fff9', marginTop:4 }}>{allTimeStats.summary.totalDays} counted days · {allTimeStats.summary.goalMet} hit goal</div>
-            </div>
-            <div style={{ padding:'12px', borderRadius:8, background:'rgba(255,255,255,0.025)', border:'1px solid rgba(255,255,255,0.06)', color:'#f4fff9', fontSize:12, lineHeight:1.55 }}>
-              {dirs.daily ? `${allTimeStats.summary.dailyNotes} dated notes are ready for the Time tab.` : 'Connect Daily Notes to read Time Clock tables.'}
+            <div style={{ fontSize:9, color:'#f4fff9', fontWeight:800, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:9 }}>Time dashboard</div>
+            {[
+              { label:'Today', value:formatHoursMinutes(todayWorkStats.totalMinutes), detail:todayWorkStats.totalMinutes ? 'clocked so far' : 'no time logged yet' },
+              { label:'This week', value:formatHoursMinutes(trailingWeekStats.summary.totalMinutes), detail:`last 7 days · ${trailingWeekStats.summary.totalDays} counted days` },
+              { label:'Goal-hit days', value:`${trailingWeekStats.summary.goalMet}/${Math.max(trailingWeekStats.summary.totalDays, 1)}`, detail:'within the target band' },
+            ].map(card => (
+              <div key={card.label} style={{ padding:'12px', borderRadius:14, background:'rgba(255,255,255,0.025)', border:'1px solid rgba(255,255,255,0.06)', marginBottom:9 }}>
+                <div style={{ fontSize:9, color:BRAND_LABEL, fontWeight:800, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:6 }}>{card.label}</div>
+                <div style={{ fontSize:24, fontWeight:850, color:'#10b981', fontVariantNumeric:'tabular-nums' }}>{card.value}</div>
+                <div style={{ fontSize:11, color:'#f4fff9', marginTop:4 }}>{card.detail}</div>
+              </div>
+            ))}
+            <div style={{ padding:'12px', borderRadius:14, background:'rgba(255,255,255,0.025)', border:'1px solid rgba(255,255,255,0.06)', color:'#f4fff9', fontSize:12, lineHeight:1.55 }}>
+              {dirs.daily ? 'Weekly patterns, top tasks, and context totals are derived from Daily Notes plus the task timer.' : 'Connect Daily Notes to read Time Clock tables.'}
             </div>
           </div>
         ) : (
@@ -2260,7 +2364,7 @@ export default function App() {
           </div>
         )}
 
-        {(view === 'tasks' || view === 'mission' || view === 'time' || view === 'meetings' || view === 'people' || view === 'health') && (
+        {(view === 'tasks' || view === 'mission' || view === 'hours' || view === 'time' || view === 'meetings' || view === 'people' || view === 'health') && (
           <div style={{ padding:'6px 10px 9px', borderTop:'1px solid rgba(255,255,255,0.04)' }}>
             <button onClick={()=>setFolderSetupOpen(true)} style={{ width:'100%', padding:'5px 10px', background:'transparent', border:'none', color:'#f4fff9', fontSize:10, cursor:'pointer', fontFamily:'inherit', textAlign:'center' }}>
               ⚙  Configure folders
@@ -2306,8 +2410,22 @@ export default function App() {
           onOpenMeetings={()=>setView('meetings')}
           onOpenPeople={()=>setView('people')}
         />
+      ) : view === 'hours' ? (
+        <HoursPanel
+          selectedDate={workDate}
+          selectedNote={selectedWorkNote}
+          notes={workNotes}
+          month={workMonth}
+          onSelectDate={(dateStr)=>{ setWorkDate(dateStr); setWorkMonth(dateStr.slice(0, 7)); }}
+          onMonthChange={setWorkMonth}
+          onTimeClockEvent={addTimeClockEvent}
+          onSaveRows={saveTimeClockRows}
+          onStatusChange={updateWorkStatus}
+          hasDailyFolder={!!dirs.daily}
+          onConfigure={()=>setFolderSetupOpen(true)}
+        />
       ) : view === 'time' ? (
-        <TimeDashboardPanel notes={timeNotes} hasDailyFolder={!!dirs.daily} onConfigure={()=>setFolderSetupOpen(true)}/>
+        <TimeDashboardPanel notes={timeNotes} trackerRows={trackerRows} tasks={tasks} hasDailyFolder={!!dirs.daily} onConfigure={()=>setFolderSetupOpen(true)}/>
       ) : view === 'projects' ? (
         newProjectOpen ? (
           <NewProjectPanel onCancel={()=>setNewProjectOpen(false)} onCreate={createProject} refs={refs}/>
@@ -2359,16 +2477,15 @@ export default function App() {
           <NewPersonPanel onCancel={()=>setNewPersonOpen(false)} onCreate={createPerson} refs={refs} hasPeopleFolder={!!dirs.people} onConfigure={()=>setFolderSetupOpen(true)}/>
         ) : (
           <PeoplePanel
-            people={filteredPeople}
             selected={person}
-            selectedId={personSel}
             draft={personDraft}
             setDraft={setPersonDraft}
-            onSelect={setPersonSel}
             onSave={savePerson}
+            summary={personSummary}
             hasPeopleFolder={!!dirs.people}
             onNewPerson={()=>setNewPersonOpen(true)}
             onConfigure={()=>setFolderSetupOpen(true)}
+            onOpenMeetings={()=>setView('meetings')}
           />
         )
       ) : view === 'health' ? (
@@ -2505,7 +2622,7 @@ export default function App() {
   );
 }
 
-function PeoplePanel({ people, selected, selectedId, draft, setDraft, onSelect, onSave, hasPeopleFolder, onNewPerson, onConfigure }) {
+function PeoplePanel({ selected, draft, setDraft, onSave, summary, hasPeopleFolder, onNewPerson, onConfigure, onOpenMeetings }) {
   if (!hasPeopleFolder) {
     return (
       <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', color:'#f4fff9', fontSize:13 }}>
@@ -2514,60 +2631,93 @@ function PeoplePanel({ people, selected, selectedId, draft, setDraft, onSelect, 
     );
   }
 
-  const groups = groupByInitial(people);
-  const letters = Object.keys(groups).sort();
+  if (!selected) {
+    return (
+      <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', padding:30 }}>
+        <div style={{ width:'min(520px,100%)', borderRadius:18, border:'1px solid rgba(255,255,255,0.06)', background:'rgba(255,255,255,0.03)', padding:24, textAlign:'center' }}>
+          <div style={{ fontSize:10, color:BRAND_LABEL, fontWeight:800, letterSpacing:'0.14em', textTransform:'uppercase', marginBottom:10 }}>People</div>
+          <h2 style={{ margin:'0 0 12px', fontSize:24, color:'#f8fff9' }}>Select a person</h2>
+          <div style={{ color:'rgba(244,255,249,0.68)', fontSize:13, lineHeight:1.6, marginBottom:18 }}>
+            Pick someone from the sidebar or create a new person note to start tracking meetings, waiting-for items, and context.
+          </div>
+          <button onClick={onNewPerson} style={{ padding:'10px 18px', borderRadius:10, border:'none', cursor:'pointer', fontWeight:800, fontSize:13, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff' }}>+ New Person</button>
+        </div>
+      </div>
+    );
+  }
+
+  const noteParts = splitNoteDocument(draft);
+  const metadataLine = [selected.role, selected.company].filter(Boolean).join(' · ') || selected.email || 'No role or company captured yet.';
+  const lastTouched = selected.dateModified || selected.dateCreated;
+  const detailChips = [selected.email, selected.phone].filter(Boolean);
+  const stats = [
+    ['Waiting-for', summary?.waitingFor ?? 0],
+    ['Meetings', summary?.meetings ?? 0],
+    ['Tasks linked', summary?.tasksLinked ?? 0],
+  ];
 
   return (
-    <div style={{ flex:1, display:'grid', gridTemplateColumns:'minmax(230px, 0.28fr) minmax(560px, 1fr)', minHeight:0, overflow:'hidden' }}>
-      <div style={{ borderRight:'1px solid rgba(255,255,255,0.06)', overflowY:'auto', padding:'14px 12px' }}>
-        <button onClick={onNewPerson} style={{ width:'100%', padding:'8px 10px', borderRadius:8, border:'none', cursor:'pointer', fontWeight:800, fontSize:12, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff', marginBottom:10 }}>+ New Person</button>
-        {!people.length && <div style={{ color:'#f4fff9', textAlign:'center', paddingTop:35, fontSize:12 }}>No people found</div>}
-        {letters.map(letter => (
-          <div key={letter} style={{ marginBottom:8 }}>
-            <div style={{ position:'sticky', top:-14, zIndex:1, padding:'6px 2px 5px', background:'#09090e', borderBottom:'1px solid rgba(255,255,255,0.06)', fontSize:10, color:BRAND_LABEL, fontWeight:900, letterSpacing:'0.12em' }}>{letter}</div>
-            {groups[letter].map(p => (
-              <button key={p.id} onClick={()=>onSelect(p.id)} style={{ width:'100%', textAlign:'left', padding:'8px 10px', marginTop:4, borderRadius:8, border:`1px solid ${selectedId===p.id?BRAND_BORDER_STRONG:'transparent'}`, background:selectedId===p.id?BRAND_SURFACE:'transparent', color:'#e2e8f0', cursor:'pointer', fontFamily:'inherit' }}>
-                <div style={{ fontSize:13, fontWeight:800, lineHeight:1.3 }}>{p.title}</div>
-                {(p.company || p.role) && <div style={{ fontSize:10, color:'#f4fff9', marginTop:3, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{p.company || p.role}</div>}
-              </button>
-            ))}
+    <div style={{ flex:1, minHeight:0, overflowY:'auto', padding:'22px 28px 24px' }}>
+      <div style={{ display:'flex', justifyContent:'space-between', gap:18, alignItems:'flex-start', marginBottom:18 }}>
+        <div style={{ minWidth:0 }}>
+          <div style={{ fontSize:10, color:BRAND_LABEL, fontWeight:800, textTransform:'uppercase', letterSpacing:'0.14em', marginBottom:6 }}>Person</div>
+          <h2 style={{ margin:0, fontSize:30, color:'#f8fff9', letterSpacing:'-0.04em' }}>{selected.title}</h2>
+          <div style={{ fontSize:13, color:'rgba(244,255,249,0.68)', marginTop:6 }}>{metadataLine}</div>
+        </div>
+        <button onClick={onSave} style={{ padding:'9px 18px', borderRadius:999, border:'none', cursor:'pointer', fontWeight:800, fontSize:12, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff', boxShadow:BRAND_SHADOW }}>
+          Save
+        </button>
+      </div>
+
+      <section className="glass-thin" style={{ borderRadius:18, padding:'16px', marginBottom:12 }}>
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:16, flexWrap:'wrap' }}>
+          <div style={{ display:'flex', alignItems:'center', gap:14, minWidth:0 }}>
+            <div style={{ width:50, height:50, borderRadius:999, background:BRAND_GRADIENT, color:'#fff', display:'flex', alignItems:'center', justifyContent:'center', fontSize:18, fontWeight:900, flexShrink:0 }}>
+              {initials(selected.title)}
+            </div>
+            <div style={{ minWidth:0 }}>
+              <div style={{ fontSize:20, color:'#f8fff9', fontWeight:800, lineHeight:1.1 }}>{selected.title}</div>
+              <div style={{ fontSize:12, color:'rgba(244,255,249,0.64)', marginTop:5 }}>{metadataLine}</div>
+              {!!detailChips.length && (
+                <div style={{ display:'flex', gap:8, flexWrap:'wrap', marginTop:8 }}>
+                  {detailChips.map(chip => (
+                    <span key={chip} style={{ padding:'5px 9px', borderRadius:999, fontSize:10, fontWeight:800, color:'#f8fff9', background:'rgba(255,255,255,0.045)', border:'1px solid rgba(255,255,255,0.08)' }}>
+                      {chip}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
+          <button onClick={onOpenMeetings} style={{ padding:'8px 14px', borderRadius:999, border:'1px solid rgba(255,255,255,0.08)', background:'rgba(255,255,255,0.03)', color:'#f4fff9', fontSize:11, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>
+            New meeting...
+          </button>
+        </div>
+      </section>
+
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(3,minmax(0,1fr))', gap:12, marginBottom:12 }}>
+        {stats.map(([label, value]) => (
+          <section key={label} className="glass-thin" style={{ borderRadius:14, padding:'14px 16px' }}>
+            <div style={{ fontSize:28, fontWeight:850, color:'#f8fff9', lineHeight:1 }}>{value}</div>
+            <div style={{ fontSize:10, color:BRAND_LABEL, fontWeight:800, textTransform:'uppercase', letterSpacing:'0.14em', marginTop:8 }}>{label}</div>
+          </section>
         ))}
       </div>
 
-      <div style={{ display:'flex', flexDirection:'column', minWidth:0, minHeight:0 }}>
-        <div style={{ padding:'18px 28px 14px', borderBottom:'1px solid rgba(255,255,255,0.06)', display:'flex', justifyContent:'space-between', gap:18, alignItems:'flex-start' }}>
-          <div style={{ minWidth:0 }}>
-            <div style={{ fontSize:10, color:BRAND_LABEL, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:7 }}>People</div>
-            <h2 style={{ margin:0, fontSize:20, color:'#f1f5f9' }}>{selected ? selected.title : 'Select a person'}</h2>
-            {selected && (
-              <div style={{ display:'flex', gap:10, flexWrap:'wrap', marginTop:7, color:'#f4fff9', fontSize:11 }}>
-                {selected.company && <span>{selected.company}</span>}
-                {selected.role && <span>{selected.role}</span>}
-                {selected.email && <span>{selected.email}</span>}
-              </div>
-            )}
+      <section className="glass-thin" style={{ borderRadius:18, padding:'16px', minHeight:360, display:'flex', flexDirection:'column' }}>
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline', gap:12, marginBottom:12 }}>
+          <div>
+            <div style={{ fontSize:10, color:BRAND_LABEL, fontWeight:800, textTransform:'uppercase', letterSpacing:'0.14em', marginBottom:5 }}>Notes (Markdown)</div>
+            <div style={{ fontSize:12, color:'rgba(244,255,249,0.64)' }}>{selected.filename}{lastTouched ? ` · touched ${String(lastTouched).slice(0, 10)}` : ''}</div>
           </div>
-          <button onClick={onSave} disabled={!selected} style={{ padding:'9px 18px', borderRadius:10, border:'none', cursor:selected?'pointer':'not-allowed', fontWeight:800, fontSize:13, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff', opacity:selected?1:0.35 }}>Save</button>
         </div>
-        {selected ? (
-          <div style={{ flex:1, minHeight:0, display:'grid', gridTemplateColumns:'minmax(280px,1fr) minmax(260px,0.85fr)', overflow:'hidden' }}>
-            <div style={{ minWidth:0, minHeight:0, display:'flex', flexDirection:'column', overflow:'hidden' }}>
-              <div style={{ padding:'16px 28px 10px', flexShrink:0, display:'flex', justifyContent:'space-between', gap:12, alignItems:'baseline' }}>
-                <h3 style={{ margin:0, fontSize:14, color:'#f1f5f9' }}>Notes</h3>
-                <span style={{ fontSize:10, color:'#f4fff9', fontWeight:800 }}>{selected.filename}</span>
-              </div>
-              <textarea value={draft} onChange={e=>setDraft(e.target.value)} spellCheck={false} style={{ flex:1, width:'100%', resize:'none', padding:'8px 28px 22px', background:'rgba(255,255,255,0.02)', border:'none', color:'#e2e8f0', outline:'none', fontFamily:'ui-monospace, SFMono-Regular, Consolas, monospace', fontSize:13, lineHeight:1.65 }}/>
-            </div>
-            <div style={{ minWidth:0, minHeight:0, overflowY:'auto', padding:'16px 22px 22px', borderLeft:'1px solid rgba(255,255,255,0.06)', background:'rgba(255,255,255,0.012)' }}>
-              <div style={{ fontSize:10, color:BRAND_LABEL, fontWeight:800, textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:12 }}>Preview</div>
-              <MarkdownBody emptyText="No notes body yet.">{noteBodyText(draft)}</MarkdownBody>
-            </div>
-          </div>
-        ) : (
-          <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', color:'#f4fff9', fontSize:13 }}>Select or create a person</div>
-        )}
-      </div>
+        <textarea
+          value={noteParts.body}
+          onChange={e=>setDraft(replaceNoteBody(draft, e.target.value))}
+          spellCheck={false}
+          style={{ flex:1, width:'100%', resize:'none', padding:'16px 18px', borderRadius:14, background:'rgba(10,24,18,0.42)', border:'1px solid rgba(255,255,255,0.08)', color:'#e2e8f0', outline:'none', fontFamily:'ui-monospace, SFMono-Regular, Consolas, monospace', fontSize:13, lineHeight:1.7 }}
+        />
+      </section>
     </div>
   );
 }
@@ -2804,167 +2954,294 @@ function HealthPanel({ diagnostics, dirs, backups, lastSync, needsRefresh, onFor
   );
 }
 
-function TimeDashboardPanel({ notes, hasDailyFolder, onConfigure }) {
-  const datedNotes = notes
-    .filter(note => /^\d{4}-\d{2}-\d{2}$/.test(note.date || ''))
-    .sort((a, b) => a.date.localeCompare(b.date));
-  const firstDate = datedNotes[0]?.date || '';
-  const lastDate = datedNotes[datedNotes.length - 1]?.date || '';
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
-  const rangeStart = startDate || firstDate;
-  const rangeEnd = endDate || lastDate;
-  const stats = dashboardStats(datedNotes, rangeStart, rangeEnd);
-  const chartMaxMinutes = Math.max(WORK_CHART_MAX_MINUTES, TARGET_WORK_MINUTES, ...stats.days.map(day => day.totalMinutes));
-  const weekdayMaxMinutes = Math.max(TARGET_WORK_MINUTES, ...stats.weekdays.map(day => day.averageMinutes));
-  const targetBottom = `${Math.min(100, (TARGET_WORK_MINUTES / chartMaxMinutes) * 100)}%`;
-  const weekdayTargetBottom = `${Math.min(100, (TARGET_WORK_MINUTES / weekdayMaxMinutes) * 100)}%`;
-  const tickEvery = Math.max(1, Math.ceil(stats.days.length / 7));
-  const toneForMinutes = (minutes) => ({
-    empty: { fill:'rgba(255,255,255,0.08)', border:'rgba(255,255,255,0.08)', text:'#f4fff9' },
-    target: { fill:'linear-gradient(180deg,#6ee7b7,#059669)', border:'rgba(52,211,153,0.42)', text:'#34d399' },
-    below: { fill:'linear-gradient(180deg,#fde68a,#d97706)', border:'rgba(251,191,36,0.42)', text:'#fbbf24' },
-    above: { fill:'linear-gradient(180deg,#fda4af,#dc2626)', border:'rgba(248,113,113,0.42)', text:'#f87171' },
-  }[goalBand(minutes)]);
-  const summaryCards = [
-    ['Days counted', stats.summary.totalDays, '#10b981'],
-    ['Above band', stats.summary.overGoal, '#f87171'],
-    ['Below band', stats.summary.underGoal, '#fbbf24'],
-    ['On target', stats.summary.goalMet, '#34d399'],
-    ['Total time', formatHoursMinutes(stats.summary.totalMinutes), '#f1f5f9'],
-    ['Average day', formatHoursMinutes(stats.summary.averageMinutes), BRAND_TEXT],
-  ];
+function HoursPanel({ selectedDate, selectedNote, notes, month, onSelectDate, onMonthChange, onTimeClockEvent, onSaveRows, onStatusChange, hasDailyFolder, onConfigure }) {
+  const todayKey = tod();
+  const todayNote = notes[todayKey];
+  const todayStats = workStats(todayNote);
+  const selectedStats = workStats(selectedNote);
+  const selectedEvents = selectedNote?.timeClock || [];
 
   if (!hasDailyFolder) {
     return (
       <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', color:'#f4fff9', fontSize:13 }}>
-        <button onClick={onConfigure} style={{ padding:'10px 18px', borderRadius:10, border:'none', cursor:'pointer', fontWeight:800, fontSize:13, fontFamily:'inherit', background:'linear-gradient(135deg,#0f766e,#2563eb)', color:'#fff' }}>Configure Daily Notes folder</button>
+        <button onClick={onConfigure} style={{ padding:'10px 18px', borderRadius:10, border:'none', cursor:'pointer', fontWeight:800, fontSize:13, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff' }}>Configure Daily Notes folder</button>
       </div>
     );
   }
 
   return (
-    <div style={{ flex:1, minWidth:0, minHeight:0, display:'flex', flexDirection:'column', overflow:'hidden', background:'#09090e' }}>
-      <section style={{ minHeight:126, padding:'16px 22px', borderBottom:'1px solid rgba(255,255,255,0.06)', display:'flex', alignItems:'flex-end', justifyContent:'space-between', gap:16, backgroundImage:'linear-gradient(90deg,rgba(4,7,15,0.32),rgba(4,7,15,0.72) 58%,rgba(4,7,15,0.94)),url(/time-dashboard-header.jpg)', backgroundSize:'cover', backgroundPosition:'center' }}>
-        <div style={{ minWidth:0 }}>
-          <div style={{ fontSize:10, color:'#67e8f9', fontWeight:800, textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:6 }}>Time Clock</div>
-          <h2 style={{ margin:0, fontSize:23, color:'#f8fafc', letterSpacing:0 }}>Work rhythm</h2>
-          <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap', marginTop:8, color:'#f4fff9', fontSize:11, fontWeight:700 }}>
-            <span>{stats.summary.dailyNotes} daily notes</span>
-            <span style={{ color:'#f4fff9' }}>|</span>
-            <span>{formatHoursMinutes(stats.summary.totalMinutes)}</span>
-            <span style={{ color:'#f4fff9' }}>|</span>
-            <span>goal {formatHoursMinutes(TARGET_WORK_MINUTES)}</span>
+    <div style={{ flex:1, minHeight:0, overflowY:'auto', padding:'22px 28px 24px' }}>
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:18, marginBottom:16, flexWrap:'wrap' }}>
+        <div>
+          <div style={{ fontSize:10, color:BRAND_LABEL, fontWeight:800, textTransform:'uppercase', letterSpacing:'0.14em', marginBottom:6 }}>Hours</div>
+          <h2 style={{ margin:0, fontSize:30, color:'#f8fff9', letterSpacing:'-0.04em' }}>Time clock</h2>
+          <div style={{ fontSize:13, color:'rgba(244,255,249,0.7)', marginTop:6 }}>
+            Punch today from the quick actions, then use the calendar and manual fields to correct or complete any day.
           </div>
         </div>
-        <div style={{ display:'grid', gridTemplateColumns:'repeat(2,minmax(124px,1fr)) auto', gap:8, alignItems:'end', padding:'9px', borderRadius:8, background:'rgba(6,10,20,0.72)', border:'1px solid rgba(255,255,255,0.12)', backdropFilter:'blur(10px)' }}>
-          <label style={{ minWidth:0 }}>
-            <span style={{ display:'block', fontSize:9, color:'#f4fff9', fontWeight:800, textTransform:'uppercase', marginBottom:5 }}>Start</span>
-            <input type="date" min={firstDate} max={endDate || lastDate} value={rangeStart} onChange={e=>setStartDate(e.target.value)}
-              style={{ ...inputBase, minWidth:0, padding:'8px 9px', fontSize:12 }} />
-          </label>
-          <label style={{ minWidth:0 }}>
-            <span style={{ display:'block', fontSize:9, color:'#f4fff9', fontWeight:800, textTransform:'uppercase', marginBottom:5 }}>End</span>
-            <input type="date" min={startDate || firstDate} max={lastDate} value={rangeEnd} onChange={e=>setEndDate(e.target.value)}
-              style={{ ...inputBase, minWidth:0, padding:'8px 9px', fontSize:12 }} />
-          </label>
-          <button onClick={()=>{ setStartDate(''); setEndDate(''); }} disabled={!startDate && !endDate}
-            style={{ height:35, padding:'0 12px', borderRadius:8, border:'1px solid rgba(255,255,255,0.1)', background:'rgba(255,255,255,0.055)', color:'#f4fff9', cursor:startDate || endDate ? 'pointer' : 'not-allowed', opacity:startDate || endDate ? 1 : 0.42, fontSize:11, fontWeight:800, fontFamily:'inherit' }}>
-            All
-          </button>
-        </div>
-      </section>
+        <button onClick={onConfigure} style={{ padding:'9px 14px', borderRadius:999, border:'1px solid rgba(255,255,255,0.08)', background:'rgba(255,255,255,0.03)', color:'#f4fff9', fontSize:11, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>
+          Daily notes folder
+        </button>
+      </div>
 
-      <div style={{ flex:1, minHeight:0, display:'grid', gridTemplateColumns:'minmax(0,1fr) minmax(224px,252px)', gap:12, alignItems:'stretch', padding:'12px 16px 16px' }}>
-        <div style={{ minWidth:0, minHeight:0, display:'grid', gridTemplateRows:'minmax(0,1.18fr) minmax(0,0.82fr)', gap:12 }}>
-          <section style={{ minHeight:0, display:'flex', flexDirection:'column', borderRadius:8, border:'1px solid rgba(255,255,255,0.07)', background:'rgba(255,255,255,0.025)', padding:'13px' }}>
-            <div style={{ display:'flex', justifyContent:'space-between', gap:12, alignItems:'baseline', marginBottom:10 }}>
+      <div style={{ display:'grid', gridTemplateColumns:'minmax(300px,0.98fr) minmax(320px,1.02fr)', gap:16, marginBottom:16 }}>
+        <div style={{ display:'grid', gap:16 }}>
+          <section className="glass-thin" style={{ borderRadius:18, padding:'16px' }}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline', gap:12, marginBottom:14 }}>
               <div>
-                <h3 style={{ margin:0, fontSize:15, color:'#f8fafc' }}>Daily totals</h3>
-                <div style={{ fontSize:11, color:'#f4fff9', marginTop:4 }}>{rangeStart || 'No start'} to {rangeEnd || 'No end'}</div>
+                <div style={{ fontSize:11, color:BRAND_LABEL, fontWeight:800, textTransform:'uppercase', letterSpacing:'0.14em', marginBottom:5 }}>Punch today</div>
+                <div style={{ fontSize:14, color:'#f8fff9', fontWeight:700 }}>{todayKey}</div>
               </div>
-              <div style={{ display:'flex', gap:8, flexWrap:'wrap', justifyContent:'flex-end', color:'#f4fff9', fontSize:10, fontWeight:800 }}>
-                <span style={{ color:'#34d399' }}>green target</span>
-                <span style={{ color:'#fbbf24' }}>yellow below</span>
-                <span style={{ color:'#f87171' }}>red above</span>
-              </div>
+              <div style={{ fontSize:24, fontWeight:850, color:'#10b981', fontVariantNumeric:'tabular-nums' }}>{formatHoursMinutes(todayStats.totalMinutes)}</div>
             </div>
-            {stats.days.length ? (
-              <div style={{ flex:1, minHeight:0, padding:'13px 10px 27px', borderRadius:8, border:'1px solid rgba(255,255,255,0.05)', background:'linear-gradient(180deg,rgba(15,23,42,0.68),rgba(9,9,14,0.72))' }}>
-                <div style={{ height:'100%', position:'relative' }}>
-                  <div style={{ position:'absolute', left:0, right:0, bottom:targetBottom, borderTop:'1px dashed rgba(251,191,36,0.92)', zIndex:2 }} />
-                  <div style={{ position:'absolute', right:0, bottom:targetBottom, transform:'translateY(50%)', borderRadius:5, background:'#111827', color:'#fbbf24', fontSize:9, fontWeight:800, padding:'2px 5px', zIndex:3 }}>7h 15m</div>
-                  <div style={{ height:'100%', display:'flex', gap:stats.days.length > 70 ? 1 : 3, alignItems:'stretch' }}>
-                    {stats.days.map((day, index) => {
-                      const pct = Math.min(100, (day.totalMinutes / chartMaxMinutes) * 100);
-                      const barHeight = day.totalMinutes > 0 ? Math.max(3, pct) : 0;
-                      const tone = toneForMinutes(day.totalMinutes);
-                      const showTick = stats.days.length <= 12 || index === 0 || index === stats.days.length - 1 || index % tickEvery === 0;
-                      return (
-                        <div key={day.date} title={`${day.date} · ${formatHoursMinutes(day.totalMinutes)} · ${day.label}`} style={{ flex:'1 1 0', minWidth:0, height:'100%', position:'relative' }}>
-                          <div style={{ position:'absolute', left:'50%', bottom:0, width:stats.days.length > 70 ? '100%' : stats.days.length > 32 ? '72%' : 7, maxWidth:7, minWidth:stats.days.length > 70 ? 1 : 3, transform:'translateX(-50%)', minHeight:day.totalMinutes ? 0 : 3, height:`${barHeight}%`, borderRadius:'5px 5px 2px 2px', background:tone.fill, border:`1px solid ${tone.border}` }} />
-                          {showTick && <div style={{ position:'absolute', left:-12, right:-12, bottom:-21, textAlign:'center', fontSize:9, lineHeight:1, color:'#f4fff9', fontWeight:800, whiteSpace:'nowrap' }}>{day.date.slice(5)}</div>}
-                        </div>
-                      );
-                    })}
-                  </div>
+            <div style={{ display:'grid', gridTemplateColumns:'repeat(2,minmax(0,1fr))', gap:8, marginBottom:12 }}>
+              {WORK_EVENT_ORDER.map(event => (
+                <button
+                  key={event}
+                  onClick={()=>onTimeClockEvent(event)}
+                  style={{ padding:'11px 12px', borderRadius:12, border:'1px solid rgba(255,255,255,0.08)', background:'rgba(255,255,255,0.04)', color:'#f4fff9', fontSize:12, fontWeight:800, cursor:'pointer', fontFamily:'inherit', textAlign:'left' }}
+                >
+                  {event}
+                </button>
+              ))}
+            </div>
+            <div style={{ fontSize:11, color:'rgba(244,255,249,0.58)', marginBottom:10 }}>Quick actions always stamp the current time into today&apos;s daily note.</div>
+            <div style={{ display:'grid', gap:8 }}>
+              {(todayNote?.timeClock || []).length ? (todayNote.timeClock || []).map((row, index) => (
+                <div key={`${row.event}-${row.time}-${index}`} style={{ display:'flex', justifyContent:'space-between', gap:12, padding:'9px 11px', borderRadius:12, background:'rgba(255,255,255,0.035)', border:'1px solid rgba(255,255,255,0.06)' }}>
+                  <span style={{ fontSize:12, color:'#f8fff9', fontWeight:700 }}>{row.event}</span>
+                  <span style={{ fontSize:12, color:'rgba(244,255,249,0.68)', fontVariantNumeric:'tabular-nums' }}>{row.time}</span>
                 </div>
-              </div>
-            ) : (
-              <div style={{ flex:1, minHeight:0, borderRadius:8, border:'1px solid rgba(255,255,255,0.05)', background:'rgba(15,23,42,0.4)', display:'flex', alignItems:'center', justifyContent:'center', color:'#f4fff9', fontSize:13 }}>No dated Time Clock notes in range</div>
-            )}
+              )) : (
+                <div style={{ padding:'12px', borderRadius:12, background:'rgba(255,255,255,0.03)', border:'1px solid rgba(255,255,255,0.06)', color:'rgba(244,255,249,0.6)', fontSize:12 }}>
+                  No punches logged today yet.
+                </div>
+              )}
+            </div>
           </section>
 
-          <section style={{ minHeight:0, display:'flex', flexDirection:'column', borderRadius:8, border:'1px solid rgba(255,255,255,0.07)', background:'rgba(255,255,255,0.025)', padding:'13px' }}>
-            <div style={{ display:'flex', justifyContent:'space-between', gap:12, alignItems:'baseline', marginBottom:10 }}>
+          <section className="glass-thin" style={{ borderRadius:18, padding:'16px' }}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline', gap:12, marginBottom:12 }}>
               <div>
-                <h3 style={{ margin:0, fontSize:15, color:'#f8fafc' }}>Average week</h3>
-                <div style={{ fontSize:11, color:'#f4fff9', marginTop:4 }}>Average tracked total by weekday</div>
+                <div style={{ fontSize:11, color:BRAND_LABEL, fontWeight:800, textTransform:'uppercase', letterSpacing:'0.14em', marginBottom:5 }}>Selected day</div>
+                <div style={{ fontSize:14, color:'#f8fff9', fontWeight:700 }}>{selectedDate}</div>
               </div>
-              <div style={{ fontSize:11, color:'#f4fff9', fontWeight:800 }}>Mon to Sun</div>
+              <div style={{ fontSize:12, color:'rgba(244,255,249,0.68)' }}>{selectedStats.label}</div>
             </div>
-            <div style={{ flex:1, minHeight:0, padding:'12px 10px 27px', borderRadius:8, border:'1px solid rgba(255,255,255,0.05)', background:'rgba(15,23,42,0.52)' }}>
-              <div style={{ height:'100%', position:'relative' }}>
-              <div style={{ position:'absolute', left:0, right:0, bottom:weekdayTargetBottom, borderTop:'1px dashed rgba(251,191,36,0.72)' }} />
-              <div style={{ height:'100%', display:'grid', gridTemplateColumns:'repeat(7,minmax(0,1fr))', gap:12 }}>
-                {stats.weekdays.map(day => {
-                  const pct = Math.min(100, (day.averageMinutes / weekdayMaxMinutes) * 100);
-                  const barHeight = day.averageMinutes > 0 ? Math.max(3, pct) : 0;
-                  const tone = toneForMinutes(day.averageMinutes);
+            <div style={{ display:'grid', gridTemplateColumns:'repeat(2,minmax(0,1fr))', gap:10, marginBottom:12 }}>
+              <div style={{ padding:'12px', borderRadius:14, background:'rgba(255,255,255,0.035)', border:'1px solid rgba(255,255,255,0.06)' }}>
+                <div style={{ fontSize:9, color:BRAND_LABEL, fontWeight:800, textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:5 }}>Worked</div>
+                <div style={{ fontSize:24, fontWeight:850, color:'#10b981', fontVariantNumeric:'tabular-nums' }}>{formatHoursMinutes(selectedStats.totalMinutes)}</div>
+              </div>
+              <div style={{ padding:'12px', borderRadius:14, background:'rgba(255,255,255,0.035)', border:'1px solid rgba(255,255,255,0.06)' }}>
+                <div style={{ fontSize:9, color:BRAND_LABEL, fontWeight:800, textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:5 }}>Breaks</div>
+                <div style={{ fontSize:24, fontWeight:850, color:'#f8fff9', fontVariantNumeric:'tabular-nums' }}>{formatMinutes(selectedStats.breakMinutes)}</div>
+              </div>
+            </div>
+            <div style={{ display:'grid', gap:8 }}>
+              {selectedEvents.length ? selectedEvents.map((row, index) => (
+                <div key={`${selectedDate}-${row.event}-${row.time}-${index}`} style={{ display:'flex', justifyContent:'space-between', gap:12, padding:'9px 11px', borderRadius:12, background:'rgba(255,255,255,0.035)', border:'1px solid rgba(255,255,255,0.06)' }}>
+                  <span style={{ fontSize:12, color:'#f8fff9', fontWeight:700 }}>{row.event}</span>
+                  <span style={{ fontSize:12, color:'rgba(244,255,249,0.68)', fontVariantNumeric:'tabular-nums' }}>{row.time}</span>
+                </div>
+              )) : (
+                <div style={{ padding:'12px', borderRadius:12, background:'rgba(255,255,255,0.03)', border:'1px solid rgba(255,255,255,0.06)', color:'rgba(244,255,249,0.6)', fontSize:12 }}>
+                  This date has no saved clock events yet. Use the fields below to add or edit times manually.
+                </div>
+              )}
+            </div>
+          </section>
+        </div>
+
+        <WorkCalendar
+          month={month}
+          selectedDate={selectedDate}
+          notes={notes}
+          onMonthChange={onMonthChange}
+          onSelectDate={onSelectDate}
+          hasDailyFolder={hasDailyFolder}
+        />
+      </div>
+
+      <WorkHoursPanel
+        selectedDate={selectedDate}
+        selectedNote={selectedNote}
+        notes={notes}
+        onSaveRows={onSaveRows}
+        onStatusChange={onStatusChange}
+        hasDailyFolder={hasDailyFolder}
+      />
+    </div>
+  );
+}
+
+function TimeDashboardPanel({ notes, trackerRows, tasks, hasDailyFolder, onConfigure }) {
+  const [period, setPeriod] = useState('week');
+  const datedNotes = notes
+    .filter(note => /^\d{4}-\d{2}-\d{2}$/.test(note.date || ''))
+    .sort((a, b) => a.date.localeCompare(b.date));
+  const noteMap = Object.fromEntries(datedNotes.map(note => [note.date, note]));
+  const firstDate = datedNotes[0]?.date || tod();
+  const lastDate = datedNotes[datedNotes.length - 1]?.date || tod();
+  const anchorDate = lastDate > tod() ? lastDate : tod();
+  const monthStart = `${anchorDate.slice(0, 7)}-01`;
+  const range = period === 'month'
+    ? { start:monthStart, end:anchorDate, label:monthLabel(anchorDate.slice(0, 7)), metric:'this month' }
+    : period === 'all'
+      ? { start:firstDate, end:lastDate, label:'All time', metric:'all time' }
+      : { start:addDays(anchorDate, -6), end:anchorDate, label:'Last 7 days', metric:'this week' };
+  const stats = dashboardStats(datedNotes, range.start, range.end);
+  const chartDays = dateSpan(range.start, range.end).map(date => ({ date, note:noteMap[date], ...workStats(noteMap[date]) }));
+  const todayStats = workStats(noteMap[tod()]);
+  const chartMaxMinutes = Math.max(WORK_CHART_MAX_MINUTES, TARGET_WORK_MINUTES, ...chartDays.map(day => day.totalMinutes));
+  const targetBottom = `${Math.min(100, (TARGET_WORK_MINUTES / chartMaxMinutes) * 100)}%`;
+  const tickEvery = Math.max(1, Math.ceil(chartDays.length / 7));
+  const trackedRows = trackerRows.filter(row => row.date >= range.start && row.date <= range.end);
+  const tasksByFilename = tasks.reduce((map, task) => {
+    map[String(task.filename || '').toLowerCase()] = task;
+    return map;
+  }, {});
+  const contextTotals = trackedRows.reduce((map, row) => {
+    const task = tasksByFilename[row.taskLabel.toLowerCase()];
+    const key = task?.contexts?.[0] || task?.projects?.[0] || task?.client || task?.building || (!row.linked ? row.taskLabel : 'Uncategorized');
+    map[key] = (map[key] || 0) + row.minutes;
+    return map;
+  }, {});
+  const taskTotals = trackedRows.reduce((map, row) => {
+    const task = tasksByFilename[row.taskLabel.toLowerCase()];
+    const key = task?.title || row.taskLabel;
+    map[key] = (map[key] || 0) + row.minutes;
+    return map;
+  }, {});
+  const topContexts = Object.entries(contextTotals).sort((a, b) => b[1] - a[1]).slice(0, 5);
+  const topTasks = Object.entries(taskTotals).sort((a, b) => b[1] - a[1]).slice(0, 5);
+  const metricCards = [
+    { label:`Total ${range.metric}`, value:formatHoursMinutes(stats.summary.totalMinutes), detail:`${stats.summary.totalDays} counted day${stats.summary.totalDays === 1 ? '' : 's'}` },
+    { label:'Daily average', value:formatHoursMinutes(stats.summary.averageMinutes), detail:`goal ${formatHoursMinutes(TARGET_WORK_MINUTES)}` },
+    { label:'Today', value:formatHoursMinutes(todayStats.totalMinutes), detail:todayStats.totalMinutes ? todayStats.label : 'no time logged yet' },
+  ];
+
+  if (!hasDailyFolder) {
+    return (
+      <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', color:'#f4fff9', fontSize:13 }}>
+        <button onClick={onConfigure} style={{ padding:'10px 18px', borderRadius:10, border:'none', cursor:'pointer', fontWeight:800, fontSize:13, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff' }}>Configure Daily Notes folder</button>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ flex:1, minHeight:0, overflowY:'auto', padding:'22px 28px 24px' }}>
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:18, marginBottom:16, flexWrap:'wrap' }}>
+        <div>
+          <div style={{ fontSize:10, color:BRAND_LABEL, fontWeight:800, textTransform:'uppercase', letterSpacing:'0.14em', marginBottom:6 }}>Time dashboard · {range.label.toLowerCase()}</div>
+          <h2 style={{ margin:0, fontSize:30, color:'#f8fff9', letterSpacing:'-0.04em' }}>Time</h2>
+        </div>
+        <div style={{ display:'inline-flex', gap:6, padding:4, borderRadius:999, background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.08)' }}>
+          {[
+            ['week', 'Week'],
+            ['month', 'Month'],
+            ['all', 'All time'],
+          ].map(([key, label]) => (
+            <button
+              key={key}
+              onClick={()=>setPeriod(key)}
+              style={{ padding:'8px 12px', borderRadius:999, border:'none', cursor:'pointer', fontWeight:800, fontSize:11, fontFamily:'inherit', background:period === key ? 'rgba(255,255,255,0.12)' : 'transparent', color:period === key ? '#fff' : 'rgba(244,255,249,0.72)' }}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(3,minmax(0,1fr))', gap:12, marginBottom:16 }}>
+        {metricCards.map(card => (
+          <section key={card.label} className="glass-thin" style={{ borderRadius:16, padding:'16px 18px' }}>
+            <div style={{ fontSize:10, color:BRAND_LABEL, fontWeight:800, textTransform:'uppercase', letterSpacing:'0.12em', marginBottom:10 }}>{card.label}</div>
+            <div style={{ fontSize:40, fontWeight:850, color:card.label === 'Today' ? '#f8fff9' : '#10b981', lineHeight:1, fontVariantNumeric:'tabular-nums' }}>{card.value}</div>
+            <div style={{ fontSize:11, color:'rgba(244,255,249,0.62)', marginTop:8 }}>{card.detail}</div>
+          </section>
+        ))}
+      </div>
+
+      <section className="glass-thin" style={{ borderRadius:18, padding:'16px', marginBottom:16 }}>
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:14, marginBottom:14, flexWrap:'wrap' }}>
+          <div>
+            <div style={{ fontSize:11, color:BRAND_LABEL, fontWeight:800, textTransform:'uppercase', letterSpacing:'0.14em', marginBottom:5 }}>{range.metric}</div>
+            <div style={{ fontSize:14, color:'#f8fff9', fontWeight:700 }}>{range.start} to {range.end}</div>
+          </div>
+          <div style={{ display:'flex', gap:12, flexWrap:'wrap', fontSize:10, fontWeight:800 }}>
+            <span style={{ color:'#34d399' }}>goal met</span>
+            <span style={{ color:'#7dd3a7' }}>partial</span>
+            <span style={{ color:'rgba(244,255,249,0.56)' }}>target: {formatHoursMinutes(TARGET_WORK_MINUTES)}</span>
+          </div>
+        </div>
+        <div style={{ minHeight:300, borderRadius:16, background:'linear-gradient(180deg,rgba(10,34,22,0.88),rgba(8,25,18,0.82))', border:'1px solid rgba(255,255,255,0.05)', padding:'18px 16px 28px' }}>
+          {chartDays.length ? (
+            <div style={{ height:'100%', position:'relative' }}>
+              <div style={{ position:'absolute', left:0, right:0, bottom:targetBottom, borderTop:'1px dashed rgba(188,255,214,0.38)' }} />
+              <div style={{ height:'100%', display:'flex', gap:chartDays.length > 40 ? 2 : 6, alignItems:'stretch' }}>
+                {chartDays.map((day, index) => {
+                  const pct = Math.min(100, (day.totalMinutes / chartMaxMinutes) * 100);
+                  const showTick = chartDays.length <= 10 || index === 0 || index === chartDays.length - 1 || index % tickEvery === 0;
+                  const barColor = day.totalMinutes >= TARGET_WORK_MINUTES ? '#1fd47b' : day.totalMinutes > 0 ? '#148b53' : 'rgba(255,255,255,0.08)';
                   return (
-                    <div key={day.label} title={`${day.label} · ${day.count} day${day.count === 1 ? '' : 's'} · ${formatHoursMinutes(day.averageMinutes)}`} style={{ height:'100%', minWidth:0, position:'relative' }}>
-                      <div style={{ position:'absolute', left:-8, right:-8, bottom:`calc(${barHeight}% + 6px)`, textAlign:'center', fontSize:9, fontWeight:800, color:tone.text, whiteSpace:'nowrap' }}>{day.averageMinutes ? formatHoursMinutes(day.averageMinutes) : '--'}</div>
-                      <div style={{ position:'absolute', left:'32%', right:'32%', bottom:0, height:`${barHeight}%`, minHeight:day.averageMinutes ? 0 : 3, borderRadius:'6px 6px 2px 2px', background:tone.fill, border:`1px solid ${tone.border}` }} />
-                      <div style={{ position:'absolute', left:0, right:0, bottom:-27, textAlign:'center' }}>
-                        <div style={{ fontSize:10, color:'#e2e8f0', fontWeight:850 }}>{day.label}</div>
-                        <div style={{ fontSize:9, color:'#f4fff9', fontWeight:750 }}>{day.count}</div>
-                      </div>
+                    <div key={day.date} title={`${day.date} · ${formatHoursMinutes(day.totalMinutes)} · ${day.label}`} style={{ flex:'1 1 0', minWidth:0, position:'relative' }}>
+                      <div style={{ position:'absolute', left:'50%', bottom:0, transform:'translateX(-50%)', width:chartDays.length > 40 ? '100%' : '76%', maxWidth:18, minHeight:day.totalMinutes ? 0 : 4, height:`${day.totalMinutes ? Math.max(4, pct) : 0}%`, borderRadius:'10px 10px 4px 4px', background:barColor, boxShadow:day.totalMinutes >= TARGET_WORK_MINUTES ? '0 0 22px rgba(31,212,123,0.18)' : 'none' }} />
+                      {showTick && (
+                        <div style={{ position:'absolute', left:-10, right:-10, bottom:-20, textAlign:'center', fontSize:10, color:'rgba(244,255,249,0.6)', fontWeight:700, whiteSpace:'nowrap' }}>
+                          {new Date(`${day.date}T12:00:00`).toLocaleDateString('en-US', { weekday:'short' })}
+                        </div>
+                      )}
                     </div>
                   );
                 })}
               </div>
-              </div>
             </div>
-          </section>
+          ) : (
+            <div style={{ height:'100%', display:'flex', alignItems:'center', justifyContent:'center', color:'rgba(244,255,249,0.6)', fontSize:13 }}>
+              No dated daily notes were found in this range.
+            </div>
+          )}
         </div>
+      </section>
 
-        <aside style={{ minWidth:0, minHeight:0, display:'grid', gridTemplateColumns:'repeat(2,minmax(0,1fr))', gridAutoRows:'minmax(0,1fr)', gap:9 }}>
-          {summaryCards.map(([label, value, color]) => (
-            <div key={label} style={{ minHeight:0, padding:'11px', borderRadius:8, border:'1px solid rgba(255,255,255,0.07)', background:'rgba(255,255,255,0.03)', display:'flex', flexDirection:'column', justifyContent:'space-between' }}>
-              <div style={{ fontSize:10, color:'#f4fff9', fontWeight:850, textTransform:'uppercase', letterSpacing:'0.08em' }}>{label}</div>
-              <div style={{ marginTop:8, color, fontSize:label.includes('time') || label.includes('Average') ? 19 : 25, lineHeight:1, fontWeight:900, fontVariantNumeric:'tabular-nums', overflowWrap:'anywhere' }}>{value}</div>
+      <div style={{ display:'grid', gridTemplateColumns:'minmax(260px,1fr) minmax(260px,0.9fr)', gap:16 }}>
+        <section className="glass-thin" style={{ borderRadius:18, padding:'16px' }}>
+          <div style={{ fontSize:11, color:BRAND_LABEL, fontWeight:800, textTransform:'uppercase', letterSpacing:'0.14em', marginBottom:12 }}>By context</div>
+          {topContexts.length ? topContexts.map(([label, minutes]) => {
+            const width = topContexts[0][1] ? `${(minutes / topContexts[0][1]) * 100}%` : '0%';
+            return (
+              <div key={label} style={{ marginBottom:12 }}>
+                <div style={{ display:'flex', justifyContent:'space-between', gap:12, alignItems:'baseline', marginBottom:6 }}>
+                  <span style={{ fontSize:12, color:'#f8fff9', fontWeight:700 }}>{label}</span>
+                  <span style={{ fontSize:11, color:'rgba(244,255,249,0.62)', fontVariantNumeric:'tabular-nums' }}>{formatHoursMinutes(minutes)}</span>
+                </div>
+                <div style={{ height:7, borderRadius:999, background:'rgba(255,255,255,0.06)' }}>
+                  <div style={{ height:'100%', width, borderRadius:999, background:'linear-gradient(90deg,#22c55e,#86efac)' }} />
+                </div>
+              </div>
+            );
+          }) : (
+            <div style={{ color:'rgba(244,255,249,0.6)', fontSize:12, lineHeight:1.55 }}>
+              Start and stop task timers to populate context totals here.
             </div>
-          ))}
-          <div style={{ minHeight:0, padding:'11px', borderRadius:8, border:'1px solid rgba(255,255,255,0.07)', background:'rgba(255,255,255,0.03)', display:'flex', flexDirection:'column', justifyContent:'space-between' }}>
-            <div style={{ fontSize:10, color:'#f4fff9', fontWeight:850, textTransform:'uppercase', letterSpacing:'0.08em' }}>Daily notes</div>
-            <div style={{ color:'#f8fafc', fontSize:25, lineHeight:1, fontWeight:900, fontVariantNumeric:'tabular-nums' }}>{stats.summary.dailyNotes}</div>
-          </div>
-          <div style={{ gridColumn:'1 / -1', minHeight:0, padding:'11px', borderRadius:8, border:'1px solid rgba(255,255,255,0.07)', background:'rgba(255,255,255,0.03)', color:'#f4fff9', fontSize:10, fontWeight:800, lineHeight:1.5 }}>
-            <div style={{ color:'#34d399' }}>Target band: +/-5% of 7h 15m</div>
-            <div style={{ color:'#fbbf24' }}>Below band</div>
-            <div style={{ color:'#f87171' }}>Above band</div>
-          </div>
-        </aside>
+          )}
+        </section>
+
+        <section className="glass-thin" style={{ borderRadius:18, padding:'16px' }}>
+          <div style={{ fontSize:11, color:BRAND_LABEL, fontWeight:800, textTransform:'uppercase', letterSpacing:'0.14em', marginBottom:12 }}>Top tasks</div>
+          {topTasks.length ? topTasks.map(([label, minutes], index) => (
+            <div key={label} style={{ display:'grid', gridTemplateColumns:'24px minmax(0,1fr) auto', gap:10, alignItems:'baseline', padding:'8px 0', borderBottom:index === topTasks.length - 1 ? 'none' : '1px solid rgba(255,255,255,0.06)' }}>
+              <span style={{ fontSize:10, color:'rgba(244,255,249,0.42)', fontWeight:800 }}>{String(index + 1).padStart(2, '0')}</span>
+              <span style={{ fontSize:12, color:'#f8fff9', fontWeight:700, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{label}</span>
+              <span style={{ fontSize:11, color:'rgba(244,255,249,0.62)', fontVariantNumeric:'tabular-nums' }}>{formatHoursMinutes(minutes)}</span>
+            </div>
+          )) : (
+            <div style={{ color:'rgba(244,255,249,0.6)', fontSize:12, lineHeight:1.55 }}>
+              No tracked tasks were found in this period yet.
+            </div>
+          )}
+        </section>
       </div>
     </div>
   );
@@ -3233,19 +3510,19 @@ function WorkCalendar({ month, selectedDate, notes, onMonthChange, onSelectDate,
   const cells = [...Array(firstPad).fill(null), ...days];
 
   return (
-    <section style={{ borderRadius:8, border:'1px solid rgba(255,255,255,0.06)', background:'rgba(255,255,255,0.025)', padding:'13px', minHeight:285 }}>
-      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:11 }}>
-        <button onClick={()=>onMonthChange(prevMonth(month))} disabled={!hasDailyFolder} style={{ width:28, height:28, borderRadius:8, border:'1px solid rgba(255,255,255,0.08)', background:'rgba(255,255,255,0.03)', color:'#f4fff9', cursor:hasDailyFolder?'pointer':'not-allowed', fontWeight:900 }}>‹</button>
+    <section className="glass-thin" style={{ borderRadius:18, padding:'16px', minHeight:285 }}>
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:13 }}>
+        <button onClick={()=>onMonthChange(prevMonth(month))} disabled={!hasDailyFolder} style={{ width:32, height:32, borderRadius:10, border:'1px solid rgba(255,255,255,0.08)', background:'rgba(255,255,255,0.03)', color:'#f4fff9', cursor:hasDailyFolder?'pointer':'not-allowed', fontWeight:900 }}>‹</button>
         <div style={{ textAlign:'center' }}>
-          <h3 style={{ margin:0, fontSize:14, color:'#f1f5f9' }}>Work Calendar</h3>
-          <div style={{ fontSize:11, color:'#f4fff9', marginTop:3 }}>{monthLabel(month)}</div>
+          <div style={{ fontSize:11, color:BRAND_LABEL, fontWeight:800, letterSpacing:'0.14em', textTransform:'uppercase', marginBottom:5 }}>Calendar</div>
+          <h3 style={{ margin:0, fontSize:18, color:'#f8fff9' }}>{monthLabel(month)}</h3>
         </div>
-        <button onClick={()=>onMonthChange(nextMonth(month))} disabled={!hasDailyFolder} style={{ width:28, height:28, borderRadius:8, border:'1px solid rgba(255,255,255,0.08)', background:'rgba(255,255,255,0.03)', color:'#f4fff9', cursor:hasDailyFolder?'pointer':'not-allowed', fontWeight:900 }}>›</button>
+        <button onClick={()=>onMonthChange(nextMonth(month))} disabled={!hasDailyFolder} style={{ width:32, height:32, borderRadius:10, border:'1px solid rgba(255,255,255,0.08)', background:'rgba(255,255,255,0.03)', color:'#f4fff9', cursor:hasDailyFolder?'pointer':'not-allowed', fontWeight:900 }}>›</button>
       </div>
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(7,1fr)', gap:5, marginBottom:5 }}>
-        {['M','T','W','T','F','S','S'].map((d, i) => <div key={`${d}-${i}`} style={{ fontSize:9, color:'#f4fff9', textAlign:'center', fontWeight:800 }}>{d}</div>)}
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(7,1fr)', gap:6, marginBottom:6 }}>
+        {['M','T','W','T','F','S','S'].map((d, i) => <div key={`${d}-${i}`} style={{ fontSize:9, color:'rgba(244,255,249,0.6)', textAlign:'center', fontWeight:800 }}>{d}</div>)}
       </div>
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(7,1fr)', gap:5 }}>
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(7,1fr)', gap:6 }}>
         {cells.map((dateStr, i) => {
           if (!dateStr) return <div key={`blank-${i}`} />;
           const stats = workStats(notes[dateStr]);
@@ -3255,16 +3532,16 @@ function WorkCalendar({ month, selectedDate, notes, onMonthChange, onSelectDate,
           return (
             <button key={dateStr} onClick={()=>onSelectDate(dateStr)} disabled={!hasDailyFolder}
               title={`${dateStr} · ${formatMinutes(stats.totalMinutes)} · ${stats.label}`}
-              style={{ minHeight:38, borderRadius:8, border:`1px solid ${selected ? BRAND_LABEL : 'rgba(255,255,255,0.06)'}`, background:selected?BRAND_SURFACE_STRONG:'rgba(255,255,255,0.025)', color:'#e2e8f0', cursor:hasDailyFolder?'pointer':'not-allowed', fontFamily:'inherit', padding:'4px 2px', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:2 }}>
+              style={{ minHeight:44, borderRadius:12, border:`1px solid ${selected ? BRAND_BORDER_STRONG : 'rgba(255,255,255,0.06)'}`, background:selected?'rgba(34,197,94,0.14)':'rgba(255,255,255,0.025)', color:'#e2e8f0', cursor:hasDailyFolder?'pointer':'not-allowed', fontFamily:'inherit', padding:'4px 2px', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:3, boxShadow:selected ? '0 0 24px rgba(34,197,94,0.12)' : 'none' }}>
               <span style={{ fontSize:12, fontWeight:800 }}>{Number(dateStr.slice(-2))}</span>
-              <span style={{ width:5, height:5, borderRadius:5, background:accent, opacity:status || stats.totalMinutes ? 1 : 0.35 }} />
+              <span style={{ width:6, height:6, borderRadius:6, background:accent, opacity:status || stats.totalMinutes ? 1 : 0.35 }} />
             </button>
           );
         })}
       </div>
-      <div style={{ display:'flex', gap:8, flexWrap:'wrap', marginTop:10, color:'#f4fff9', fontSize:10 }}>
-        <span>Target 435 min</span>
+      <div style={{ display:'flex', gap:8, flexWrap:'wrap', marginTop:12, color:'rgba(244,255,249,0.6)', fontSize:10 }}>
         <span>Green worked</span>
+        <span>Blue holiday</span>
         <span>Yellow bank holiday</span>
       </div>
     </section>
@@ -3289,22 +3566,23 @@ function WorkHoursPanel({ selectedDate, selectedNote, notes, onSaveRows, onStatu
   const canSave = canEditTimes && Object.values(draft).some(Boolean);
 
   return (
-    <section style={{ borderRadius:8, border:'1px solid rgba(255,255,255,0.06)', background:'rgba(255,255,255,0.025)', padding:'13px', minHeight:285 }}>
+    <section className="glass-thin" style={{ borderRadius:18, padding:'16px', minHeight:285 }}>
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:14, marginBottom:12 }}>
         <div>
-          <h3 style={{ margin:0, fontSize:14, color:'#f1f5f9' }}>Hours</h3>
-          <div style={{ fontSize:11, color:'#f4fff9', marginTop:3 }}>{selectedDate} · {stats.label}</div>
+          <div style={{ fontSize:11, color:BRAND_LABEL, fontWeight:800, letterSpacing:'0.14em', textTransform:'uppercase', marginBottom:5 }}>Daily hours</div>
+          <h3 style={{ margin:0, fontSize:18, color:'#f8fff9' }}>{selectedDate}</h3>
+          <div style={{ fontSize:11, color:'#f4fff9', marginTop:4 }}>{stats.label}</div>
         </div>
         <div style={{ textAlign:'right' }}>
-          <div style={{ fontSize:22, fontWeight:850, color:weekTotalMinutes >= WEEK_TARGET_MINUTES ? '#10b981' : '#fbbf24' }}>{formatHoursMinutes(weekTotalMinutes)}</div>
+          <div style={{ fontSize:28, fontWeight:850, color:weekTotalMinutes >= WEEK_TARGET_MINUTES ? '#10b981' : '#fbbf24', fontVariantNumeric:'tabular-nums' }}>{formatHoursMinutes(weekTotalMinutes)}</div>
           <div style={{ fontSize:10, color:'#f4fff9' }}>week target {formatHoursMinutes(WEEK_TARGET_MINUTES)}</div>
         </div>
       </div>
 
-      <div style={{ height:155, position:'relative', borderRadius:8, border:'1px solid rgba(255,255,255,0.05)', background:'rgba(15,23,42,0.55)', padding:'14px 12px 26px', marginBottom:12 }}>
+      <div style={{ height:165, position:'relative', borderRadius:16, border:'1px solid rgba(255,255,255,0.05)', background:'linear-gradient(180deg,rgba(10,34,22,0.88),rgba(8,25,18,0.82))', padding:'16px 14px 28px', marginBottom:14 }}>
         <div style={{ position:'relative', height:'100%' }}>
-          <div style={{ position:'absolute', left:0, right:0, bottom:targetBottom, borderTop:'1px dashed rgba(251,191,36,0.9)', zIndex:2 }} />
-          <div style={{ position:'absolute', right:0, bottom:targetBottom, transform:'translateY(50%)', fontSize:9, color:'#fbbf24', background:'#0f172a', padding:'1px 4px', zIndex:3 }}>435 min</div>
+          <div style={{ position:'absolute', left:0, right:0, bottom:targetBottom, borderTop:'1px dashed rgba(188,255,214,0.38)', zIndex:2 }} />
+          <div style={{ position:'absolute', right:0, bottom:targetBottom, transform:'translateY(50%)', fontSize:9, color:'rgba(244,255,249,0.62)', background:'rgba(8,25,18,0.92)', padding:'1px 4px', zIndex:3 }}>{formatHoursMinutes(TARGET_WORK_MINUTES)}</div>
           <div style={{ height:'100%', display:'grid', gridTemplateColumns:'repeat(5,1fr)', gap:10, alignItems:'stretch' }}>
           {weekStats.map(day => {
             const pct = Math.min(100, (day.totalMinutes / chartMaxMinutes) * 100);
@@ -3314,7 +3592,7 @@ function WorkHoursPanel({ selectedDate, selectedNote, notes, onSaveRows, onStatu
             return (
               <div key={day.dateStr} style={{ minWidth:0, height:'100%', position:'relative' }}>
                 <div style={{ position:'absolute', left:0, right:0, bottom:`calc(${barHeight}% + 5px)`, textAlign:'center', fontSize:9, color:isSelected?BRAND_TEXT:'#f4fff9', fontWeight:800 }}>{formatMinutes(day.totalMinutes)}</div>
-                <div style={{ position:'absolute', left:'15%', right:'15%', bottom:0, height:`${barHeight}%`, borderRadius:'7px 7px 3px 3px', background:isLeave?'rgba(56,189,248,0.38)':day.totalMinutes >= TARGET_WORK_MINUTES?'linear-gradient(180deg,#34d399,#10b981)':'linear-gradient(180deg,#fbbf24,#16a34a)', border:isSelected?`1px solid ${BRAND_TEXT}`:'1px solid rgba(255,255,255,0.08)' }} />
+                <div style={{ position:'absolute', left:'15%', right:'15%', bottom:0, height:`${barHeight}%`, borderRadius:'10px 10px 4px 4px', background:isLeave?'rgba(56,189,248,0.5)':day.totalMinutes >= TARGET_WORK_MINUTES?'linear-gradient(180deg,#34d399,#10b981)':'linear-gradient(180deg,#16a34a,#0f6d44)', border:isSelected?`1px solid ${BRAND_TEXT}`:'1px solid rgba(255,255,255,0.08)' }} />
                 <div style={{ position:'absolute', left:0, right:0, bottom:-21, textAlign:'center', fontSize:10, color:isSelected?'#f1f5f9':'#f4fff9', fontWeight:800 }}>{dateFromStr(day.dateStr).toLocaleDateString('en-US', { weekday:'short' })}</div>
               </div>
             );
@@ -3323,23 +3601,23 @@ function WorkHoursPanel({ selectedDate, selectedNote, notes, onSaveRows, onStatu
         </div>
       </div>
 
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(4,minmax(95px,1fr))', gap:8, marginBottom:10 }}>
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(4,minmax(95px,1fr))', gap:10, marginBottom:12 }}>
         {WORK_EVENT_ORDER.map(event => (
           <label key={event} style={{ minWidth:0 }}>
-            <span style={{ display:'block', fontSize:9, color:'#f4fff9', fontWeight:800, textTransform:'uppercase', marginBottom:4 }}>{event}</span>
+            <span style={{ display:'block', fontSize:9, color:BRAND_LABEL, fontWeight:800, textTransform:'uppercase', marginBottom:5 }}>{event}</span>
             <input type="time" value={draft[event] || ''} onChange={e=>setDraftTime(event, e.target.value)} disabled={!canEditTimes}
-              style={{ width:'100%', boxSizing:'border-box', padding:'7px 8px', borderRadius:8, background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.08)', color:'#e2e8f0', fontSize:12, outline:'none', fontFamily:'inherit', opacity:canEditTimes?1:0.45 }} />
+              style={{ width:'100%', boxSizing:'border-box', padding:'9px 10px', borderRadius:10, background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.08)', color:'#e2e8f0', fontSize:12, outline:'none', fontFamily:'inherit', opacity:canEditTimes?1:0.45 }} />
           </label>
         ))}
       </div>
 
       <div style={{ display:'flex', gap:8, alignItems:'center', flexWrap:'wrap' }}>
         <select value={selectedNote?.workStatus || 'workday'} onChange={e=>onStatusChange(selectedDate, e.target.value)} disabled={!hasDailyFolder}
-          style={{ padding:'8px 10px', borderRadius:8, background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.08)', color:'#e2e8f0', fontSize:12, fontFamily:'inherit', outline:'none', opacity:hasDailyFolder?1:0.45 }}>
+          style={{ padding:'9px 11px', borderRadius:10, background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.08)', color:'#e2e8f0', fontSize:12, fontFamily:'inherit', outline:'none', opacity:hasDailyFolder?1:0.45 }}>
           {Object.entries(WORK_STATUS_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
         </select>
         <button onClick={()=>onSaveRows(selectedDate, draft)} disabled={!canSave}
-          style={{ padding:'8px 12px', borderRadius:8, border:'none', cursor:canSave?'pointer':'not-allowed', fontWeight:800, fontSize:12, fontFamily:'inherit', background:BRAND_SURFACE_STRONG, color:BRAND_TEXT, opacity:canSave?1:0.4 }}>
+          style={{ padding:'9px 13px', borderRadius:10, border:'none', cursor:canSave?'pointer':'not-allowed', fontWeight:800, fontSize:12, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff', boxShadow:BRAND_SHADOW, opacity:canSave?1:0.4 }}>
           Save hours
         </button>
         <div style={{ fontSize:11, color:'#f4fff9' }}>{stats.creditedDay ? 'Leave days credit 435 minutes automatically.' : 'Breaks subtract from the day total.'}</div>
