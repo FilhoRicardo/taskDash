@@ -1,5 +1,5 @@
 import React from 'react';
-import { goalBand } from './utils/timeClock.js';
+import { TARGET_WORK_TOLERANCE, goalBand } from './utils/timeClock.js';
 
 const fmtHm = mins => {
   const total = Math.max(0, Math.round(mins || 0));
@@ -40,42 +40,50 @@ function Ring({ value, max, size = 88, thickness = 8, children }) {
 }
 
 function Bars({ data, target, height = 64 }) {
-  const max = Math.max(target || 1, ...data.map(day => day.minutes || 0), 1);
+  const lowerTarget = Math.max(0, (target || 0) - TARGET_WORK_TOLERANCE);
+  const upperTarget = (target || 0) + TARGET_WORK_TOLERANCE;
+  const max = Math.max(upperTarget || 1, ...data.map(day => day.minutes || 0), 1);
+  const lowerBottom = `${Math.min(100, (lowerTarget / max) * 100)}%`;
+  const bandHeight = `${Math.max(0, ((upperTarget - lowerTarget) / max) * 100)}%`;
   return (
-    <div style={{ display:'grid', gridTemplateColumns:`repeat(${data.length}, minmax(0,1fr))`, gap:8 }}>
-      {data.map((day, index) => {
-        const barHeight = ((day.minutes || 0) / max) * height;
-        const band = goalBand(day.minutes || 0);
-        const tone = band === 'target'
-          ? 'var(--good)'
-          : band === 'below'
-            ? '#fbbf24'
-            : band === 'empty'
-              ? 'rgba(255,255,255,0.08)'
-              : 'var(--bad)';
-        return (
-          <div key={`${day.day}-${index}`} style={{ display:'grid', gridTemplateRows:`${height}px auto`, gap:6, alignItems:'end' }}>
-            <div style={{ position:'relative', height }}>
-              <div
-                className="tdg-bar"
-                style={{
-                  position:'absolute',
-                  left:'50%',
-                  bottom:0,
-                  transform:'translateX(-50%)',
-                  width:'78%',
-                  height: Math.max(2, barHeight),
-                  borderRadius: 6,
-                  background: tone,
-                  opacity: tone.startsWith('rgba') ? 0.4 : 0.9,
-                  animationDelay: `${index * 60}ms`,
-                }}
-              />
+    <div style={{ position:'relative' }}>
+      <div style={{ position:'absolute', left:0, right:0, bottom:`calc(${lowerBottom} + 18px)`, height:bandHeight, background:'rgba(31,212,123,0.08)', borderTop:'1px dashed rgba(188,255,214,0.35)', borderBottom:'1px dashed rgba(188,255,214,0.35)', pointerEvents:'none' }} />
+      <div style={{ display:'grid', gridTemplateColumns:`repeat(${data.length}, minmax(0,1fr))`, gap:10, position:'relative' }}>
+        {data.map((day, index) => {
+          const barHeight = ((day.minutes || 0) / max) * height;
+          const band = goalBand(day.minutes || 0);
+          const tone = band === 'target'
+            ? 'var(--good)'
+            : band === 'below'
+              ? '#fbbf24'
+              : band === 'empty'
+                ? 'rgba(255,255,255,0.08)'
+                : 'var(--bad)';
+          return (
+            <div key={`${day.day}-${index}`} style={{ display:'grid', gridTemplateRows:`${height}px 12px`, gap:6, alignItems:'end', minWidth:0 }}>
+              <div style={{ position:'relative', height }}>
+                <div
+                  className="tdg-bar"
+                  style={{
+                    position:'absolute',
+                    left:'50%',
+                    bottom:0,
+                    transform:'translateX(-50%)',
+                    width:'58%',
+                    maxWidth:28,
+                    height: Math.max(day.minutes ? 3 : 2, barHeight),
+                    borderRadius: 6,
+                    background: tone,
+                    opacity: tone.startsWith('rgba') ? 0.35 : 0.92,
+                    animationDelay: `${index * 60}ms`,
+                  }}
+                />
+              </div>
+              <span style={{ fontSize: 10, color: 'var(--ink-faint)', fontWeight: 700, textAlign:'center', whiteSpace:'nowrap' }}>{day.day}</span>
             </div>
-            <span style={{ fontSize: 10, color: 'var(--ink-faint)', fontWeight: 600 }}>{day.day}</span>
-          </div>
-        );
-      })}
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -112,7 +120,7 @@ export default function TodayHero({
           pointerEvents: 'none',
         }}
       />
-      <div style={{ display: 'grid', gridTemplateColumns: 'auto minmax(0,1fr) minmax(250px, 280px)', gap: 26, alignItems: 'center', position: 'relative' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'auto minmax(0,1fr) minmax(320px, 380px)', gap: 24, alignItems: 'center', position: 'relative' }}>
         <Ring value={workedMinutes} max={goalMinutes}>
           <span className="tdg-num">{fmtHm(workedMinutes)}</span>
           <span className="small">of {fmtHm(goalMinutes)}</span>
@@ -133,7 +141,7 @@ export default function TodayHero({
         {week.length > 0 && (
           <div style={{ width: '100%', alignSelf: 'center', display:'flex', flexDirection:'column', justifyContent:'center', paddingRight: 4 }}>
             <div className="tdg-eyebrow" style={{ marginBottom: 8 }}>This week</div>
-            <Bars data={week} target={goalMinutes} height={52} />
+            <Bars data={week} target={goalMinutes} height={58} />
           </div>
         )}
       </div>
