@@ -10,11 +10,14 @@ function Ring({ value, max, size = 88, thickness = 8, children }) {
   const radius = (size - thickness) / 2;
   const circumference = 2 * Math.PI * radius;
   const pct = Math.max(0, Math.min(1, value / (max || 1)));
-  const tone = goalBand(value) === 'target'
+  const band = goalBand(value);
+  const tone = band === 'target'
     ? 'var(--good)'
-    : goalBand(value) === 'empty'
-      ? 'rgba(255,255,255,0.16)'
-      : 'var(--bad)';
+    : band === 'below'
+      ? '#fbbf24'
+      : band === 'empty'
+        ? 'rgba(255,255,255,0.16)'
+        : 'var(--bad)';
   return (
     <div className="tdg-ring-wrap" style={{ width: size, height: size }}>
       <svg width={size} height={size}>
@@ -45,9 +48,11 @@ function Bars({ data, target, height = 64 }) {
         const band = goalBand(day.minutes || 0);
         const tone = band === 'target'
           ? 'var(--good)'
-          : band === 'empty'
-            ? 'rgba(255,255,255,0.08)'
-            : 'var(--bad)';
+          : band === 'below'
+            ? '#fbbf24'
+            : band === 'empty'
+              ? 'rgba(255,255,255,0.08)'
+              : 'var(--bad)';
         return (
           <div key={`${day.day}-${index}`} style={{ display:'grid', gridTemplateRows:`${height}px auto`, gap:6, alignItems:'end' }}>
             <div style={{ position:'relative', height }}>
@@ -107,7 +112,7 @@ export default function TodayHero({
           pointerEvents: 'none',
         }}
       />
-      <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: 26, alignItems: 'center', position: 'relative' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'auto minmax(0,1fr) minmax(250px, 280px)', gap: 26, alignItems: 'center', position: 'relative' }}>
         <Ring value={workedMinutes} max={goalMinutes}>
           <span className="tdg-num">{fmtHm(workedMinutes)}</span>
           <span className="small">of {fmtHm(goalMinutes)}</span>
@@ -115,7 +120,7 @@ export default function TodayHero({
 
         <div>
           <div className="tdg-eyebrow" style={{ marginBottom: 4 }}>Focus today</div>
-          <div style={{ fontSize: 30, fontWeight: 800, letterSpacing: '-0.025em', lineHeight: 1.05 }}>
+          <div style={{ fontSize: 30, fontWeight: 800, letterSpacing: 0, lineHeight: 1.05 }}>
             {pct}% of goal
           </div>
           <div style={{ display: 'flex', gap: 8, marginTop: 10, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -126,7 +131,7 @@ export default function TodayHero({
         </div>
 
         {week.length > 0 && (
-          <div style={{ width: 250, alignSelf: 'stretch', display:'flex', flexDirection:'column', justifyContent:'center' }}>
+          <div style={{ width: '100%', alignSelf: 'center', display:'flex', flexDirection:'column', justifyContent:'center', paddingRight: 4 }}>
             <div className="tdg-eyebrow" style={{ marginBottom: 8 }}>This week</div>
             <Bars data={week} target={goalMinutes} height={52} />
           </div>
