@@ -3455,11 +3455,6 @@ function MissionControlPanel({ today, overdue, recurrent, onNewTask, dailyNote, 
   const todayKey = tod();
   const todayStats = workStats(workNotes[todayKey]);
   const clockIn = (workNotes[todayKey]?.timeClock || []).find(row => row.event === 'Clock in')?.time || '';
-  const weekBars = currentWeekDates.map(dateStr => ({
-    day: new Date(`${dateStr}T12:00:00`).toLocaleDateString('en-US', { weekday:'short' }),
-    date: dateStr,
-    minutes: workStats(workNotes[dateStr]).totalMinutes,
-  }));
   let streakDays = 0;
   for (const dateStr of [...currentWeekDates].reverse()) {
     if (goalBand(workStats(workNotes[dateStr]).totalMinutes) === 'target') streakDays += 1;
@@ -3501,7 +3496,6 @@ function MissionControlPanel({ today, overdue, recurrent, onNewTask, dailyNote, 
           workedMinutes={todayStats.totalMinutes}
           goalMinutes={TARGET_WORK_MINUTES}
           clockIn={clockIn}
-          week={weekBars}
           shippedThisWeek={completedToday.length}
           streakDays={streakDays}
         />
