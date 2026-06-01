@@ -2010,6 +2010,11 @@ export default function App() {
   const selectedWeekTotal = selectedWeekDates.reduce((sum, dateStr) => sum + workStats(workNotes[dateStr]).totalMinutes, 0);
   const todayWorkStats = workStats(workNotes[tod()] || dailyNote);
   const trailingWeekStats = dashboardStats(timeNotes, addDays(tod(), -6), tod());
+  const timeNoteDates = timeNotes
+    .map(note => note.date)
+    .filter(date => /^\d{4}-\d{2}-\d{2}$/.test(date || ''))
+    .sort();
+  const historicalTimeStats = dashboardStats(timeNotes, timeNoteDates[0] || tod(), timeNoteDates[timeNoteDates.length - 1] || tod());
   const personSummary = personMetrics(person, tasks, meetings, isClosedTask);
   const tomorrow = addDays(tod(), 1);
   const completedToday = tasks.filter(t => (t.completedDate || '').slice(0, 10) === tod());
@@ -2412,8 +2417,22 @@ export default function App() {
                 <div style={{ fontSize:11, color:'#f4fff9', marginTop:4 }}>{card.detail}</div>
               </div>
             ))}
-            <div style={{ padding:'12px', borderRadius:14, background:'rgba(255,255,255,0.025)', border:'1px solid rgba(255,255,255,0.06)', color:'#f4fff9', fontSize:12, lineHeight:1.55 }}>
-              {dirs.daily ? 'Weekly patterns, top tasks, and context totals are derived from Daily Notes plus the task timer.' : 'Connect Daily Notes to read Time Clock tables.'}
+            <div style={{ padding:'12px', borderRadius:14, background:'rgba(255,255,255,0.025)', border:'1px solid rgba(255,255,255,0.06)' }}>
+              <div style={{ fontSize:9, color:BRAND_LABEL, fontWeight:800, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:8 }}>Weekday averages</div>
+              <div style={{ display:'grid', gap:5 }}>
+                {historicalTimeStats.weekdays.map(day => {
+                  const tone = workBandTone(day.averageMinutes);
+                  return (
+                    <div key={day.label} style={{ display:'grid', gridTemplateColumns:'28px 1fr 34px', alignItems:'center', gap:7, fontSize:10 }}>
+                      <span style={{ color:'rgba(244,255,249,0.62)', fontWeight:800 }}>{day.label}</span>
+                      <div style={{ height:5, borderRadius:999, background:'rgba(255,255,255,0.05)', overflow:'hidden' }}>
+                        <div style={{ width:`${Math.min(100, (day.averageMinutes / WORK_CHART_MAX_MINUTES) * 100)}%`, height:'100%', borderRadius:999, background:day.averageMinutes ? tone.fill : 'transparent' }} />
+                      </div>
+                      <span style={{ color:day.averageMinutes ? tone.text : 'rgba(244,255,249,0.38)', fontWeight:850, textAlign:'right', fontVariantNumeric:'tabular-nums' }}>{day.averageMinutes ? formatHoursMinutes(day.averageMinutes).replace('h ', ':').replace('m', '') : '-'}</span>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           </div>
         ) : (
@@ -2439,28 +2458,34 @@ export default function App() {
             ))}
             <div style={{ paddingTop:4, marginTop:4, borderTop:'1px solid rgba(255,255,255,0.06)' }}>
               <div style={{ fontSize:9, color:'#f4fff9', fontWeight:700, letterSpacing:'0.1em', textTransform:'uppercase', margin:'0 0 8px' }}>Task horizon</div>
-              <div style={{ display:'grid', gridTemplateColumns:'repeat(3,minmax(0,1fr))', gap:6, marginBottom:12 }}>
+              <div style={{ display:'flex', gap:6, marginBottom:12 }}>
                 {[
-                  ['Tomorrow', tomorrowTasks.length],
-                  ['Next week', nextWeekTasks.length],
-                  ['Next month', nextMonthTasks.length],
-                ].map(([label, value]) => (
-                  <div key={label} style={{ padding:'8px 7px', borderRadius:10, background:'rgba(255,255,255,0.025)', border:'1px solid rgba(255,255,255,0.05)', minWidth:0 }}>
-                    <div style={{ fontSize:18, fontWeight:850, color:'#f8fff9', fontVariantNumeric:'tabular-nums', lineHeight:1 }}>{value}</div>
+                  ['Tomorrow', tomorrowTasks.length, '🌤'],
+                  ['Next week', nextWeekTasks.length, '📆'],
+                  ['Next month', nextMonthTasks.length, '🗓'],
+                ].map(([label, value, icon]) => (
+                  <div key={label} style={{ flex:'1 1 0', minWidth:0, padding:'8px 7px', borderRadius:10, background:'rgba(255,255,255,0.025)', border:'1px solid rgba(255,255,255,0.05)' }}>
+                    <div style={{ display:'flex', alignItems:'center', gap:5, minWidth:0 }}>
+                      <span style={{ fontSize:13, lineHeight:1 }}>{icon}</span>
+                      <span style={{ fontSize:18, fontWeight:850, color:'#f8fff9', fontVariantNumeric:'tabular-nums', lineHeight:1 }}>{value}</span>
+                    </div>
                     <div style={{ fontSize:9, color:'rgba(244,255,249,0.62)', marginTop:5, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{label}</div>
                   </div>
                 ))}
               </div>
               <div style={{ fontSize:9, color:'#f4fff9', fontWeight:700, letterSpacing:'0.1em', textTransform:'uppercase', margin:'0 0 8px' }}>Vault counts</div>
-              <div style={{ display:'grid', gridTemplateColumns:'repeat(2,minmax(0,1fr))', gap:6 }}>
+              <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
                 {[
-                  ['Tasks', vaultTotals.tasks],
-                  ['Properties', vaultTotals.properties],
-                  ['Clients', vaultTotals.clients],
-                  ['People', vaultTotals.people],
-                ].map(([label, value]) => (
-                  <div key={label} style={{ display:'flex', justifyContent:'space-between', gap:8, alignItems:'center', padding:'7px 8px', borderRadius:9, background:'rgba(255,255,255,0.025)', border:'1px solid rgba(255,255,255,0.05)' }}>
-                    <span style={{ fontSize:10, color:'rgba(244,255,249,0.7)', fontWeight:750 }}>{label}</span>
+                  ['Tasks', vaultTotals.tasks, '✅'],
+                  ['Properties', vaultTotals.properties, '🏢'],
+                  ['Clients', vaultTotals.clients, '🤝'],
+                  ['People', vaultTotals.people, '👥'],
+                ].map(([label, value, icon]) => (
+                  <div key={label} style={{ flex:'1 1 calc(50% - 3px)', minWidth:82, display:'flex', justifyContent:'space-between', gap:7, alignItems:'center', padding:'7px 8px', borderRadius:9, background:'rgba(255,255,255,0.025)', border:'1px solid rgba(255,255,255,0.05)' }}>
+                    <span style={{ display:'flex', alignItems:'center', gap:5, minWidth:0, fontSize:10, color:'rgba(244,255,249,0.7)', fontWeight:750 }}>
+                      <span style={{ fontSize:12, lineHeight:1 }}>{icon}</span>
+                      <span style={{ overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{label}</span>
+                    </span>
                     <span style={{ fontSize:12, color:'#f8fff9', fontWeight:850, fontVariantNumeric:'tabular-nums' }}>{value}</span>
                   </div>
                 ))}
@@ -3247,6 +3272,7 @@ function TimeDashboardPanel({ notes, trackerRows, tasks, hasDailyFolder, onConfi
         ? { start:normalizedStart || addDays(anchorDate, -6), end:normalizedEnd || anchorDate, label:'Custom range', metric:'selected range' }
         : { start:addDays(anchorDate, -6), end:anchorDate, label:'Last 7 days', metric:'this week' };
   const stats = dashboardStats(datedNotes, range.start, range.end);
+  const historicalStats = dashboardStats(datedNotes, firstDate, lastDate);
   const chartDays = dateSpan(range.start, range.end).map(date => ({ date, note:noteMap[date], ...workStats(noteMap[date]) }));
   const todayStats = workStats(noteMap[tod()]);
   const lowerTarget = TARGET_WORK_MINUTES - TARGET_WORK_TOLERANCE;
@@ -3256,6 +3282,9 @@ function TimeDashboardPanel({ notes, trackerRows, tasks, hasDailyFolder, onConfi
   const upperBottom = `${Math.min(100, (upperTarget / chartMaxMinutes) * 100)}%`;
   const bandHeight = `${Math.max(0, ((upperTarget - lowerTarget) / chartMaxMinutes) * 100)}%`;
   const tickEvery = Math.max(1, Math.ceil(chartDays.length / 7));
+  const barGap = chartDays.length > 90 ? 1 : chartDays.length > 45 ? 2 : chartDays.length > 20 ? 4 : 8;
+  const barWidth = chartDays.length > 90 ? '76%' : chartDays.length > 45 ? '64%' : chartDays.length > 20 ? '56%' : '42%';
+  const showBarValues = chartDays.length <= 14;
   const averageTone = workBandTone(stats.summary.averageMinutes);
   const todayTone = workBandTone(todayStats.totalMinutes);
   const metricCards = [
@@ -3352,33 +3381,38 @@ function TimeDashboardPanel({ notes, trackerRows, tasks, hasDailyFolder, onConfi
             <span style={{ color:'#ef4444' }}>above</span>
           </div>
         </div>
-        <div style={{ height:360, borderRadius:16, background:'linear-gradient(180deg,rgba(10,34,22,0.88),rgba(8,25,18,0.82))', border:'1px solid rgba(255,255,255,0.05)', padding:'18px 16px 34px', overflowX:'auto' }}>
+        <div style={{ height:'clamp(430px, 58vh, 560px)', borderRadius:16, background:'linear-gradient(180deg,rgba(10,34,22,0.88),rgba(8,25,18,0.82))', border:'1px solid rgba(255,255,255,0.05)', padding:'18px 14px 34px', overflow:'hidden' }}>
           {chartDays.length ? (
-            <div style={{ height:'100%', minWidth:Math.max(0, chartDays.length * 42), position:'relative' }}>
-              <div style={{ position:'absolute', left:0, right:0, bottom:lowerBottom, height:bandHeight, background:'rgba(31,212,123,0.08)', borderTop:'1px dashed rgba(188,255,214,0.5)', borderBottom:'1px dashed rgba(188,255,214,0.5)', zIndex:1 }} />
-              <div style={{ position:'absolute', right:0, bottom:lowerBottom, transform:'translateY(50%)', fontSize:9, color:'#bbf7d0', background:'rgba(8,25,18,0.9)', padding:'1px 4px', zIndex:3 }}>7h 00m</div>
-              <div style={{ position:'absolute', right:0, bottom:upperBottom, transform:'translateY(50%)', fontSize:9, color:'#bbf7d0', background:'rgba(8,25,18,0.9)', padding:'1px 4px', zIndex:3 }}>7h 30m</div>
-              <div style={{ height:'100%', display:'flex', gap:chartDays.length > 40 ? 3 : 8, alignItems:'stretch', position:'relative', zIndex:2 }}>
-                {chartDays.map((day, index) => {
-                  const pct = Math.min(100, (day.totalMinutes / chartMaxMinutes) * 100);
-                  const showTick = chartDays.length <= 10 || index === 0 || index === chartDays.length - 1 || index % tickEvery === 0;
-                  const tone = workBandTone(day.totalMinutes);
-                  return (
-                    <div key={day.date} title={`${day.date} · ${formatHoursMinutes(day.totalMinutes)} · ${day.label}`} style={{ flex:'1 1 0', minWidth:0, position:'relative' }}>
-                      {day.totalMinutes > 0 && (
-                        <div style={{ position:'absolute', left:-8, right:-8, bottom:`calc(${Math.max(4, pct)}% + 6px)`, textAlign:'center', color:'#f8fff9', fontSize:9, fontWeight:850, whiteSpace:'nowrap' }}>
-                          {formatMinutes(day.totalMinutes)}
-                        </div>
-                      )}
-                      <div style={{ position:'absolute', left:'50%', bottom:0, transform:'translateX(-50%)', width:chartDays.length > 40 ? '84%' : '72%', maxWidth:26, minHeight:day.totalMinutes ? 0 : 4, height:`${day.totalMinutes ? Math.max(4, pct) : 0}%`, borderRadius:'10px 10px 4px 4px', background:tone.fill, boxShadow:tone.glow, opacity:day.totalMinutes ? 0.95 : 0.45 }} />
-                      {showTick && (
-                        <div style={{ position:'absolute', left:-16, right:-16, bottom:-25, textAlign:'center', fontSize:10, color:'rgba(244,255,249,0.6)', fontWeight:700, whiteSpace:'nowrap' }}>
-                          {new Date(`${day.date}T12:00:00`).toLocaleDateString('en-US', { weekday:'short', day:'2-digit' })}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
+            <div style={{ height:'100%', display:'grid', gridTemplateColumns:'minmax(0,1fr) 58px', gap:10 }}>
+              <div style={{ height:'100%', position:'relative', minWidth:0 }}>
+                <div style={{ position:'absolute', left:0, right:0, bottom:lowerBottom, height:bandHeight, background:'rgba(31,212,123,0.08)', borderTop:'1px dashed rgba(188,255,214,0.5)', borderBottom:'1px dashed rgba(188,255,214,0.5)', zIndex:1 }} />
+                <div style={{ height:'100%', display:'flex', gap:barGap, alignItems:'stretch', position:'relative', zIndex:2 }}>
+                  {chartDays.map((day, index) => {
+                    const pct = Math.min(100, (day.totalMinutes / chartMaxMinutes) * 100);
+                    const showTick = chartDays.length <= 10 || index === 0 || index === chartDays.length - 1 || index % tickEvery === 0;
+                    const tone = workBandTone(day.totalMinutes);
+                    return (
+                      <div key={day.date} title={`${day.date} · ${formatHoursMinutes(day.totalMinutes)} · ${day.label}`} style={{ flex:'1 1 0', minWidth:0, position:'relative' }}>
+                        {showBarValues && day.totalMinutes > 0 && (
+                          <div style={{ position:'absolute', left:-8, right:-8, bottom:`calc(${Math.max(4, pct)}% + 6px)`, textAlign:'center', color:'#f8fff9', fontSize:9, fontWeight:850, whiteSpace:'nowrap' }}>
+                            {formatMinutes(day.totalMinutes)}
+                          </div>
+                        )}
+                        <div style={{ position:'absolute', left:'50%', bottom:0, transform:'translateX(-50%)', width:barWidth, maxWidth:28, minHeight:day.totalMinutes ? 0 : 4, height:`${day.totalMinutes ? Math.max(4, pct) : 0}%`, borderRadius:'10px 10px 4px 4px', background:tone.fill, boxShadow:tone.glow, opacity:day.totalMinutes ? 0.95 : 0.38 }} />
+                        {showTick && (
+                          <div style={{ position:'absolute', left:-18, right:-18, bottom:-25, textAlign:'center', fontSize:10, color:'rgba(244,255,249,0.6)', fontWeight:700, whiteSpace:'nowrap' }}>
+                            {new Date(`${day.date}T12:00:00`).toLocaleDateString('en-US', { weekday:'short', day:'2-digit' })}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+              <div style={{ position:'relative', height:'100%', borderLeft:'1px solid rgba(255,255,255,0.06)' }}>
+                <div style={{ position:'absolute', left:8, bottom:upperBottom, transform:'translateY(50%)', fontSize:9, color:'#bbf7d0', fontWeight:800, whiteSpace:'nowrap' }}>7h 30m</div>
+                <div style={{ position:'absolute', left:8, bottom:lowerBottom, transform:'translateY(50%)', fontSize:9, color:'#bbf7d0', fontWeight:800, whiteSpace:'nowrap' }}>7h 00m</div>
+                <div style={{ position:'absolute', left:8, bottom:0, transform:'translateY(50%)', fontSize:9, color:'rgba(244,255,249,0.42)', fontWeight:800 }}>0</div>
               </div>
             </div>
           ) : (
@@ -3386,6 +3420,28 @@ function TimeDashboardPanel({ notes, trackerRows, tasks, hasDailyFolder, onConfi
               No dated daily notes were found in this range.
             </div>
           )}
+        </div>
+      </section>
+
+      <section className="glass-thin" style={{ borderRadius:18, padding:'14px 16px', marginTop:14 }}>
+        <div style={{ display:'flex', justifyContent:'space-between', gap:12, alignItems:'baseline', marginBottom:12 }}>
+          <div>
+            <div style={{ fontSize:11, color:BRAND_LABEL, fontWeight:800, textTransform:'uppercase', letterSpacing:'0.14em', marginBottom:4 }}>Historical weekday averages</div>
+            <div style={{ fontSize:12, color:'rgba(244,255,249,0.62)' }}>{firstDate} to {lastDate}</div>
+          </div>
+          <div style={{ fontSize:10, color:'rgba(244,255,249,0.56)', fontWeight:800 }}>Green 7h-7h30 · yellow below · red above</div>
+        </div>
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(7,minmax(0,1fr))', gap:8 }}>
+          {historicalStats.weekdays.map(day => {
+            const tone = workBandTone(day.averageMinutes);
+            return (
+              <div key={day.label} style={{ minWidth:0, padding:'10px 9px', borderRadius:12, background:'rgba(255,255,255,0.028)', border:'1px solid rgba(255,255,255,0.06)' }}>
+                <div style={{ fontSize:10, color:'rgba(244,255,249,0.62)', fontWeight:850, marginBottom:7 }}>{day.label}</div>
+                <div style={{ fontSize:18, color:day.averageMinutes ? tone.text : 'rgba(244,255,249,0.42)', fontWeight:850, fontVariantNumeric:'tabular-nums', whiteSpace:'nowrap' }}>{day.averageMinutes ? formatHoursMinutes(day.averageMinutes) : '-'}</div>
+                <div style={{ fontSize:10, color:'rgba(244,255,249,0.54)', marginTop:5 }}>{day.count} day{day.count === 1 ? '' : 's'}</div>
+              </div>
+            );
+          })}
         </div>
       </section>
     </div>
