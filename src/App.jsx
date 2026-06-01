@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import IconRail from './IconRail.jsx';
+import TodayHero from './TodayHero.jsx';
 import { parseTask, parseProperty, parseProject, parseDailyNote, parseMeeting, parsePerson, readMdFiles, readDirNames, readImageFiles } from './utils/parser.js';
 import { idbGet, idbSet, idbDel, lsGet, lsSet, lsDel } from './utils/storage.js';
 import { fmt, tod, isToday, isOver, longDate, appendNoteToMd, appendPropertyCommentToMd, updateCommentLog, deleteCommentLog, appendDailySectionEntry, appendDailyTimeClockEvent, buildDailyNoteMd, buildTrackerRow, appendTrackerRow, buildMeetingMd, buildNewTaskMd, buildNewPropertyMd, buildNewProjectMd, buildNewPersonMd, finishRecurrentTaskInstance, markTaskDone, postponeTaskDates, postponeTaskDatesByMonths, replaceDailyTimeClockRows, setDailyWorkStatus, setPropertyCover, touchDateModified, updateTaskDates } from './utils/formatter.js';
@@ -28,6 +29,14 @@ const WRITE_BACKUPS_KEY = 'taskdashWriteBackups';
 const SAVED_FILTERS_KEY = 'taskdashSavedFilters';
 const FOLDER_LABELS = Object.fromEntries(FOLDER_DEFS.map(def => [def.key, def.label]));
 const HIDDEN_TASK_TAG = 'lifeos';
+const BRAND_GRADIENT = 'linear-gradient(135deg, #22c55e, #166534)';
+const BRAND_SHADOW = '0 4px 18px rgba(22,128,61,0.32)';
+const BRAND_SURFACE = 'rgba(34,197,94,0.12)';
+const BRAND_SURFACE_STRONG = 'rgba(34,197,94,0.18)';
+const BRAND_BORDER = 'rgba(34,197,94,0.28)';
+const BRAND_BORDER_STRONG = 'rgba(34,197,94,0.42)';
+const BRAND_TEXT = '#bbf7d0';
+const BRAND_LABEL = '#86efac';
 
 const STATUS_COLORS = {
   done:          { bg:'rgba(16,185,129,0.12)',  color:'#10b981' },
@@ -136,6 +145,15 @@ function taskDescriptionText(raw = '') {
     .trim();
 }
 
+function initials(text = '') {
+  return String(text)
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map(part => part[0]?.toUpperCase() || '')
+    .join('') || '?';
+}
+
 function noteBodyText(raw = '') {
   return raw
     .replace(/^---\n[\s\S]*?\n---\n?/, '')
@@ -183,9 +201,9 @@ function CommentCard({ log, index, onSave, onDelete }) {
   }, [body, log.date, log.text]);
 
   return (
-    <div style={{ width:'100%', height:'auto', minHeight:'max-content', boxSizing:'border-box', marginBottom:10, padding:'14px 16px', borderRadius:10, background:'rgba(124,58,237,0.07)', border:'1px solid rgba(124,58,237,0.15)', overflow:'visible' }}>
+    <div style={{ width:'100%', height:'auto', minHeight:'max-content', boxSizing:'border-box', marginBottom:10, padding:'14px 16px', borderRadius:10, background:BRAND_SURFACE, border:`1px solid ${BRAND_BORDER}`, overflow:'visible' }}>
       <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:10, marginBottom:8 }}>
-        <div style={{ fontSize:10, color:'#7c3aed', fontWeight:700 }}>{log.date}{time?` · ${time}`:''}</div>
+        <div style={{ fontSize:10, color:BRAND_LABEL, fontWeight:700 }}>{log.date}{time?` · ${time}`:''}</div>
         <div style={{ display:'flex', gap:6, flexShrink:0 }}>
           {editing ? (
             <>
@@ -194,7 +212,7 @@ function CommentCard({ log, index, onSave, onDelete }) {
             </>
           ) : (
             <>
-              <button onClick={()=>setEditing(true)} style={{ padding:'4px 8px', borderRadius:7, border:'1px solid rgba(255,255,255,0.08)', background:'rgba(255,255,255,0.03)', color:'#c4b5fd', cursor:'pointer', fontSize:10, fontWeight:800, fontFamily:'inherit' }}>Edit</button>
+              <button onClick={()=>setEditing(true)} style={{ padding:'4px 8px', borderRadius:7, border:'1px solid rgba(255,255,255,0.08)', background:'rgba(255,255,255,0.03)', color:BRAND_TEXT, cursor:'pointer', fontSize:10, fontWeight:800, fontFamily:'inherit' }}>Edit</button>
               <button onClick={()=>onDelete(index)} style={{ padding:'4px 8px', borderRadius:7, border:'1px solid rgba(239,68,68,0.2)', background:'rgba(239,68,68,0.08)', color:'#f87171', cursor:'pointer', fontSize:10, fontWeight:800, fontFamily:'inherit' }}>Delete</button>
             </>
           )}
@@ -515,9 +533,9 @@ function ChipMulti({ value, onChange, options, placeholder }) {
     <div style={{ position:'relative' }}>
     <div style={{ ...inputBase, display:'flex', flexWrap:'wrap', gap:5, padding:'5px 6px' }}>
       {value.map(p => (
-        <span key={p} style={{ fontSize:11, fontWeight:600, padding:'3px 8px', borderRadius:14, background:'rgba(124,58,237,0.18)', color:'#c4b5fd', display:'inline-flex', alignItems:'center', gap:5 }}>
+        <span key={p} style={{ fontSize:11, fontWeight:600, padding:'3px 8px', borderRadius:14, background:BRAND_SURFACE_STRONG, color:BRAND_TEXT, display:'inline-flex', alignItems:'center', gap:5 }}>
           {p}
-          <button type="button" onClick={() => onChange(value.filter(x => x !== p))} style={{ background:'none', border:'none', color:'#c4b5fd', cursor:'pointer', fontSize:14, lineHeight:1, padding:0 }}>×</button>
+          <button type="button" onClick={() => onChange(value.filter(x => x !== p))} style={{ background:'none', border:'none', color:BRAND_TEXT, cursor:'pointer', fontSize:14, lineHeight:1, padding:0 }}>×</button>
         </span>
       ))}
       <input value={input} onFocus={()=>setOpen(true)} onChange={e=>{ setInput(e.target.value); setOpen(true); }}
@@ -1879,7 +1897,7 @@ export default function App() {
                 ? `${dirs.people ? dirs.people.name : 'No folder'} · waiting-for source`
                 : `${healthErrors} errors · ${healthWarnings} warnings · ${writeBackups.length} backups`;
 
-  const btnPrimary = { padding:'13px 34px', borderRadius:12, border:'none', cursor:'pointer', fontWeight:700, fontSize:14, fontFamily:'inherit', background:'linear-gradient(135deg,#7c3aed,#3b82f6)', color:'#fff', boxShadow:'0 4px 24px rgba(124,58,237,0.45)' };
+  const btnPrimary = { padding:'13px 34px', borderRadius:12, border:'none', cursor:'pointer', fontWeight:700, fontSize:14, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff', boxShadow:BRAND_SHADOW };
 
   const QuickItem = ({ id, label, onStart, onStop }) => {
     const running = timer?.taskId===id, time = getTime(id);
@@ -1894,7 +1912,7 @@ export default function App() {
           {running && <span style={{ fontSize:9, padding:'1px 5px', borderRadius:20, background:'rgba(16,185,129,0.12)', color:'#10b981', fontWeight:700 }}>● LIVE</span>}
         </div>
         <button onClick={running?onStop:onStart} style={{ padding:'4px 12px', borderRadius:6, border:'none', cursor:'pointer', fontWeight:700, fontSize:11, fontFamily:'inherit',
-          background:running?'rgba(239,68,68,0.1)':'linear-gradient(135deg,#7c3aed,#3b82f6)',
+          background:running?'rgba(239,68,68,0.1)':BRAND_GRADIENT,
           color:running?'#f87171':'#fff', outline:running?'1px solid rgba(239,68,68,0.25)':'none' }}>
           {running?'⏹ Stop':'▶ Start'}
         </button>
@@ -1907,10 +1925,10 @@ export default function App() {
   const allSavedReady = bootDone && Object.keys(savedDirs).length > 0;
 
   if (showSetup) return (
-    <div style={{ minHeight:'100vh', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', padding:'40px 20px', gap:18, color:'#e2e8f0', background:'radial-gradient(ellipse at 50% -5%,rgba(124,58,237,0.22) 0%,#09090e 65%)' }}>
-      <div style={{ fontSize:52, filter:'drop-shadow(0 0 20px rgba(124,58,237,0.6))' }}>⚡</div>
+    <div style={{ minHeight:'100vh', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', padding:'40px 20px', gap:18, color:'#e2e8f0', background:'radial-gradient(ellipse at 50% -5%,rgba(34,197,94,0.24) 0%,#09090e 65%)' }}>
+      <div style={{ fontSize:52, filter:'drop-shadow(0 0 20px rgba(34,197,94,0.55))' }}>⚡</div>
       <div style={{ textAlign:'center' }}>
-        <h1 style={{ margin:'0 0 8px', fontSize:32, fontWeight:800, background:'linear-gradient(135deg,#c4b5fd,#60a5fa)', WebkitBackgroundClip:'text', WebkitTextFillColor:'transparent' }}>TaskDash</h1>
+        <h1 style={{ margin:'0 0 8px', fontSize:32, fontWeight:800, background:'linear-gradient(135deg,#dcfce7,#4ade80)', WebkitBackgroundClip:'text', WebkitTextFillColor:'transparent' }}>TaskDash</h1>
         <p style={{ margin:0, color:'#f4fff9', fontSize:14 }}>Connect your Obsidian vault folders — one time per device</p>
       </div>
 
@@ -1940,7 +1958,7 @@ export default function App() {
                 {status==='saved' && (
                   <button onClick={()=>resumeFolder(def.key)} disabled={setupBusy} style={{ padding:'6px 12px', borderRadius:8, border:'none', cursor:'pointer', fontWeight:700, fontSize:11, fontFamily:'inherit', background:'rgba(245,158,11,0.15)', color:'#fbbf24' }}>Resume</button>
                 )}
-                <button onClick={()=>pickFolder(def.key)} disabled={setupBusy} style={{ padding:'6px 12px', borderRadius:8, border:'none', cursor:'pointer', fontWeight:700, fontSize:11, fontFamily:'inherit', background:status==='connected'?'rgba(255,255,255,0.05)':'linear-gradient(135deg,#7c3aed,#3b82f6)', color:status==='connected'?'#f4fff9':'#fff' }}>
+                <button onClick={()=>pickFolder(def.key)} disabled={setupBusy} style={{ padding:'6px 12px', borderRadius:8, border:'none', cursor:'pointer', fontWeight:700, fontSize:11, fontFamily:'inherit', background:status==='connected'?'rgba(255,255,255,0.05)':BRAND_GRADIENT, color:status==='connected'?'#f4fff9':'#fff' }}>
                   {status==='connected' ? 'Change' : status==='saved' ? 'Re-pick' : 'Pick folder'}
                 </button>
                 {status==='connected' && (
@@ -1991,8 +2009,8 @@ export default function App() {
               <span style={{ fontWeight:700, fontSize:13, maxWidth:155, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{dirs.tasks?.name}</span>
             </div>
             <button onClick={forceSyncAll} disabled={syncBusy} title="Force rescan all configured folders" style={{ padding:'4px 10px', borderRadius:7, border:'none', cursor:syncBusy?'wait':'pointer', fontSize:11, fontWeight:600, fontFamily:'inherit',
-              background:needsRefresh?'rgba(245,158,11,0.2)':'rgba(124,58,237,0.15)',
-              color:needsRefresh?'#fbbf24':'#a78bfa', boxShadow:needsRefresh?'0 0 10px rgba(245,158,11,0.3)':'none', transition:'all 0.3s', opacity:syncBusy?0.6:1 }}>
+              background:needsRefresh?'rgba(245,158,11,0.2)':BRAND_SURFACE_STRONG,
+              color:needsRefresh?'#fbbf24':BRAND_TEXT, boxShadow:needsRefresh?'0 0 10px rgba(245,158,11,0.3)':'none', transition:'all 0.3s', opacity:syncBusy?0.6:1 }}>
               ↺ {syncBusy?'Syncing':needsRefresh?'Stale':'Force Sync'}
             </button>
           </div>
@@ -2000,8 +2018,8 @@ export default function App() {
             <div style={{ width:6, height:6, borderRadius:3, background:'#10b981', boxShadow:'0 0 6px rgba(16,185,129,0.6)' }}/>
             <span style={{ fontSize:10, color:'#10b981' }}>{syncLabel} · auto while open every 5 min</span>
           </div>
-          <div style={{ padding:'11px 13px', borderRadius:10, background:'rgba(124,58,237,0.08)', border:'1px solid rgba(124,58,237,0.18)' }}>
-            <div style={{ fontSize:9, color:'#7c3aed', fontWeight:800, letterSpacing:'0.1em', marginBottom:3 }}>{headerLabel}</div>
+          <div style={{ padding:'11px 13px', borderRadius:10, background:BRAND_SURFACE, border:`1px solid ${BRAND_BORDER}` }}>
+            <div style={{ fontSize:9, color:BRAND_LABEL, fontWeight:800, letterSpacing:'0.1em', marginBottom:3 }}>{headerLabel}</div>
             <div style={{ fontWeight:800, fontSize:23, letterSpacing:'-0.03em', fontVariantNumeric:'tabular-nums' }}>{headerMetric}</div>
             <div style={{ fontSize:10, color:'#f4fff9', marginTop:2 }}>{headerDetail}</div>
           </div>
@@ -2028,7 +2046,7 @@ export default function App() {
                   <div style={{ display:'flex', gap:6 }}>
                     <input value={adHocInput} onChange={e=>setAdHocInput(e.target.value)} onKeyDown={e=>e.key==='Enter'&&startAdHoc()} autoFocus placeholder="e.g. Proposal draft…"
                       style={{ flex:1, padding:'6px 10px', borderRadius:7, background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.1)', color:'#e2e8f0', fontSize:12, outline:'none', fontFamily:'inherit' }}/>
-                    <button onClick={startAdHoc} disabled={!adHocInput.trim()} style={{ padding:'6px 10px', borderRadius:7, border:'none', cursor:'pointer', fontWeight:700, fontSize:11, fontFamily:'inherit', background:'linear-gradient(135deg,#7c3aed,#3b82f6)', color:'#fff', opacity:adHocInput.trim()?1:0.4 }}>▶</button>
+                    <button onClick={startAdHoc} disabled={!adHocInput.trim()} style={{ padding:'6px 10px', borderRadius:7, border:'none', cursor:'pointer', fontWeight:700, fontSize:11, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff', opacity:adHocInput.trim()?1:0.4 }}>▶</button>
                     <button onClick={()=>{setShowAdHoc(false);setAdHocInput('');}} style={{ padding:'6px 8px', borderRadius:7, border:'none', cursor:'pointer', background:'rgba(255,255,255,0.05)', color:'#f4fff9', fontSize:12 }}>✕</button>
                   </div>
                 </div>
@@ -2040,10 +2058,10 @@ export default function App() {
             </div>
 
             <div style={{ padding:'8px 10px 4px', display:'flex', gap:6, alignItems:'center' }}>
-              <button onClick={()=>{ setNewPersonOpen(false); setNewTaskOpen(true); }} disabled={!dirs.tasks} style={{ flex:1, padding:'8px 10px', borderRadius:9, border:'none', cursor:dirs.tasks?'pointer':'not-allowed', fontWeight:700, fontSize:12, fontFamily:'inherit', background:'linear-gradient(135deg,#7c3aed,#3b82f6)', color:'#fff', boxShadow:'0 2px 12px rgba(124,58,237,0.35)', opacity:dirs.tasks?1:0.35 }}>
+              <button onClick={()=>{ setNewPersonOpen(false); setNewTaskOpen(true); }} disabled={!dirs.tasks} style={{ flex:1, padding:'8px 10px', borderRadius:9, border:'none', cursor:dirs.tasks?'pointer':'not-allowed', fontWeight:700, fontSize:12, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff', boxShadow:BRAND_SHADOW, opacity:dirs.tasks?1:0.35 }}>
                 +  New Task
               </button>
-              <button onClick={()=>{ setNewTaskOpen(false); setNewPersonOpen(true); }} title={dirs.people ? 'Add a person note' : 'Configure the People folder first'} style={{ padding:'8px 10px', borderRadius:9, border:'1px solid rgba(255,255,255,0.08)', cursor:'pointer', fontWeight:700, fontSize:12, fontFamily:'inherit', background:'rgba(255,255,255,0.035)', color:'#c4b5fd', opacity:dirs.people?1:0.65 }}>
+              <button onClick={()=>{ setNewTaskOpen(false); setNewPersonOpen(true); }} title={dirs.people ? 'Add a person note' : 'Configure the People folder first'} style={{ padding:'8px 10px', borderRadius:9, border:'1px solid rgba(255,255,255,0.08)', cursor:'pointer', fontWeight:700, fontSize:12, fontFamily:'inherit', background:'rgba(255,255,255,0.035)', color:BRAND_TEXT, opacity:dirs.people?1:0.65 }}>
                 + Person
               </button>
             </div>
@@ -2055,13 +2073,13 @@ export default function App() {
 
             <div style={{ display:'flex', gap:3, padding:'4px 10px 8px', borderBottom:'1px solid rgba(255,255,255,0.06)' }}>
               {['all','today','overdue','done'].map(f => (
-                <button key={f} onClick={()=>setFilt(f)} style={{ flex:1, padding:'5px 0', borderRadius:7, border:'none', cursor:'pointer', fontSize:10, fontWeight:600, textTransform:'capitalize', fontFamily:'inherit', background:filt===f?'rgba(124,58,237,0.15)':'transparent', color:filt===f?'#a78bfa':'#f4fff9' }}>{f}</button>
+                <button key={f} onClick={()=>setFilt(f)} style={{ flex:1, padding:'5px 0', borderRadius:7, border:'none', cursor:'pointer', fontSize:10, fontWeight:600, textTransform:'capitalize', fontFamily:'inherit', background:filt===f?BRAND_SURFACE:'transparent', color:filt===f?BRAND_TEXT:'#f4fff9' }}>{f}</button>
               ))}
             </div>
             <div style={{ padding:'7px 10px 8px', borderBottom:'1px solid rgba(255,255,255,0.06)' }}>
               <div style={{ display:'flex', gap:5, marginBottom:savedFilters.length?6:0 }}>
                 <input value={filterName} onChange={e=>setFilterName(e.target.value)} placeholder="Filter name" style={{ flex:1, minWidth:0, padding:'6px 8px', borderRadius:7, background:'rgba(255,255,255,0.035)', border:'1px solid rgba(255,255,255,0.07)', color:'#e2e8f0', fontSize:11, outline:'none', fontFamily:'inherit' }}/>
-                <button onClick={saveCurrentFilter} style={{ padding:'6px 8px', borderRadius:7, border:'none', cursor:'pointer', fontWeight:800, fontSize:10, fontFamily:'inherit', background:'rgba(124,58,237,0.18)', color:'#c4b5fd' }}>Save</button>
+                <button onClick={saveCurrentFilter} style={{ padding:'6px 8px', borderRadius:7, border:'none', cursor:'pointer', fontWeight:800, fontSize:10, fontFamily:'inherit', background:BRAND_SURFACE_STRONG, color:BRAND_TEXT }}>Save</button>
               </div>
               {savedFilters.map(sf => (
                 <div key={sf.name} style={{ display:'flex', gap:5, alignItems:'center', marginTop:4 }}>
@@ -2077,7 +2095,7 @@ export default function App() {
                 const running=timer?.taskId===t.id, active=sel===t.id, time=getTime(t.id);
                 const duplicateTitle = taskTitleCounts[(t.title || '').trim().toLowerCase()] > 1;
                 return (
-                  <div key={t.id} onClick={()=>setSel(t.id)} style={{ padding:'10px', marginBottom:4, borderRadius:10, cursor:'pointer', background:active?'rgba(124,58,237,0.1)':'rgba(255,255,255,0.02)', border:`1px solid ${active?'rgba(124,58,237,0.28)':'rgba(255,255,255,0.04)'}`, boxShadow:running?'0 0 14px rgba(16,185,129,0.18)':'none', transition:'all 0.15s' }}>
+                  <div key={t.id} onClick={()=>setSel(t.id)} style={{ padding:'10px', marginBottom:4, borderRadius:10, cursor:'pointer', background:active?BRAND_SURFACE:'rgba(255,255,255,0.02)', border:`1px solid ${active?BRAND_BORDER:'rgba(255,255,255,0.04)'}`, boxShadow:running?'0 0 14px rgba(16,185,129,0.18)':'none', transition:'all 0.15s' }}>
                     <div style={{ display:'flex', justifyContent:'space-between', gap:6, marginBottom:5 }}>
                       <span style={{ fontSize:12, fontWeight:500, lineHeight:1.35, flex:1 }}>{t.title}</span>
                       {running && <span style={{ fontSize:9, padding:'2px 6px', borderRadius:20, background:'rgba(16,185,129,0.12)', color:'#10b981', fontWeight:700, flexShrink:0 }}>● LIVE</span>}
@@ -2102,7 +2120,7 @@ export default function App() {
         ) : view === 'meetings' ? (
           <>
             <div style={{ padding:'10px', borderBottom:'1px solid rgba(255,255,255,0.06)' }}>
-              <button onClick={meetingOpen ? stopMeeting : startMeeting} disabled={!dirs.meetings && !meetingOpen} style={{ width:'100%', padding:'9px 12px', borderRadius:9, border:'none', cursor:dirs.meetings || meetingOpen ? 'pointer' : 'not-allowed', fontWeight:800, fontSize:12, fontFamily:'inherit', background:meetingOpen ? 'rgba(239,68,68,0.1)' : 'linear-gradient(135deg,#7c3aed,#3b82f6)', color:meetingOpen ? '#f87171' : '#fff', opacity:dirs.meetings || meetingOpen ? 1 : 0.4 }}>
+              <button onClick={meetingOpen ? stopMeeting : startMeeting} disabled={!dirs.meetings && !meetingOpen} style={{ width:'100%', padding:'9px 12px', borderRadius:9, border:'none', cursor:dirs.meetings || meetingOpen ? 'pointer' : 'not-allowed', fontWeight:800, fontSize:12, fontFamily:'inherit', background:meetingOpen ? 'rgba(239,68,68,0.1)' : BRAND_GRADIENT, color:meetingOpen ? '#f87171' : '#fff', opacity:dirs.meetings || meetingOpen ? 1 : 0.4 }}>
                 {meetingOpen ? 'Save & Stop Meeting' : '+ Start Meeting'}
               </button>
             </div>
@@ -2117,7 +2135,7 @@ export default function App() {
               {meetings.map(m => {
                 const active = meetingSel === m.id && !meetingOpen;
                 return (
-                  <div key={m.id} onClick={()=>setMeetingSel(m.id)} style={{ padding:'10px', marginBottom:4, borderRadius:10, cursor:'pointer', background:active?'rgba(124,58,237,0.1)':'rgba(255,255,255,0.02)', border:`1px solid ${active?'rgba(124,58,237,0.28)':'rgba(255,255,255,0.04)'}` }}>
+                  <div key={m.id} onClick={()=>setMeetingSel(m.id)} style={{ padding:'10px', marginBottom:4, borderRadius:10, cursor:'pointer', background:active?BRAND_SURFACE:'rgba(255,255,255,0.02)', border:`1px solid ${active?BRAND_BORDER:'rgba(255,255,255,0.04)'}` }}>
                     <div style={{ fontSize:12, fontWeight:700, lineHeight:1.35, color:'#e2e8f0' }}>{m.title}</div>
                     <div style={{ fontSize:10, color:'#f4fff9', marginTop:3 }}>{m.date || m.filename}</div>
                   </div>
@@ -2128,7 +2146,7 @@ export default function App() {
         ) : view === 'projects' ? (
           <>
             <div style={{ padding:'8px 10px 4px', display:'flex', gap:6, alignItems:'center' }}>
-              <button onClick={()=>setNewProjectOpen(true)} disabled={!dirs.projects} style={{ flex:1, padding:'8px 10px', borderRadius:9, border:'none', cursor:dirs.projects?'pointer':'not-allowed', fontWeight:700, fontSize:12, fontFamily:'inherit', background:'linear-gradient(135deg,#7c3aed,#3b82f6)', color:'#fff', boxShadow:'0 2px 12px rgba(124,58,237,0.35)', opacity:dirs.projects?1:0.35 }}>
+              <button onClick={()=>setNewProjectOpen(true)} disabled={!dirs.projects} style={{ flex:1, padding:'8px 10px', borderRadius:9, border:'none', cursor:dirs.projects?'pointer':'not-allowed', fontWeight:700, fontSize:12, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff', boxShadow:BRAND_SHADOW, opacity:dirs.projects?1:0.35 }}>
                 +  New Project
               </button>
             </div>
@@ -2140,7 +2158,7 @@ export default function App() {
               {filteredProjects.map(p => {
                 const active = projectSel === p.id;
                 return (
-                  <div key={p.id} onClick={()=>setProjectSel(p.id)} style={{ padding:'10px', marginBottom:4, borderRadius:10, cursor:'pointer', background:active?'rgba(124,58,237,0.1)':'rgba(255,255,255,0.02)', border:`1px solid ${active?'rgba(124,58,237,0.28)':'rgba(255,255,255,0.04)'}` }}>
+                  <div key={p.id} onClick={()=>setProjectSel(p.id)} style={{ padding:'10px', marginBottom:4, borderRadius:10, cursor:'pointer', background:active?BRAND_SURFACE:'rgba(255,255,255,0.02)', border:`1px solid ${active?BRAND_BORDER:'rgba(255,255,255,0.04)'}` }}>
                     <div style={{ fontSize:12, fontWeight:700, lineHeight:1.35, color:'#e2e8f0' }}>{p.title}</div>
                     <div style={{ fontSize:10, color:'#f4fff9', marginTop:3 }}>{p.status || p.filename}</div>
                   </div>
@@ -2185,7 +2203,7 @@ export default function App() {
         ) : view === 'people' ? (
           <>
             <div style={{ padding:'8px 10px 4px', display:'flex', gap:6, alignItems:'center' }}>
-              <button onClick={()=>setNewPersonOpen(true)} style={{ flex:1, padding:'8px 10px', borderRadius:9, border:'none', cursor:'pointer', fontWeight:700, fontSize:12, fontFamily:'inherit', background:'linear-gradient(135deg,#7c3aed,#3b82f6)', color:'#fff', boxShadow:'0 2px 12px rgba(124,58,237,0.35)' }}>
+              <button onClick={()=>setNewPersonOpen(true)} style={{ flex:1, padding:'8px 10px', borderRadius:9, border:'none', cursor:'pointer', fontWeight:700, fontSize:12, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff', boxShadow:BRAND_SHADOW }}>
                 + New Person
               </button>
             </div>
@@ -2195,7 +2213,7 @@ export default function App() {
             <div style={{ flex:1, overflowY:'auto', padding:'6px 8px' }}>
               {!dirs.people && <div style={{ color:'#f4fff9', textAlign:'center', paddingTop:40, fontSize:12 }}>Pick your People folder in Configure folders</div>}
               {filteredPeople.map(p => (
-                <div key={p.id} onClick={()=>setPersonSel(p.id)} style={{ padding:'10px', marginBottom:4, borderRadius:10, cursor:'pointer', background:personSel===p.id?'rgba(124,58,237,0.1)':'rgba(255,255,255,0.02)', border:`1px solid ${personSel===p.id?'rgba(124,58,237,0.28)':'rgba(255,255,255,0.04)'}` }}>
+                <div key={p.id} onClick={()=>setPersonSel(p.id)} style={{ padding:'10px', marginBottom:4, borderRadius:10, cursor:'pointer', background:personSel===p.id?BRAND_SURFACE:'rgba(255,255,255,0.02)', border:`1px solid ${personSel===p.id?BRAND_BORDER:'rgba(255,255,255,0.04)'}` }}>
                   <div style={{ fontSize:12, fontWeight:700, lineHeight:1.35, color:'#e2e8f0' }}>{p.title}</div>
                   <div style={{ fontSize:10, color:'#f4fff9', marginTop:3 }}>{p.company || p.role || p.filename}</div>
                 </div>
@@ -2283,6 +2301,10 @@ export default function App() {
           tomorrowTasks={tomorrowTasks}
           weekDates={weekDates(tod())}
           vaultTotals={vaultTotals}
+          recentMeetings={meetings.slice(0, 4)}
+          recentPeople={people.slice(0, 6)}
+          onOpenMeetings={()=>setView('meetings')}
+          onOpenPeople={()=>setView('people')}
         />
       ) : view === 'time' ? (
         <TimeDashboardPanel notes={timeNotes} hasDailyFolder={!!dirs.daily} onConfigure={()=>setFolderSetupOpen(true)}/>
@@ -2422,7 +2444,7 @@ export default function App() {
               <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:10, flexShrink:0 }}>
                 <div style={{ fontSize:31, fontWeight:800, letterSpacing:'-0.03em', fontVariantNumeric:'tabular-nums', color:live?'#10b981':'#e2e8f0', textShadow:live?'0 0 28px rgba(16,185,129,0.55)':'none', transition:'color 0.3s,text-shadow 0.3s' }}>{fmt(selTime)}</div>
                 <div style={{ display:'flex', gap:7 }}>
-                  <button onClick={live?stop:()=>start(task.id)} style={{ padding:'9px 22px', borderRadius:10, border:'none', cursor:'pointer', fontWeight:700, fontSize:13, fontFamily:'inherit', background:live?'rgba(239,68,68,0.1)':'linear-gradient(135deg,#7c3aed,#3b82f6)', color:live?'#f87171':'#fff', boxShadow:live?'inset 0 0 0 1px rgba(239,68,68,0.3)':'0 4px 16px rgba(124,58,237,0.4)', transition:'all 0.2s' }}>{live?'⏹  Stop':'▶  Start'}</button>
+                  <button onClick={live?stop:()=>start(task.id)} style={{ padding:'9px 22px', borderRadius:10, border:'none', cursor:'pointer', fontWeight:700, fontSize:13, fontFamily:'inherit', background:live?'rgba(239,68,68,0.1)':BRAND_GRADIENT, color:live?'#f87171':'#fff', boxShadow:live?'inset 0 0 0 1px rgba(239,68,68,0.3)':BRAND_SHADOW, transition:'all 0.2s' }}>{live?'⏹  Stop':'▶  Start'}</button>
                   {!task.archived && (
                     task.recurrent ? (
                       <>
@@ -2454,7 +2476,7 @@ export default function App() {
                   placeholder="Add a note... Enter to save, Shift+Enter for a new line"
                   rows={3}
                   style={{ flex:1, minHeight:76, fieldSizing:'content', padding:'10px 14px', borderRadius:10, resize:'vertical', background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.09)', color:'#e2e8f0', fontSize:13, lineHeight:1.5, outline:'none', fontFamily:'inherit' }}/>
-                <button onClick={addNote} disabled={!note.trim()} style={{ padding:'10px 20px', borderRadius:10, border:'none', cursor:'pointer', fontWeight:600, fontSize:13, fontFamily:'inherit', background:'linear-gradient(135deg,#7c3aed,#3b82f6)', color:'#fff', opacity:note.trim()?1:0.35 }}>Add</button>
+                <button onClick={addNote} disabled={!note.trim()} style={{ padding:'10px 20px', borderRadius:10, border:'none', cursor:'pointer', fontWeight:600, fontSize:13, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff', opacity:note.trim()?1:0.35 }}>Add</button>
               </div>
               {!task.logs.length && (
                 <div style={{ color:'#f4fff9', textAlign:'center', padding:'60px 0', fontSize:13 }}>
@@ -2487,7 +2509,7 @@ function PeoplePanel({ people, selected, selectedId, draft, setDraft, onSelect, 
   if (!hasPeopleFolder) {
     return (
       <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', color:'#f4fff9', fontSize:13 }}>
-        <button onClick={onConfigure} style={{ padding:'10px 18px', borderRadius:10, border:'none', cursor:'pointer', fontWeight:700, fontSize:13, fontFamily:'inherit', background:'linear-gradient(135deg,#7c3aed,#3b82f6)', color:'#fff' }}>Configure People folder</button>
+        <button onClick={onConfigure} style={{ padding:'10px 18px', borderRadius:10, border:'none', cursor:'pointer', fontWeight:700, fontSize:13, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff' }}>Configure People folder</button>
       </div>
     );
   }
@@ -2498,13 +2520,13 @@ function PeoplePanel({ people, selected, selectedId, draft, setDraft, onSelect, 
   return (
     <div style={{ flex:1, display:'grid', gridTemplateColumns:'minmax(230px, 0.28fr) minmax(560px, 1fr)', minHeight:0, overflow:'hidden' }}>
       <div style={{ borderRight:'1px solid rgba(255,255,255,0.06)', overflowY:'auto', padding:'14px 12px' }}>
-        <button onClick={onNewPerson} style={{ width:'100%', padding:'8px 10px', borderRadius:8, border:'none', cursor:'pointer', fontWeight:800, fontSize:12, fontFamily:'inherit', background:'linear-gradient(135deg,#7c3aed,#3b82f6)', color:'#fff', marginBottom:10 }}>+ New Person</button>
+        <button onClick={onNewPerson} style={{ width:'100%', padding:'8px 10px', borderRadius:8, border:'none', cursor:'pointer', fontWeight:800, fontSize:12, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff', marginBottom:10 }}>+ New Person</button>
         {!people.length && <div style={{ color:'#f4fff9', textAlign:'center', paddingTop:35, fontSize:12 }}>No people found</div>}
         {letters.map(letter => (
           <div key={letter} style={{ marginBottom:8 }}>
-            <div style={{ position:'sticky', top:-14, zIndex:1, padding:'6px 2px 5px', background:'#09090e', borderBottom:'1px solid rgba(255,255,255,0.06)', fontSize:10, color:'#a78bfa', fontWeight:900, letterSpacing:'0.12em' }}>{letter}</div>
+            <div style={{ position:'sticky', top:-14, zIndex:1, padding:'6px 2px 5px', background:'#09090e', borderBottom:'1px solid rgba(255,255,255,0.06)', fontSize:10, color:BRAND_LABEL, fontWeight:900, letterSpacing:'0.12em' }}>{letter}</div>
             {groups[letter].map(p => (
-              <button key={p.id} onClick={()=>onSelect(p.id)} style={{ width:'100%', textAlign:'left', padding:'8px 10px', marginTop:4, borderRadius:8, border:`1px solid ${selectedId===p.id?'rgba(124,58,237,0.45)':'transparent'}`, background:selectedId===p.id?'rgba(124,58,237,0.12)':'transparent', color:'#e2e8f0', cursor:'pointer', fontFamily:'inherit' }}>
+              <button key={p.id} onClick={()=>onSelect(p.id)} style={{ width:'100%', textAlign:'left', padding:'8px 10px', marginTop:4, borderRadius:8, border:`1px solid ${selectedId===p.id?BRAND_BORDER_STRONG:'transparent'}`, background:selectedId===p.id?BRAND_SURFACE:'transparent', color:'#e2e8f0', cursor:'pointer', fontFamily:'inherit' }}>
                 <div style={{ fontSize:13, fontWeight:800, lineHeight:1.3 }}>{p.title}</div>
                 {(p.company || p.role) && <div style={{ fontSize:10, color:'#f4fff9', marginTop:3, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{p.company || p.role}</div>}
               </button>
@@ -2516,7 +2538,7 @@ function PeoplePanel({ people, selected, selectedId, draft, setDraft, onSelect, 
       <div style={{ display:'flex', flexDirection:'column', minWidth:0, minHeight:0 }}>
         <div style={{ padding:'18px 28px 14px', borderBottom:'1px solid rgba(255,255,255,0.06)', display:'flex', justifyContent:'space-between', gap:18, alignItems:'flex-start' }}>
           <div style={{ minWidth:0 }}>
-            <div style={{ fontSize:10, color:'#a78bfa', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:7 }}>People</div>
+            <div style={{ fontSize:10, color:BRAND_LABEL, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:7 }}>People</div>
             <h2 style={{ margin:0, fontSize:20, color:'#f1f5f9' }}>{selected ? selected.title : 'Select a person'}</h2>
             {selected && (
               <div style={{ display:'flex', gap:10, flexWrap:'wrap', marginTop:7, color:'#f4fff9', fontSize:11 }}>
@@ -2526,7 +2548,7 @@ function PeoplePanel({ people, selected, selectedId, draft, setDraft, onSelect, 
               </div>
             )}
           </div>
-          <button onClick={onSave} disabled={!selected} style={{ padding:'9px 18px', borderRadius:10, border:'none', cursor:selected?'pointer':'not-allowed', fontWeight:800, fontSize:13, fontFamily:'inherit', background:'linear-gradient(135deg,#7c3aed,#3b82f6)', color:'#fff', opacity:selected?1:0.35 }}>Save</button>
+          <button onClick={onSave} disabled={!selected} style={{ padding:'9px 18px', borderRadius:10, border:'none', cursor:selected?'pointer':'not-allowed', fontWeight:800, fontSize:13, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff', opacity:selected?1:0.35 }}>Save</button>
         </div>
         {selected ? (
           <div style={{ flex:1, minHeight:0, display:'grid', gridTemplateColumns:'minmax(280px,1fr) minmax(260px,0.85fr)', overflow:'hidden' }}>
@@ -2538,7 +2560,7 @@ function PeoplePanel({ people, selected, selectedId, draft, setDraft, onSelect, 
               <textarea value={draft} onChange={e=>setDraft(e.target.value)} spellCheck={false} style={{ flex:1, width:'100%', resize:'none', padding:'8px 28px 22px', background:'rgba(255,255,255,0.02)', border:'none', color:'#e2e8f0', outline:'none', fontFamily:'ui-monospace, SFMono-Regular, Consolas, monospace', fontSize:13, lineHeight:1.65 }}/>
             </div>
             <div style={{ minWidth:0, minHeight:0, overflowY:'auto', padding:'16px 22px 22px', borderLeft:'1px solid rgba(255,255,255,0.06)', background:'rgba(255,255,255,0.012)' }}>
-              <div style={{ fontSize:10, color:'#a78bfa', fontWeight:800, textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:12 }}>Preview</div>
+              <div style={{ fontSize:10, color:BRAND_LABEL, fontWeight:800, textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:12 }}>Preview</div>
               <MarkdownBody emptyText="No notes body yet.">{noteBodyText(draft)}</MarkdownBody>
             </div>
           </div>
@@ -2559,7 +2581,7 @@ function TasksFolderRecoveryPanel({ issue, onConfigure }) {
         <p style={{ margin:'0 0 16px', color:'#f4fff9', fontSize:13, lineHeight:1.6 }}>
           {issue?.name ? `"${issue.name}" is not available at its saved location.` : 'The Tasks folder is not connected on this device.'} Pick the folder again and TaskDash will rescan it.
         </p>
-        <button onClick={onConfigure} style={{ padding:'10px 18px', borderRadius:10, border:'none', cursor:'pointer', fontWeight:800, fontSize:13, fontFamily:'inherit', background:'linear-gradient(135deg,#7c3aed,#3b82f6)', color:'#fff' }}>Configure folders</button>
+        <button onClick={onConfigure} style={{ padding:'10px 18px', borderRadius:10, border:'none', cursor:'pointer', fontWeight:800, fontSize:13, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff' }}>Configure folders</button>
       </div>
     </div>
   );
@@ -2573,7 +2595,7 @@ function MeetingPanel({ meetingOpen, meetingTitle, meetingNotes, meetingLinks, s
   if (!hasMeetingsFolder) {
     return (
       <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', color:'#f4fff9', fontSize:13 }}>
-        <button onClick={onConfigure} style={{ padding:'10px 18px', borderRadius:10, border:'none', cursor:'pointer', fontWeight:700, fontSize:13, fontFamily:'inherit', background:'linear-gradient(135deg,#7c3aed,#3b82f6)', color:'#fff' }}>Configure Meetings folder</button>
+        <button onClick={onConfigure} style={{ padding:'10px 18px', borderRadius:10, border:'none', cursor:'pointer', fontWeight:700, fontSize:13, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff' }}>Configure Meetings folder</button>
       </div>
     );
   }
@@ -2588,7 +2610,7 @@ function MeetingPanel({ meetingOpen, meetingTitle, meetingNotes, meetingLinks, s
               <h2 style={{ margin:0, fontSize:22, color:'#f1f5f9' }}>{savedMeeting.title}</h2>
               <div style={{ fontSize:12, color:'#f4fff9', marginTop:6 }}>{savedMeeting.date || savedMeeting.filename}</div>
             </div>
-            <button onClick={onStart} style={{ padding:'10px 16px', borderRadius:10, border:'none', cursor:'pointer', fontWeight:800, fontSize:13, fontFamily:'inherit', background:'linear-gradient(135deg,#7c3aed,#3b82f6)', color:'#fff', flexShrink:0 }}>+ Start Meeting</button>
+            <button onClick={onStart} style={{ padding:'10px 16px', borderRadius:10, border:'none', cursor:'pointer', fontWeight:800, fontSize:13, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff', flexShrink:0 }}>+ Start Meeting</button>
           </div>
           <div style={{ borderRadius:10, border:'1px solid rgba(255,255,255,0.06)', background:'rgba(255,255,255,0.025)', padding:'16px 18px' }}>
             <MarkdownBody>{noteBodyText(savedMeeting.raw)}</MarkdownBody>
@@ -2602,7 +2624,7 @@ function MeetingPanel({ meetingOpen, meetingTitle, meetingNotes, meetingLinks, s
         <div style={{ width:'min(520px,100%)', borderRadius:10, border:'1px solid rgba(255,255,255,0.06)', background:'rgba(255,255,255,0.025)', padding:24, textAlign:'center' }}>
           <div style={{ fontSize:10, color:'#10b981', fontWeight:800, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:10 }}>Meetings</div>
           <h2 style={{ margin:'0 0 16px', fontSize:22, color:'#f1f5f9' }}>Meeting notes</h2>
-          <button onClick={onStart} style={{ padding:'10px 18px', borderRadius:10, border:'none', cursor:'pointer', fontWeight:800, fontSize:13, fontFamily:'inherit', background:'linear-gradient(135deg,#7c3aed,#3b82f6)', color:'#fff' }}>+ Start Meeting</button>
+          <button onClick={onStart} style={{ padding:'10px 18px', borderRadius:10, border:'none', cursor:'pointer', fontWeight:800, fontSize:13, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff' }}>+ Start Meeting</button>
         </div>
       </div>
     );
@@ -2675,13 +2697,13 @@ function HealthPanel({ diagnostics, dirs, backups, lastSync, needsRefresh, onFor
     <div style={{ flex:1, display:'flex', flexDirection:'column', overflow:'hidden' }}>
       <div style={{ padding:'22px 30px 16px', borderBottom:'1px solid rgba(255,255,255,0.06)', flexShrink:0, display:'flex', justifyContent:'space-between', alignItems:'center', gap:18 }}>
         <div>
-          <div style={{ fontSize:10, color:'#a78bfa', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:8 }}>Vault Health</div>
+          <div style={{ fontSize:10, color:BRAND_LABEL, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:8 }}>Vault Health</div>
           <h2 style={{ margin:0, fontSize:19, fontWeight:700, color:'#f1f5f9' }}>Sync and file checks</h2>
           <div style={{ fontSize:12, color:'#f4fff9', marginTop:5 }}>Automatic sync runs only while this app is open and folder permission is active.</div>
         </div>
         <div style={{ display:'flex', gap:8 }}>
           <button onClick={onConfigure} style={{ padding:'9px 13px', borderRadius:10, border:'1px solid rgba(255,255,255,0.08)', cursor:'pointer', fontWeight:800, fontSize:12, fontFamily:'inherit', background:'rgba(255,255,255,0.03)', color:'#f4fff9' }}>Folders</button>
-          <button onClick={onForceSync} disabled={syncBusy} style={{ padding:'9px 16px', borderRadius:10, border:'none', cursor:syncBusy?'wait':'pointer', fontWeight:800, fontSize:13, fontFamily:'inherit', background:'linear-gradient(135deg,#7c3aed,#3b82f6)', color:'#fff' }}>{syncBusy ? 'Syncing...' : 'Force Sync'}</button>
+          <button onClick={onForceSync} disabled={syncBusy} style={{ padding:'9px 16px', borderRadius:10, border:'none', cursor:syncBusy?'wait':'pointer', fontWeight:800, fontSize:13, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff' }}>{syncBusy ? 'Syncing...' : 'Force Sync'}</button>
         </div>
       </div>
       <div style={{ flex:1, overflowY:'auto', padding:'20px 30px' }}>
@@ -2733,7 +2755,7 @@ function HealthPanel({ diagnostics, dirs, backups, lastSync, needsRefresh, onFor
                   <div style={{ fontSize:13, color:'#e2e8f0', marginTop:4 }}>{issue.text}</div>
                   {issue.detail && <div style={{ fontSize:11, color:'#f4fff9', marginTop:4, overflowWrap:'anywhere' }}>{issue.detail}</div>}
                 </div>
-                <button onClick={folderIssue ? onConfigure : onForceSync} style={{ padding:'6px 9px', borderRadius:8, border:'1px solid rgba(255,255,255,0.08)', background:'rgba(255,255,255,0.035)', color:folderIssue?'#c4b5fd':'#f4fff9', cursor:'pointer', fontWeight:800, fontSize:11, fontFamily:'inherit', flexShrink:0 }}>
+                <button onClick={folderIssue ? onConfigure : onForceSync} style={{ padding:'6px 9px', borderRadius:8, border:'1px solid rgba(255,255,255,0.08)', background:'rgba(255,255,255,0.035)', color:folderIssue?BRAND_TEXT:'#f4fff9', cursor:'pointer', fontWeight:800, fontSize:11, fontFamily:'inherit', flexShrink:0 }}>
                   {folderIssue ? 'Fix' : 'Recheck'}
                 </button>
               </div>
@@ -2752,7 +2774,7 @@ function HealthPanel({ diagnostics, dirs, backups, lastSync, needsRefresh, onFor
                   {backup.preview && <div style={{ fontSize:11, color:'#f4fff9', marginTop:5, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{backup.preview}</div>}
                 </div>
                 <div style={{ display:'flex', gap:6, flexShrink:0 }}>
-                  <button onClick={()=>setSelectedBackup(backup)} style={{ padding:'6px 9px', borderRadius:8, border:'1px solid rgba(255,255,255,0.08)', background:'rgba(255,255,255,0.035)', color:'#c4b5fd', cursor:'pointer', fontWeight:800, fontSize:11, fontFamily:'inherit' }}>Inspect</button>
+                  <button onClick={()=>setSelectedBackup(backup)} style={{ padding:'6px 9px', borderRadius:8, border:'1px solid rgba(255,255,255,0.08)', background:'rgba(255,255,255,0.035)', color:BRAND_TEXT, cursor:'pointer', fontWeight:800, fontSize:11, fontFamily:'inherit' }}>Inspect</button>
                   <button onClick={()=>onRestoreBackup?.(backup)} style={{ padding:'6px 9px', borderRadius:8, border:'1px solid rgba(16,185,129,0.2)', background:'rgba(16,185,129,0.08)', color:'#10b981', cursor:'pointer', fontWeight:800, fontSize:11, fontFamily:'inherit' }}>Restore</button>
                 </div>
               </div>
@@ -2810,7 +2832,7 @@ function TimeDashboardPanel({ notes, hasDailyFolder, onConfigure }) {
     ['Below band', stats.summary.underGoal, '#fbbf24'],
     ['On target', stats.summary.goalMet, '#34d399'],
     ['Total time', formatHoursMinutes(stats.summary.totalMinutes), '#f1f5f9'],
-    ['Average day', formatHoursMinutes(stats.summary.averageMinutes), '#c4b5fd'],
+    ['Average day', formatHoursMinutes(stats.summary.averageMinutes), BRAND_TEXT],
   ];
 
   if (!hasDailyFolder) {
@@ -2948,196 +2970,259 @@ function TimeDashboardPanel({ notes, hasDailyFolder, onConfigure }) {
   );
 }
 
-function MissionControlPanel({ today, overdue, recurrent, selectedId, liveId, getTime, onSelectTask, onStart, onStop, onNewTask, dailyNote, dailyInputs, setDailyInputs, onAddDailyEntry, onTimeClockEvent, workDate, workMonth, workNotes, onSelectWorkDate, onWorkMonthChange, onSaveTimeClockRows, onWorkStatusChange, hasDailyFolder, onConfigure, completedToday = [], tomorrowTasks = [], weekDates: currentWeekDates = [], vaultTotals = { tasksOpen:0, tasksFinished:0, projects:0, properties:0, people:0 } }) {
-  const renderTask = t => {
-    const running = liveId === t.id;
-    return (
-      <div key={t.id} style={{ padding:'12px 14px', borderRadius:8, background:running?'rgba(16,185,129,0.08)':'rgba(255,255,255,0.025)', border:`1px solid ${selectedId===t.id?'rgba(124,58,237,0.45)':running?'rgba(16,185,129,0.25)':'rgba(255,255,255,0.06)'}`, marginBottom:8 }}>
-        <div onClick={()=>onSelectTask(t.id)} style={{ cursor:'pointer' }}>
-          <div style={{ display:'flex', justifyContent:'space-between', gap:12, marginBottom:7 }}>
-            <div style={{ fontSize:13, fontWeight:750, lineHeight:1.35, color:'#f1f5f9' }}>{t.title}</div>
-            {running && <span style={{ fontSize:10, fontWeight:800, color:'#10b981', flexShrink:0 }}>{fmt(getTime(t.id))}</span>}
-          </div>
-          <div style={{ display:'flex', gap:6, alignItems:'center', flexWrap:'wrap' }}>
-            <PBadge p={t.priority}/><SBadge s={t.status}/>
-            {t.due && <span style={{ fontSize:10, color:isOver(t.due)?'#f87171':isToday(t.due)?'#fbbf24':'#f4fff9', fontWeight:700 }}>due {t.due}</span>}
-            {t.scheduled && <span style={{ fontSize:10, color:'#818cf8', fontWeight:700 }}>scheduled {t.scheduled}</span>}
-            <span style={{ fontSize:10, color:'#f4fff9' }}>{t.dateCreated ? `created ${t.dateCreated.slice(0,10)}` : 'created date unknown'}</span>
-          </div>
-        </div>
-        <div style={{ display:'flex', justifyContent:'flex-end', marginTop:10 }}>
-          <button onClick={()=>running ? onStop() : onStart(t.id)} style={{ padding:'6px 12px', borderRadius:8, border:'none', cursor:'pointer', fontWeight:800, fontSize:11, fontFamily:'inherit', background:running?'rgba(239,68,68,0.1)':'linear-gradient(135deg,#7c3aed,#3b82f6)', color:running?'#f87171':'#fff' }}>
-            {running ? 'Stop' : 'Start'}
-          </button>
-        </div>
-      </div>
-    );
-  };
+function MissionControlPanel({ today, overdue, recurrent, onNewTask, dailyNote, dailyInputs, setDailyInputs, onAddDailyEntry, workNotes, hasDailyFolder, onConfigure, completedToday = [], tomorrowTasks = [], weekDates: currentWeekDates = [], recentMeetings = [], recentPeople = [], onOpenMeetings, onOpenPeople }) {
+  const [noteSection, setNoteSection] = useState('notes');
+  const greetingHour = new Date().getHours();
+  const greeting = greetingHour < 12 ? 'Good morning' : greetingHour < 18 ? 'Good afternoon' : 'Good evening';
+  const todayKey = tod();
+  const todayStats = workStats(workNotes[todayKey]);
+  const clockIn = (workNotes[todayKey]?.timeClock || []).find(row => row.event === 'Clock in')?.time || '';
+  const weekBars = currentWeekDates.map(dateStr => ({
+    day: new Date(`${dateStr}T12:00:00`).toLocaleDateString('en-US', { weekday:'short' }),
+    date: dateStr,
+    minutes: workStats(workNotes[dateStr]).totalMinutes,
+  }));
+  let streakDays = 0;
+  for (const dateStr of [...currentWeekDates].reverse()) {
+    if (workStats(workNotes[dateStr]).totalMinutes >= TARGET_WORK_MINUTES) streakDays += 1;
+    else if (streakDays) break;
+  }
 
-  const sections = [
-    { title:'Overdue', subtitle:'Oldest created first', items:overdue, color:'#f87171' },
-    { title:'Today', subtitle:'Due or scheduled today, oldest created first', items:today, color:'#fbbf24' },
-    { title:'Recurrent', subtitle:'Due or scheduled today only', items:recurrent, color:'#818cf8' },
+  const noteSections = [
+    { key:'notes', label:'Notes', items:dailyNote?.notes || [], placeholder:'Capture a work note…', helper:'Appends under ## Notes' },
+    { key:'reflections', label:'Reflections', items:dailyNote?.reflections || [], placeholder:'Capture a reflection…', helper:'Appends under ## Reflections' },
+    { key:'brainDump', label:'Brain dump', items:dailyNote?.brainDump || [], placeholder:'Capture a loose thought or issue…', helper:'Appends under ## Brain dump' },
   ];
+  const activeNote = noteSections.find(section => section.key === noteSection) || noteSections[0];
+  const activeItems = activeNote.items.slice(-6).reverse();
 
   return (
     <div style={{ flex:1, display:'flex', flexDirection:'column', overflow:'hidden' }}>
-      <div style={{ padding:'22px 30px 16px', borderBottom:'1px solid rgba(255,255,255,0.06)', flexShrink:0, display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:20 }}>
-        <div style={{ minWidth:0, flex:1 }}>
-          <div style={{ fontSize:10, color:'#a78bfa', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:8 }}>Today Mission Control</div>
-          <div style={{ display:'flex', alignItems:'center', gap:14, flexWrap:'wrap' }}>
-            <h2 style={{ margin:0, fontSize:20, fontWeight:750, color:'#f1f5f9' }}>{longDate(new Date())}</h2>
-            <div style={{ display:'flex', gap:7, flexWrap:'wrap' }}>
-              {[
-                ['☑', 'Open', vaultTotals.tasksOpen, '#fbbf24'],
-                ['✓', 'Finished', vaultTotals.tasksFinished, '#10b981'],
-                ['◆', 'Projects', vaultTotals.projects, '#818cf8'],
-                ['⌂', 'Properties', vaultTotals.properties, '#38bdf8'],
-                ['👤', 'People', vaultTotals.people, '#14b8a6'],
-              ].map(([icon, label, count, color]) => (
-                <span key={label} title={`Total ${label.toLowerCase()}`} style={{ display:'inline-flex', alignItems:'center', gap:6, minHeight:26, padding:'4px 8px', borderRadius:8, border:`1px solid ${color}33`, background:`${color}12`, color:'#f4fff9', fontSize:11, fontWeight:800, lineHeight:1, fontVariantNumeric:'tabular-nums' }}>
-                  <span style={{ color, fontSize:13, lineHeight:1 }}>{icon}</span>
-                  <span style={{ color:'#f8fafc' }}>{count}</span>
-                  <span style={{ color:'#f4fff9', fontWeight:700 }}>{label}</span>
-                </span>
-              ))}
-            </div>
+      <div style={{ padding:'20px 28px 16px', borderBottom:'1px solid rgba(255,255,255,0.06)', display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:18, flexShrink:0 }}>
+        <div style={{ minWidth:0 }}>
+          <div style={{ fontSize:10, color:'rgba(244,255,249,0.58)', fontWeight:700, letterSpacing:'0.18em', textTransform:'uppercase', marginBottom:8 }}>
+            {longDate(new Date())}
           </div>
-          <div style={{ fontSize:12, color:'#f4fff9', marginTop:5 }}>{dailyNote ? dailyNote.filename : hasDailyFolder ? 'Creating today daily note...' : 'Daily notes folder not configured'}</div>
+          <h2 style={{ margin:0, fontSize:32, fontWeight:800, letterSpacing:'-0.04em', color:'#f8fff9' }}>{greeting}.</h2>
+          <div style={{ fontSize:13, color:'rgba(244,255,249,0.72)', marginTop:6, maxWidth:620 }}>
+            Queues stay in the sidebar. Use this view to steer the day, capture notes, and keep the most relevant people and meetings in view.
+          </div>
         </div>
-        <div style={{ display:'flex', gap:8 }}>
-          <button onClick={onConfigure} style={{ padding:'9px 13px', borderRadius:10, border:'1px solid rgba(255,255,255,0.08)', cursor:'pointer', fontWeight:800, fontSize:12, fontFamily:'inherit', background:'rgba(255,255,255,0.03)', color:'#f4fff9' }}>{hasDailyFolder ? 'Daily folder set' : 'Set Daily folder'}</button>
+        <div style={{ display:'flex', gap:8, flexShrink:0 }}>
+          <button onClick={onConfigure} style={{ padding:'9px 13px', borderRadius:10, border:'1px solid rgba(255,255,255,0.08)', cursor:'pointer', fontWeight:800, fontSize:12, fontFamily:'inherit', background:'rgba(255,255,255,0.03)', color:'#f4fff9' }}>
+            {hasDailyFolder ? 'Open in vault' : 'Set daily folder'}
+          </button>
+          <button onClick={onNewTask} style={{ padding:'9px 15px', borderRadius:10, border:'none', cursor:'pointer', fontWeight:800, fontSize:12, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff', boxShadow:BRAND_SHADOW }}>
+            + New task
+          </button>
         </div>
       </div>
-      <div style={{ flex:1, minHeight:0, display:'grid', gridTemplateColumns:'minmax(440px,0.55fr) minmax(460px,1fr)', overflow:'hidden' }}>
-        <div style={{ minWidth:0, minHeight:0, overflowY:'auto', padding:'16px', borderRight:'1px solid rgba(255,255,255,0.06)' }}>
-        <section style={{ borderRadius:8, border:'1px solid rgba(255,255,255,0.06)', background:'rgba(255,255,255,0.025)', padding:'13px', marginBottom:12 }}>
-          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:14, marginBottom:10 }}>
+
+      <div style={{ padding:'14px 28px 0', flexShrink:0 }}>
+        <TodayHero
+          workedMinutes={todayStats.totalMinutes}
+          goalMinutes={TARGET_WORK_MINUTES}
+          clockIn={clockIn}
+          week={weekBars}
+          shippedThisWeek={completedToday.length}
+          streakDays={streakDays}
+        />
+      </div>
+
+      <div style={{ flex:1, minHeight:0, display:'grid', gridTemplateColumns:'minmax(430px,1.08fr) minmax(280px,0.72fr)', gap:16, padding:'16px 28px 24px', overflow:'hidden' }}>
+        <section className="glass-thin" style={{ minWidth:0, minHeight:0, borderRadius:18, display:'flex', flexDirection:'column', padding:'14px 14px 16px' }}>
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:14, marginBottom:12 }}>
             <div>
-              <h3 style={{ margin:0, fontSize:14, color:'#f1f5f9' }}>Time Clock</h3>
-              <div style={{ fontSize:11, color:'#f4fff9', marginTop:3 }}>Stored in today's daily note</div>
+              <div style={{ fontSize:11, color:BRAND_LABEL, fontWeight:800, textTransform:'uppercase', letterSpacing:'0.14em', marginBottom:5 }}>Daily note</div>
+              <div style={{ fontSize:14, color:'#f8fff9', fontWeight:700 }}>{dailyNote ? dailyNote.filename : hasDailyFolder ? 'Creating today daily note...' : 'Daily notes folder not configured'}</div>
+            </div>
+            <div style={{ display:'flex', gap:8, flexWrap:'wrap', justifyContent:'flex-end' }}>
+              <span style={{ padding:'5px 9px', borderRadius:999, fontSize:10, fontWeight:800, color:'#f8fff9', background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.08)' }}>
+                {today.length} today
+              </span>
+              <span style={{ padding:'5px 9px', borderRadius:999, fontSize:10, fontWeight:800, color:'#fbbf24', background:'rgba(251,191,36,0.08)', border:'1px solid rgba(251,191,36,0.14)' }}>
+                {tomorrowTasks.length} tomorrow
+              </span>
+              <span style={{ padding:'5px 9px', borderRadius:999, fontSize:10, fontWeight:800, color:'#f87171', background:'rgba(248,113,113,0.08)', border:'1px solid rgba(248,113,113,0.14)' }}>
+                {overdue.length} overdue
+              </span>
             </div>
           </div>
-          <div style={{ display:'grid', gridTemplateColumns:'repeat(4,minmax(0,1fr))', gap:6, marginBottom:10 }}>
-            {[
-              ['Clock in', 'IN', '#10b981'],
-              ['Clock out', 'OUT', '#f87171'],
-              ['Break start', 'BR', '#fbbf24'],
-              ['Break finish', 'GO', '#818cf8'],
-            ].map(([event, icon, color]) => (
-              <button key={event} onClick={()=>onTimeClockEvent(event)} disabled={!hasDailyFolder} title={event}
-                style={{ minWidth:0, padding:'6px 5px', borderRadius:8, border:`1px solid ${hasDailyFolder ? color : 'rgba(255,255,255,0.08)'}`, cursor:hasDailyFolder?'pointer':'not-allowed', fontWeight:800, fontSize:10, fontFamily:'inherit', background:'rgba(255,255,255,0.025)', color:hasDailyFolder?color:'#f4fff9', opacity:hasDailyFolder?1:0.45, whiteSpace:'nowrap' }}>
-                <span style={{ display:'inline-flex', alignItems:'center', justifyContent:'center', width:16, height:16, marginRight:4, borderRadius:5, background:hasDailyFolder?`${color}22`:'rgba(255,255,255,0.04)', border:`1px solid ${hasDailyFolder ? color : 'rgba(255,255,255,0.08)'}`, fontSize:7, fontWeight:900, verticalAlign:'middle' }}>{icon}</span>{event}
+
+          <div style={{ display:'inline-flex', gap:6, padding:4, borderRadius:12, background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.08)', alignSelf:'flex-start', marginBottom:14 }}>
+            {noteSections.map(section => (
+              <button
+                key={section.key}
+                onClick={()=>setNoteSection(section.key)}
+                style={{
+                  padding:'7px 12px',
+                  borderRadius:10,
+                  border:'none',
+                  cursor:'pointer',
+                  fontWeight:800,
+                  fontSize:11,
+                  fontFamily:'inherit',
+                  background:noteSection === section.key ? BRAND_GRADIENT : 'transparent',
+                  color:noteSection === section.key ? '#fff' : 'rgba(244,255,249,0.74)',
+                  boxShadow:noteSection === section.key ? BRAND_SHADOW : 'none',
+                }}
+              >
+                {section.label}
               </button>
             ))}
           </div>
-          <div style={{ display:'flex', gap:7, flexWrap:'wrap' }}>
-            {(dailyNote?.timeClock || []).slice(-5).map((row, i) => (
-              <span key={`${row.time}-${row.event}-${i}`} style={{ fontSize:11, color:'#f4fff9', padding:'4px 8px', borderRadius:14, background:'rgba(255,255,255,0.035)', border:'1px solid rgba(255,255,255,0.05)' }}>
-                {row.time} · {row.event}
-              </span>
-            ))}
-            {!dailyNote?.timeClock?.length && <span style={{ fontSize:12, color:'#f4fff9' }}>No clock events yet today</span>}
+
+          <div style={{ flex:1, minHeight:0, borderRadius:16, border:'1px solid rgba(255,255,255,0.08)', background:'rgba(255,255,255,0.03)', padding:'14px 14px 12px', display:'flex', flexDirection:'column' }}>
+            <div style={{ flex:1, minHeight:0, overflowY:'auto', paddingRight:4 }}>
+              {activeItems.length ? activeItems.map((item, index) => (
+                <div key={`${activeNote.key}-${index}`} style={{ padding:'11px 12px', borderRadius:12, background:'rgba(255,255,255,0.035)', border:'1px solid rgba(255,255,255,0.06)', marginBottom:8 }}>
+                  <MarkdownBody compact>{item}</MarkdownBody>
+                </div>
+              )) : (
+                <div style={{ height:'100%', display:'flex', alignItems:'center', justifyContent:'center', textAlign:'center', padding:'24px 12px', color:'rgba(244,255,249,0.58)', fontSize:13 }}>
+                  {hasDailyFolder ? `Nothing in ${activeNote.label.toLowerCase()} yet.` : 'Set the Daily Notes folder to start capturing here.'}
+                </div>
+              )}
+            </div>
+
+            <div style={{ marginTop:12, paddingTop:12, borderTop:'1px solid rgba(255,255,255,0.08)' }}>
+              <textarea
+                value={dailyInputs[activeNote.key] || ''}
+                onChange={e=>setDailyInputs(prev => ({ ...prev, [activeNote.key]: e.target.value }))}
+                onKeyDown={e=>{ if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) onAddDailyEntry(activeNote.key); }}
+                disabled={!hasDailyFolder}
+                placeholder={hasDailyFolder ? activeNote.placeholder : 'Set daily folder first'}
+                rows={5}
+                style={{
+                  width:'100%',
+                  padding:'12px 14px',
+                  borderRadius:14,
+                  resize:'vertical',
+                  background:'rgba(10,24,18,0.44)',
+                  border:'1px solid rgba(255,255,255,0.08)',
+                  color:'#e2e8f0',
+                  fontSize:13,
+                  lineHeight:1.55,
+                  outline:'none',
+                  fontFamily:'inherit',
+                  opacity:hasDailyFolder ? 1 : 0.45,
+                }}
+              />
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:12, marginTop:10 }}>
+                <div style={{ fontSize:11, color:'rgba(244,255,249,0.54)' }}>{activeNote.helper}</div>
+                <button
+                  onClick={()=>onAddDailyEntry(activeNote.key)}
+                  disabled={!hasDailyFolder || !dailyInputs[activeNote.key]?.trim()}
+                  style={{
+                    padding:'9px 14px',
+                    borderRadius:10,
+                    border:'none',
+                    cursor:hasDailyFolder ? 'pointer' : 'not-allowed',
+                    fontWeight:800,
+                    fontSize:12,
+                    fontFamily:'inherit',
+                    background:BRAND_GRADIENT,
+                    color:'#fff',
+                    boxShadow:BRAND_SHADOW,
+                    opacity:hasDailyFolder && dailyInputs[activeNote.key]?.trim() ? 1 : 0.35,
+                  }}
+                >
+                  Append
+                </button>
+              </div>
+            </div>
           </div>
         </section>
 
-        <div style={{ display:'grid', gridTemplateColumns:'1fr', gap:12, alignItems:'stretch', marginBottom:12 }}>
-          <WorkHoursPanel
-            selectedDate={workDate}
-            selectedNote={workNotes[workDate]}
-            notes={workNotes}
-            onSaveRows={onSaveTimeClockRows}
-            onStatusChange={onWorkStatusChange}
-            hasDailyFolder={hasDailyFolder}
-          />
-          <WorkCalendar
-            month={workMonth}
-            selectedDate={workDate}
-            notes={workNotes}
-            onMonthChange={onWorkMonthChange}
-            onSelectDate={onSelectWorkDate}
-            hasDailyFolder={hasDailyFolder}
-          />
-        </div>
-
-        </div>
-
-        <div style={{ minWidth:0, minHeight:0, display:'flex', flexDirection:'column', padding:'16px 18px 16px 16px', overflow:'hidden' }}>
-          <div style={{ display:'grid', gridTemplateColumns:'repeat(3,minmax(180px,1fr))', gap:10, marginBottom:14, flexShrink:0 }}>
-            {[
-              ['notes', 'Notes', dailyNote?.notes || []],
-              ['reflections', 'Reflections', dailyNote?.reflections || []],
-              ['brainDump', 'Brain dump - issues', dailyNote?.brainDump || []],
-            ].map(([key, label, items]) => (
-              <section key={key} style={{ borderRadius:8, border:'1px solid rgba(255,255,255,0.06)', background:'rgba(255,255,255,0.025)', padding:'12px', minWidth:0 }}>
-                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline', marginBottom:8 }}>
-                  <h3 style={{ margin:0, fontSize:13, color:'#f1f5f9' }}>{label}</h3>
-                  <span style={{ fontSize:10, color:'#f4fff9', fontWeight:800 }}>{items.length}</span>
-                </div>
-                <div style={{ minHeight:46, marginBottom:9 }}>
-                  {items.length ? items.slice(-2).map((item, i) => (
-                    <div key={i} style={{ marginBottom:5, overflow:'hidden', display:'-webkit-box', WebkitLineClamp:2, WebkitBoxOrient:'vertical' }}>
-                      <MarkdownBody compact>{item}</MarkdownBody>
-                    </div>
-                  )) : <div style={{ fontSize:12, color:'#f4fff9', paddingTop:8 }}>Nothing written yet</div>}
-                </div>
-                <div style={{ display:'flex', gap:7 }}>
-                  <input value={dailyInputs[key] || ''} onChange={e=>setDailyInputs(prev => ({ ...prev, [key]: e.target.value }))} onKeyDown={e=>{ if(e.key==='Enter') onAddDailyEntry(key); }} disabled={!hasDailyFolder}
-                    placeholder={hasDailyFolder ? `Add ${label.toLowerCase()}...` : 'Set daily folder first'}
-                    style={{ flex:1, minWidth:0, padding:'8px 10px', borderRadius:8, background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.08)', color:'#e2e8f0', fontSize:12, outline:'none', fontFamily:'inherit', opacity:hasDailyFolder?1:0.45 }}/>
-                  <button onClick={()=>onAddDailyEntry(key)} disabled={!hasDailyFolder || !dailyInputs[key]?.trim()} style={{ padding:'8px 10px', borderRadius:8, border:'none', cursor:hasDailyFolder?'pointer':'not-allowed', fontWeight:800, fontSize:11, fontFamily:'inherit', background:'rgba(124,58,237,0.18)', color:'#c4b5fd', opacity:hasDailyFolder && dailyInputs[key]?.trim()?1:0.4 }}>Add</button>
-                </div>
-              </section>
-            ))}
-          </div>
-          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:12, marginBottom:12, flexShrink:0 }}>
-            <div>
-              <h3 style={{ margin:0, fontSize:15, color:'#f1f5f9' }}>Task Queues</h3>
-              <div style={{ fontSize:11, color:'#f4fff9', marginTop:3 }}>Today, overdue, and recurrent work stay visible beside your hours.</div>
-            </div>
-          </div>
-          <section style={{ borderRadius:8, border:'1px solid rgba(255,255,255,0.06)', background:'rgba(255,255,255,0.025)', padding:'12px', marginBottom:12, flexShrink:0 }}>
-            <div style={{ display:'flex', justifyContent:'space-between', gap:12, marginBottom:9 }}>
+        <div style={{ minWidth:0, minHeight:0, display:'grid', gridTemplateRows:'minmax(0,1fr) auto', gap:16 }}>
+          <section className="glass-thin" style={{ minHeight:0, borderRadius:18, padding:'14px', display:'flex', flexDirection:'column' }}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:12, marginBottom:12 }}>
               <div>
-                <h3 style={{ margin:0, fontSize:13, color:'#f1f5f9' }}>Daily Review</h3>
-                <div style={{ fontSize:11, color:'#f4fff9', marginTop:3 }}>Quick end-of-day pulse</div>
+                <div style={{ fontSize:11, color:BRAND_LABEL, fontWeight:800, textTransform:'uppercase', letterSpacing:'0.14em', marginBottom:5 }}>Recent meetings</div>
+                <div style={{ fontSize:13, color:'rgba(244,255,249,0.68)' }}>The latest notes worth keeping in sight.</div>
               </div>
-              <div style={{ textAlign:'right', fontSize:11, color:'#f4fff9', fontWeight:800 }}>
-                {formatHoursMinutes(currentWeekDates.reduce((sum, dateStr) => sum + workStats(workNotes[dateStr]).totalMinutes, 0))} this week
-              </div>
+              <button onClick={onOpenMeetings} style={{ padding:'6px 10px', borderRadius:999, border:'1px solid rgba(255,255,255,0.08)', background:'rgba(255,255,255,0.03)', color:'#f4fff9', fontSize:11, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>
+                All
+              </button>
             </div>
-            <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:8 }}>
-              <div style={{ padding:'8px 9px', borderRadius:8, background:'rgba(16,185,129,0.07)', border:'1px solid rgba(16,185,129,0.13)' }}>
-                <div style={{ fontSize:18, fontWeight:850, color:'#10b981' }}>{completedToday.length}</div>
-                <div style={{ fontSize:10, color:'#f4fff9' }}>closed today</div>
-              </div>
-              <div style={{ padding:'8px 9px', borderRadius:8, background:'rgba(251,191,36,0.07)', border:'1px solid rgba(251,191,36,0.13)' }}>
-                <div style={{ fontSize:18, fontWeight:850, color:'#fbbf24' }}>{tomorrowTasks.length}</div>
-                <div style={{ fontSize:10, color:'#f4fff9' }}>tomorrow</div>
-              </div>
-              <div style={{ padding:'8px 9px', borderRadius:8, background:'rgba(248,113,113,0.07)', border:'1px solid rgba(248,113,113,0.13)' }}>
-                <div style={{ fontSize:18, fontWeight:850, color:'#f87171' }}>{overdue.length}</div>
-                <div style={{ fontSize:10, color:'#f4fff9' }}>overdue</div>
-              </div>
+            <div style={{ flex:1, minHeight:0, overflowY:'auto' }}>
+              {recentMeetings.length ? recentMeetings.map(meeting => (
+                <button
+                  key={meeting.id}
+                  onClick={onOpenMeetings}
+                  style={{
+                    width:'100%',
+                    textAlign:'left',
+                    padding:'12px 12px 11px',
+                    borderRadius:14,
+                    border:'1px solid rgba(255,255,255,0.06)',
+                    background:'rgba(255,255,255,0.035)',
+                    color:'#f4fff9',
+                    cursor:'pointer',
+                    fontFamily:'inherit',
+                    marginBottom:8,
+                  }}
+                >
+                  <div style={{ fontSize:13, fontWeight:700, lineHeight:1.35, color:'#f8fff9' }}>{meeting.title}</div>
+                  <div style={{ fontSize:11, color:'rgba(244,255,249,0.6)', marginTop:4 }}>{meeting.date || meeting.filename}</div>
+                </button>
+              )) : (
+                <div style={{ height:'100%', display:'flex', alignItems:'center', justifyContent:'center', textAlign:'center', color:'rgba(244,255,249,0.58)', fontSize:13, padding:'24px 12px' }}>
+                  Recent meeting notes will show up here once the Meetings folder is connected.
+                </div>
+              )}
             </div>
           </section>
-          <div style={{ flex:1, minHeight:0, display:'grid', gridTemplateColumns:'repeat(3,minmax(180px,1fr))', gap:12, alignItems:'stretch', overflow:'hidden' }}>
-          {sections.map(s => (
-            <section key={s.title} style={{ minWidth:0, minHeight:0, overflowY:'auto', paddingRight:4 }}>
-              <div style={{ padding:'0 2px 10px', borderBottom:`2px solid ${s.color}`, marginBottom:10 }}>
-                <div style={{ display:'flex', justifyContent:'space-between', gap:10, alignItems:'baseline' }}>
-                  <h3 style={{ margin:0, fontSize:16, color:'#f1f5f9' }}>{s.title}</h3>
-                  <span style={{ fontSize:20, fontWeight:850, color:s.color }}>{s.items.length}</span>
-                </div>
-                <div style={{ fontSize:11, color:'#f4fff9', marginTop:3 }}>{s.subtitle}</div>
+
+          <section className="glass-thin" style={{ borderRadius:18, padding:'14px' }}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:12, marginBottom:12 }}>
+              <div>
+                <div style={{ fontSize:11, color:BRAND_LABEL, fontWeight:800, textTransform:'uppercase', letterSpacing:'0.14em', marginBottom:5 }}>People</div>
+                <div style={{ fontSize:13, color:'rgba(244,255,249,0.68)' }}>Keep the active relationships visible.</div>
               </div>
-              {!s.items.length && <div style={{ color:'#f4fff9', fontSize:13, padding:'32px 8px', textAlign:'center' }}>Clear</div>}
-              {s.items.map(renderTask)}
-            </section>
-          ))}
+              <button onClick={onOpenPeople} style={{ padding:'6px 10px', borderRadius:999, border:'1px solid rgba(255,255,255,0.08)', background:'rgba(255,255,255,0.03)', color:'#f4fff9', fontSize:11, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>
+                All
+              </button>
+            </div>
+            <div style={{ display:'grid', gap:8 }}>
+              {recentPeople.length ? recentPeople.map(person => (
+                <button
+                  key={person.id}
+                  onClick={onOpenPeople}
+                  style={{
+                    width:'100%',
+                    textAlign:'left',
+                    padding:'10px 11px',
+                    borderRadius:14,
+                    border:'1px solid rgba(255,255,255,0.06)',
+                    background:'rgba(255,255,255,0.035)',
+                    color:'#f4fff9',
+                    cursor:'pointer',
+                    fontFamily:'inherit',
+                    display:'flex',
+                    alignItems:'center',
+                    gap:10,
+                  }}
+                >
+                  <div style={{ width:30, height:30, borderRadius:999, background:BRAND_GRADIENT, color:'#fff', display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, fontWeight:800, flexShrink:0 }}>
+                    {initials(person.title)}
+                  </div>
+                  <div style={{ minWidth:0 }}>
+                    <div style={{ fontSize:13, fontWeight:700, color:'#f8fff9', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{person.title}</div>
+                    <div style={{ fontSize:11, color:'rgba(244,255,249,0.6)', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
+                      {[person.role, person.company].filter(Boolean).join(' · ') || person.filename}
+                    </div>
+                  </div>
+                </button>
+              )) : (
+                <div style={{ color:'rgba(244,255,249,0.58)', fontSize:13, textAlign:'center', padding:'10px 0 4px' }}>
+                  People you track will show up here.
+                </div>
+              )}
+            </div>
+          </section>
         </div>
       </div>
-    </div>
     </div>
   );
 }
@@ -3170,7 +3255,7 @@ function WorkCalendar({ month, selectedDate, notes, onMonthChange, onSelectDate,
           return (
             <button key={dateStr} onClick={()=>onSelectDate(dateStr)} disabled={!hasDailyFolder}
               title={`${dateStr} · ${formatMinutes(stats.totalMinutes)} · ${stats.label}`}
-              style={{ minHeight:38, borderRadius:8, border:`1px solid ${selected ? '#a78bfa' : 'rgba(255,255,255,0.06)'}`, background:selected?'rgba(124,58,237,0.18)':'rgba(255,255,255,0.025)', color:'#e2e8f0', cursor:hasDailyFolder?'pointer':'not-allowed', fontFamily:'inherit', padding:'4px 2px', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:2 }}>
+              style={{ minHeight:38, borderRadius:8, border:`1px solid ${selected ? BRAND_LABEL : 'rgba(255,255,255,0.06)'}`, background:selected?BRAND_SURFACE_STRONG:'rgba(255,255,255,0.025)', color:'#e2e8f0', cursor:hasDailyFolder?'pointer':'not-allowed', fontFamily:'inherit', padding:'4px 2px', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:2 }}>
               <span style={{ fontSize:12, fontWeight:800 }}>{Number(dateStr.slice(-2))}</span>
               <span style={{ width:5, height:5, borderRadius:5, background:accent, opacity:status || stats.totalMinutes ? 1 : 0.35 }} />
             </button>
@@ -3228,8 +3313,8 @@ function WorkHoursPanel({ selectedDate, selectedNote, notes, onSaveRows, onStatu
             const isLeave = day.status && day.status !== 'workday';
             return (
               <div key={day.dateStr} style={{ minWidth:0, height:'100%', position:'relative' }}>
-                <div style={{ position:'absolute', left:0, right:0, bottom:`calc(${barHeight}% + 5px)`, textAlign:'center', fontSize:9, color:isSelected?'#c4b5fd':'#f4fff9', fontWeight:800 }}>{formatMinutes(day.totalMinutes)}</div>
-                <div style={{ position:'absolute', left:'15%', right:'15%', bottom:0, height:`${barHeight}%`, borderRadius:'7px 7px 3px 3px', background:isLeave?'rgba(56,189,248,0.38)':day.totalMinutes >= TARGET_WORK_MINUTES?'linear-gradient(180deg,#34d399,#10b981)':'linear-gradient(180deg,#fbbf24,#7c3aed)', border:isSelected?'1px solid rgba(196,181,253,0.85)':'1px solid rgba(255,255,255,0.08)' }} />
+                <div style={{ position:'absolute', left:0, right:0, bottom:`calc(${barHeight}% + 5px)`, textAlign:'center', fontSize:9, color:isSelected?BRAND_TEXT:'#f4fff9', fontWeight:800 }}>{formatMinutes(day.totalMinutes)}</div>
+                <div style={{ position:'absolute', left:'15%', right:'15%', bottom:0, height:`${barHeight}%`, borderRadius:'7px 7px 3px 3px', background:isLeave?'rgba(56,189,248,0.38)':day.totalMinutes >= TARGET_WORK_MINUTES?'linear-gradient(180deg,#34d399,#10b981)':'linear-gradient(180deg,#fbbf24,#16a34a)', border:isSelected?`1px solid ${BRAND_TEXT}`:'1px solid rgba(255,255,255,0.08)' }} />
                 <div style={{ position:'absolute', left:0, right:0, bottom:-21, textAlign:'center', fontSize:10, color:isSelected?'#f1f5f9':'#f4fff9', fontWeight:800 }}>{dateFromStr(day.dateStr).toLocaleDateString('en-US', { weekday:'short' })}</div>
               </div>
             );
@@ -3254,7 +3339,7 @@ function WorkHoursPanel({ selectedDate, selectedNote, notes, onSaveRows, onStatu
           {Object.entries(WORK_STATUS_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
         </select>
         <button onClick={()=>onSaveRows(selectedDate, draft)} disabled={!canSave}
-          style={{ padding:'8px 12px', borderRadius:8, border:'none', cursor:canSave?'pointer':'not-allowed', fontWeight:800, fontSize:12, fontFamily:'inherit', background:'rgba(124,58,237,0.2)', color:'#c4b5fd', opacity:canSave?1:0.4 }}>
+          style={{ padding:'8px 12px', borderRadius:8, border:'none', cursor:canSave?'pointer':'not-allowed', fontWeight:800, fontSize:12, fontFamily:'inherit', background:BRAND_SURFACE_STRONG, color:BRAND_TEXT, opacity:canSave?1:0.4 }}>
           Save hours
         </button>
         <div style={{ fontSize:11, color:'#f4fff9' }}>{stats.creditedDay ? 'Leave days credit 435 minutes automatically.' : 'Breaks subtract from the day total.'}</div>
@@ -3267,7 +3352,7 @@ function ProjectPanel({ projects, selected, selectedId, draft, setDraft, onSelec
   if (!hasProjectsFolder) {
     return (
       <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', color:'#f4fff9', fontSize:13 }}>
-        <button onClick={onConfigure} style={{ padding:'10px 18px', borderRadius:10, border:'none', cursor:'pointer', fontWeight:700, fontSize:13, fontFamily:'inherit', background:'linear-gradient(135deg,#7c3aed,#3b82f6)', color:'#fff' }}>Configure Projects folder</button>
+        <button onClick={onConfigure} style={{ padding:'10px 18px', borderRadius:10, border:'none', cursor:'pointer', fontWeight:700, fontSize:13, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff' }}>Configure Projects folder</button>
       </div>
     );
   }
@@ -3275,10 +3360,10 @@ function ProjectPanel({ projects, selected, selectedId, draft, setDraft, onSelec
   return (
     <div style={{ flex:1, display:'grid', gridTemplateColumns:'minmax(260px, 0.38fr) minmax(420px, 1fr)', minHeight:0, overflow:'hidden' }}>
       <div style={{ borderRight:'1px solid rgba(255,255,255,0.06)', overflowY:'auto', padding:'18px 16px' }}>
-        <button onClick={onNewProject} style={{ width:'100%', padding:'9px 12px', borderRadius:9, border:'none', cursor:'pointer', fontWeight:800, fontSize:12, fontFamily:'inherit', background:'linear-gradient(135deg,#7c3aed,#3b82f6)', color:'#fff', marginBottom:12 }}>+ New Project</button>
+        <button onClick={onNewProject} style={{ width:'100%', padding:'9px 12px', borderRadius:9, border:'none', cursor:'pointer', fontWeight:800, fontSize:12, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff', marginBottom:12 }}>+ New Project</button>
         {!projects.length && <div style={{ color:'#f4fff9', textAlign:'center', paddingTop:35, fontSize:12 }}>No project files</div>}
         {projects.map(p => (
-          <button key={p.id} onClick={()=>onSelect(p.id)} style={{ width:'100%', textAlign:'left', padding:'11px 12px', marginBottom:6, borderRadius:9, border:`1px solid ${selectedId===p.id?'rgba(124,58,237,0.45)':'rgba(255,255,255,0.05)'}`, background:selectedId===p.id?'rgba(124,58,237,0.1)':'rgba(255,255,255,0.02)', color:'#e2e8f0', cursor:'pointer', fontFamily:'inherit' }}>
+          <button key={p.id} onClick={()=>onSelect(p.id)} style={{ width:'100%', textAlign:'left', padding:'11px 12px', marginBottom:6, borderRadius:9, border:`1px solid ${selectedId===p.id?BRAND_BORDER_STRONG:'rgba(255,255,255,0.05)'}`, background:selectedId===p.id?BRAND_SURFACE:'rgba(255,255,255,0.02)', color:'#e2e8f0', cursor:'pointer', fontFamily:'inherit' }}>
             <div style={{ fontSize:13, fontWeight:800, lineHeight:1.3 }}>{p.title}</div>
             <div style={{ fontSize:10, color:'#f4fff9', marginTop:4 }}>{p.status || p.filename}</div>
           </button>
@@ -3287,17 +3372,17 @@ function ProjectPanel({ projects, selected, selectedId, draft, setDraft, onSelec
       <div style={{ display:'flex', flexDirection:'column', minWidth:0, minHeight:0 }}>
         <div style={{ padding:'20px 28px 14px', borderBottom:'1px solid rgba(255,255,255,0.06)', display:'flex', justifyContent:'space-between', gap:18, alignItems:'flex-start' }}>
           <div style={{ minWidth:0 }}>
-            <div style={{ fontSize:10, color:'#a78bfa', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:7 }}>Projects</div>
+            <div style={{ fontSize:10, color:BRAND_LABEL, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:7 }}>Projects</div>
             <h2 style={{ margin:0, fontSize:20, color:'#f1f5f9' }}>{selected ? selected.title : 'Select a project'}</h2>
             {selected && <div style={{ fontSize:11, color:'#f4fff9', marginTop:5 }}>{selected.filename}</div>}
           </div>
-          <button onClick={onSave} disabled={!selected} style={{ padding:'9px 18px', borderRadius:10, border:'none', cursor:selected?'pointer':'not-allowed', fontWeight:800, fontSize:13, fontFamily:'inherit', background:'linear-gradient(135deg,#7c3aed,#3b82f6)', color:'#fff', opacity:selected?1:0.35 }}>Save</button>
+          <button onClick={onSave} disabled={!selected} style={{ padding:'9px 18px', borderRadius:10, border:'none', cursor:selected?'pointer':'not-allowed', fontWeight:800, fontSize:13, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff', opacity:selected?1:0.35 }}>Save</button>
         </div>
         {selected ? (
           <div style={{ flex:1, minHeight:0, display:'grid', gridTemplateColumns:'minmax(280px,1fr) minmax(260px,0.85fr)', overflow:'hidden' }}>
             <textarea value={draft} onChange={e=>setDraft(e.target.value)} spellCheck={false} style={{ minWidth:0, width:'100%', height:'100%', resize:'none', padding:'18px 22px', background:'rgba(255,255,255,0.025)', border:'none', color:'#e2e8f0', outline:'none', fontFamily:'ui-monospace, SFMono-Regular, Consolas, monospace', fontSize:13, lineHeight:1.65 }}/>
             <div style={{ minWidth:0, overflowY:'auto', padding:'18px 22px', borderLeft:'1px solid rgba(255,255,255,0.06)', background:'rgba(255,255,255,0.012)' }}>
-              <div style={{ fontSize:10, color:'#a78bfa', fontWeight:800, textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:12 }}>Preview</div>
+              <div style={{ fontSize:10, color:BRAND_LABEL, fontWeight:800, textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:12 }}>Preview</div>
               <MarkdownBody emptyText="No project notes body yet.">{noteBodyText(draft)}</MarkdownBody>
             </div>
           </div>
@@ -3317,7 +3402,7 @@ function PropertyPanel({ properties, selected, selectedId, images, loadError, on
       <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', color:'#f4fff9', fontSize:13 }}>
         <div style={{ textAlign:'center' }}>
           <div style={{ fontSize:32, marginBottom:10 }}>🏢</div>
-          <button onClick={onConfigure} style={{ padding:'10px 18px', borderRadius:10, border:'none', cursor:'pointer', fontWeight:700, fontSize:13, fontFamily:'inherit', background:'linear-gradient(135deg,#7c3aed,#3b82f6)', color:'#fff' }}>Configure Properties folder</button>
+          <button onClick={onConfigure} style={{ padding:'10px 18px', borderRadius:10, border:'none', cursor:'pointer', fontWeight:700, fontSize:13, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff' }}>Configure Properties folder</button>
         </div>
       </div>
     );
@@ -3436,12 +3521,12 @@ function NewProjectPanel({ onCancel, onCreate, refs }) {
     <div style={{ flex:1, display:'flex', flexDirection:'column', overflow:'hidden' }}>
       <div style={{ padding:'22px 30px 16px', borderBottom:'1px solid rgba(255,255,255,0.06)', flexShrink:0, display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:24 }}>
         <div>
-          <div style={{ fontSize:10, color:'#a78bfa', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:8 }}>+ New Project</div>
+          <div style={{ fontSize:10, color:BRAND_LABEL, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:8 }}>+ New Project</div>
           <h2 style={{ margin:0, fontSize:19, fontWeight:700, color:'#f1f5f9' }}>Create a project note</h2>
         </div>
         <div style={{ display:'flex', gap:8 }}>
           <button onClick={onCancel} style={{ padding:'9px 16px', borderRadius:10, border:'1px solid rgba(255,255,255,0.1)', cursor:'pointer', fontWeight:700, fontSize:13, fontFamily:'inherit', background:'transparent', color:'#f4fff9' }}>Cancel</button>
-          <button onClick={submit} disabled={busy || !form.title.trim()} style={{ padding:'9px 22px', borderRadius:10, border:'none', cursor:'pointer', fontWeight:700, fontSize:13, fontFamily:'inherit', background:'linear-gradient(135deg,#7c3aed,#3b82f6)', color:'#fff', opacity:(busy||!form.title.trim())?0.4:1 }}>
+          <button onClick={submit} disabled={busy || !form.title.trim()} style={{ padding:'9px 22px', borderRadius:10, border:'none', cursor:'pointer', fontWeight:700, fontSize:13, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff', opacity:(busy||!form.title.trim())?0.4:1 }}>
             {busy ? 'Creating...' : 'Create Project'}
           </button>
         </div>
@@ -3511,12 +3596,12 @@ function NewPropertyPanel({ onCancel, onCreate, refs, hasAttachmentsFolder, onCo
     <div style={{ flex:1, display:'flex', flexDirection:'column', overflow:'hidden' }}>
       <div style={{ padding:'22px 30px 16px', borderBottom:'1px solid rgba(255,255,255,0.06)', flexShrink:0, display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:24 }}>
         <div>
-          <div style={{ fontSize:10, color:'#a78bfa', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:8 }}>+ New Property</div>
+          <div style={{ fontSize:10, color:BRAND_LABEL, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:8 }}>+ New Property</div>
           <h2 style={{ margin:0, fontSize:19, fontWeight:700, color:'#f1f5f9' }}>Create a property note</h2>
         </div>
         <div style={{ display:'flex', gap:8 }}>
           <button onClick={onCancel} style={{ padding:'9px 16px', borderRadius:10, border:'1px solid rgba(255,255,255,0.1)', cursor:'pointer', fontWeight:700, fontSize:13, fontFamily:'inherit', background:'transparent', color:'#f4fff9' }}>Cancel</button>
-          <button onClick={submit} disabled={busy || !form.title.trim()} style={{ padding:'9px 22px', borderRadius:10, border:'none', cursor:'pointer', fontWeight:700, fontSize:13, fontFamily:'inherit', background:'linear-gradient(135deg,#7c3aed,#3b82f6)', color:'#fff', opacity:(busy||!form.title.trim())?0.4:1, boxShadow:'0 4px 16px rgba(124,58,237,0.4)' }}>
+          <button onClick={submit} disabled={busy || !form.title.trim()} style={{ padding:'9px 22px', borderRadius:10, border:'none', cursor:'pointer', fontWeight:700, fontSize:13, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff', opacity:(busy||!form.title.trim())?0.4:1, boxShadow:BRAND_SHADOW }}>
             {busy ? 'Creating...' : 'Create Property'}
           </button>
         </div>
@@ -3550,11 +3635,11 @@ function NewPropertyPanel({ onCancel, onCreate, refs, hasAttachmentsFolder, onCo
                 <span style={{ color:form.coverFile?'#e2e8f0':'#f4fff9', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
                   {form.coverFile ? form.coverFile.name : 'Choose an image...'}
                 </span>
-                <span style={{ color:'#c4b5fd', fontWeight:800, fontSize:11, flexShrink:0 }}>Browse</span>
+                <span style={{ color:BRAND_TEXT, fontWeight:800, fontSize:11, flexShrink:0 }}>Browse</span>
                 <input type="file" accept="image/*" onChange={e=>set('coverFile', e.target.files?.[0] || null)} style={{ display:'none' }}/>
               </label>
             ) : (
-              <button type="button" onClick={onConfigure} style={{ ...inputBase, cursor:'pointer', textAlign:'left', color:'#c4b5fd', fontWeight:700 }}>
+              <button type="button" onClick={onConfigure} style={{ ...inputBase, cursor:'pointer', textAlign:'left', color:BRAND_TEXT, fontWeight:700 }}>
                 Add Attachments folder to upload covers
               </button>
             )}
@@ -3596,12 +3681,12 @@ function NewPersonPanel({ onCancel, onCreate, refs, hasPeopleFolder, onConfigure
     <div style={{ flex:1, display:'flex', flexDirection:'column', overflow:'hidden' }}>
       <div style={{ padding:'22px 30px 16px', borderBottom:'1px solid rgba(255,255,255,0.06)', flexShrink:0, display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:24 }}>
         <div>
-          <div style={{ fontSize:10, color:'#a78bfa', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:8 }}>+ New Person</div>
+          <div style={{ fontSize:10, color:BRAND_LABEL, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:8 }}>+ New Person</div>
           <h2 style={{ margin:0, fontSize:19, fontWeight:700, color:'#f1f5f9' }}>Create a person note</h2>
         </div>
         <div style={{ display:'flex', gap:8 }}>
           <button onClick={onCancel} style={{ padding:'9px 16px', borderRadius:10, border:'1px solid rgba(255,255,255,0.1)', cursor:'pointer', fontWeight:700, fontSize:13, fontFamily:'inherit', background:'transparent', color:'#f4fff9' }}>Cancel</button>
-          <button onClick={hasPeopleFolder ? submit : onConfigure} disabled={busy || (hasPeopleFolder && !form.name.trim())} style={{ padding:'9px 22px', borderRadius:10, border:'none', cursor:'pointer', fontWeight:700, fontSize:13, fontFamily:'inherit', background:'linear-gradient(135deg,#7c3aed,#3b82f6)', color:'#fff', opacity:(busy || (hasPeopleFolder && !form.name.trim()))?0.4:1 }}>
+          <button onClick={hasPeopleFolder ? submit : onConfigure} disabled={busy || (hasPeopleFolder && !form.name.trim())} style={{ padding:'9px 22px', borderRadius:10, border:'none', cursor:'pointer', fontWeight:700, fontSize:13, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff', opacity:(busy || (hasPeopleFolder && !form.name.trim()))?0.4:1 }}>
             {hasPeopleFolder ? (busy ? 'Creating...' : 'Create Person') : 'Configure People Folder'}
           </button>
         </div>
@@ -3707,12 +3792,12 @@ function NewTaskPanel({ onCancel, onCreate, refs }) {
     <div style={{ flex:1, display:'flex', flexDirection:'column', overflow:'hidden' }}>
       <div style={{ padding:'22px 30px 16px', borderBottom:'1px solid rgba(255,255,255,0.06)', flexShrink:0, display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:24 }}>
         <div>
-          <div style={{ fontSize:10, color:'#a78bfa', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:8 }}>+ New Task</div>
+          <div style={{ fontSize:10, color:BRAND_LABEL, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:8 }}>+ New Task</div>
           <h2 style={{ margin:0, fontSize:19, fontWeight:700, color:'#f1f5f9' }}>Create a task in your Tasks folder</h2>
         </div>
         <div style={{ display:'flex', gap:8 }}>
           <button onClick={onCancel} style={{ padding:'9px 16px', borderRadius:10, border:'1px solid rgba(255,255,255,0.1)', cursor:'pointer', fontWeight:700, fontSize:13, fontFamily:'inherit', background:'transparent', color:'#f4fff9' }}>Cancel</button>
-          <button onClick={submit} disabled={busy || !canCreate} style={{ padding:'9px 22px', borderRadius:10, border:'none', cursor:'pointer', fontWeight:700, fontSize:13, fontFamily:'inherit', background:'linear-gradient(135deg,#7c3aed,#3b82f6)', color:'#fff', opacity:(busy||!canCreate)?0.4:1, boxShadow:'0 4px 16px rgba(124,58,237,0.4)' }}>
+          <button onClick={submit} disabled={busy || !canCreate} style={{ padding:'9px 22px', borderRadius:10, border:'none', cursor:'pointer', fontWeight:700, fontSize:13, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff', opacity:(busy||!canCreate)?0.4:1, boxShadow:BRAND_SHADOW }}>
             {busy ? 'Creating…' : 'Create Task'}
           </button>
         </div>
@@ -3729,7 +3814,7 @@ function NewTaskPanel({ onCancel, onCreate, refs }) {
                 {quickPreview.title && <span style={{ fontSize:10, color:'#f4fff9', padding:'3px 7px', borderRadius:14, background:'rgba(255,255,255,0.035)', border:'1px solid rgba(255,255,255,0.06)' }}>title: {quickPreview.title}</span>}
                 {quickPreview.due && <span style={{ fontSize:10, color:'#fbbf24', padding:'3px 7px', borderRadius:14, background:'rgba(251,191,36,0.08)', border:'1px solid rgba(251,191,36,0.16)' }}>due: {quickPreview.due}</span>}
                 <span style={{ fontSize:10, color:'#818cf8', padding:'3px 7px', borderRadius:14, background:'rgba(129,140,248,0.08)', border:'1px solid rgba(129,140,248,0.16)' }}>priority: {quickPreview.priority}</span>
-                {quickPreview.extraTags && <span style={{ fontSize:10, color:'#c4b5fd', padding:'3px 7px', borderRadius:14, background:'rgba(124,58,237,0.1)', border:'1px solid rgba(124,58,237,0.18)' }}>tags: {quickPreview.extraTags}</span>}
+                {quickPreview.extraTags && <span style={{ fontSize:10, color:BRAND_TEXT, padding:'3px 7px', borderRadius:14, background:BRAND_SURFACE, border:`1px solid ${BRAND_BORDER}` }}>tags: {quickPreview.extraTags}</span>}
                 {quickPreview.dueInvalid && <span style={{ fontSize:10, color:'#f87171', padding:'3px 7px', borderRadius:14, background:'rgba(248,113,113,0.08)', border:'1px solid rgba(248,113,113,0.18)' }}>invalid due date: {quickPreview.dueInvalid}</span>}
               </div>
             )}
@@ -3778,7 +3863,7 @@ function NewTaskPanel({ onCancel, onCreate, refs }) {
             </Field>
             <Field label="Recurrent">
               <label style={{ ...inputBase, display:'flex', alignItems:'center', gap:9, cursor:'pointer', minHeight:34 }}>
-                <input type="checkbox" checked={form.recurrent} onChange={e=>set('recurrent', e.target.checked)} style={{ accentColor:'#7c3aed' }}/>
+                <input type="checkbox" checked={form.recurrent} onChange={e=>set('recurrent', e.target.checked)} style={{ accentColor:BRAND_LABEL }}/>
                 <span style={{ color:'#f4fff9', fontSize:13 }}>Mark as recurrent</span>
               </label>
             </Field>
