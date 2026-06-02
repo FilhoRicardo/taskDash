@@ -550,6 +550,14 @@ function rowsFromTimeDraft(draft) {
     .sort((a, b) => minutesFromTime(a.time) - minutesFromTime(b.time));
 }
 
+function normalizedTimeRows(rows) {
+  if (!Array.isArray(rows)) return rowsFromTimeDraft(rows);
+  return rows
+    .filter(row => WORK_EVENT_ORDER.includes(row.event) && /^\d{2}:\d{2}$/.test(row.time || ''))
+    .map(row => ({ time: row.time, event: row.event }))
+    .sort((a, b) => minutesFromTime(a.time) - minutesFromTime(b.time));
+}
+
 function splitNoteDocument(raw = '') {
   const text = String(raw || '').replace(/\r\n/g, '\n');
   const frontmatter = text.match(/^(---\n[\s\S]*?\n---\n?)/)?.[1] || '';
@@ -1938,7 +1946,7 @@ export default function App() {
     }
     const result = await readDailyNoteForDate(dirs.daily, dateStr, true);
     if (!result) return;
-    const updated = replaceDailyTimeClockRows(result.note.raw, rowsFromTimeDraft(rows));
+    const updated = replaceDailyTimeClockRows(result.note.raw, normalizedTimeRows(rows));
     await saveWorkNote(dateStr, result.handle, updated, `Updated hours for ${dateStr}`);
   };
 
@@ -3135,8 +3143,25 @@ function HoursPanel({ selectedDate, selectedNote, notes, month, onSelectDate, on
   const todayStats = workStats(todayNote);
   const selectedStats = workStats(selectedNote);
   const selectedEvents = selectedNote?.timeClock || [];
+  const [timeRowsDraft, setTimeRowsDraft] = useState(selectedEvents);
   const todayTone = workBandTone(todayStats.totalMinutes);
   const selectedTone = workBandTone(selectedStats.totalMinutes);
+
+  useEffect(() => {
+    setTimeRowsDraft(selectedNote?.timeClock || []);
+  }, [selectedDate, selectedNote]);
+
+  const setDraftRowTime = (index, time) => {
+    setTimeRowsDraft(rows => rows.map((row, i) => i === index ? { ...row, time } : row));
+  };
+
+  const setDraftEventTime = (event, time) => {
+    setTimeRowsDraft(rows => {
+      const index = rows.findIndex(row => row.event === event);
+      if (index !== -1) return rows.map((row, i) => i === index ? { ...row, time } : row);
+      return time ? [...rows, { event, time }] : rows;
+    });
+  };
 
   if (!hasDailyFolder) {
     return (
@@ -3215,10 +3240,11 @@ function HoursPanel({ selectedDate, selectedNote, notes, month, onSelectDate, on
             </div>
           </div>
           <div style={{ display:'grid', gap:7 }}>
-            {selectedEvents.length ? selectedEvents.map((row, index) => (
-              <div key={`${selectedDate}-${row.event}-${row.time}-${index}`} style={{ display:'flex', justifyContent:'space-between', gap:12, padding:'8px 10px', borderRadius:12, background:'rgba(255,255,255,0.035)', border:'1px solid rgba(255,255,255,0.06)' }}>
+            {timeRowsDraft.length ? timeRowsDraft.map((row, index) => (
+              <div key={`${selectedDate}-${row.event}-${index}`} style={{ display:'flex', justifyContent:'space-between', gap:12, padding:'8px 10px', borderRadius:12, background:'rgba(255,255,255,0.035)', border:'1px solid rgba(255,255,255,0.06)' }}>
                 <span style={{ fontSize:12, color:'#f8fff9', fontWeight:700 }}>{row.event}</span>
-                <span style={{ fontSize:12, color:'rgba(244,255,249,0.68)', fontVariantNumeric:'tabular-nums' }}>{row.time}</span>
+                <input type="time" value={row.time || ''} onChange={e=>setDraftRowTime(index, e.target.value)} disabled={selectedStats.creditedDay}
+                  style={{ width:86, padding:'4px 6px', borderRadius:8, background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.08)', color:'#e2e8f0', fontSize:12, fontFamily:'inherit', outline:'none', opacity:selectedStats.creditedDay?0.45:1 }} />
               </div>
             )) : (
               <div style={{ padding:'10px 12px', borderRadius:12, background:'rgba(255,255,255,0.03)', border:'1px solid rgba(255,255,255,0.06)', color:'rgba(244,255,249,0.6)', fontSize:12 }}>
@@ -3234,6 +3260,10 @@ function HoursPanel({ selectedDate, selectedNote, notes, month, onSelectDate, on
           notes={notes}
           onMonthChange={onMonthChange}
           onSelectDate={onSelectDate}
+          selectedNote={selectedNote}
+          draftRows={timeRowsDraft}
+          onSaveRows={onSaveRows}
+          onStatusChange={onStatusChange}
           hasDailyFolder={hasDailyFolder}
         />
       </div>
@@ -3242,8 +3272,8 @@ function HoursPanel({ selectedDate, selectedNote, notes, month, onSelectDate, on
         selectedDate={selectedDate}
         selectedNote={selectedNote}
         notes={notes}
-        onSaveRows={onSaveRows}
-        onStatusChange={onStatusChange}
+        draftRows={timeRowsDraft}
+        onDraftEventTime={setDraftEventTime}
         hasDailyFolder={hasDailyFolder}
       />
     </div>
@@ -3707,10 +3737,12 @@ function MissionControlPanel({ today, overdue, recurrent, onNewTask, dailyNote, 
   );
 }
 
-function WorkCalendar({ month, selectedDate, notes, onMonthChange, onSelectDate, hasDailyFolder }) {
+function WorkCalendar({ month, selectedDate, notes, onMonthChange, onSelectDate, selectedNote, draftRows, onSaveRows, onStatusChange, hasDailyFolder }) {
   const days = monthDates(month);
   const firstPad = (dateFromStr(days[0]).getDay() + 6) % 7;
   const cells = [...Array(firstPad).fill(null), ...days];
+  const selectedStats = workStats(selectedNote);
+  const canSave = hasDailyFolder && !selectedStats.creditedDay && normalizedTimeRows(draftRows).length > 0;
 
   return (
     <section className="glass-thin" style={{ borderRadius:18, padding:'14px', minHeight:0, height:'100%', boxSizing:'border-box' }}>
@@ -3750,12 +3782,22 @@ function WorkCalendar({ month, selectedDate, notes, onMonthChange, onSelectDate,
         <span>Blue holiday</span>
         <span>Yellow bank holiday</span>
       </div>
+      <div style={{ display:'flex', gap:8, alignItems:'center', flexWrap:'wrap', marginTop:12, paddingTop:12, borderTop:'1px solid rgba(255,255,255,0.06)' }}>
+        <select value={selectedNote?.workStatus || 'workday'} onChange={e=>onStatusChange(selectedDate, e.target.value)} disabled={!hasDailyFolder}
+          style={{ padding:'9px 11px', borderRadius:10, background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.08)', color:'#e2e8f0', fontSize:12, fontFamily:'inherit', outline:'none', opacity:hasDailyFolder?1:0.45 }}>
+          {Object.entries(WORK_STATUS_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+        </select>
+        <button onClick={()=>onSaveRows(selectedDate, draftRows)} disabled={!canSave}
+          style={{ padding:'9px 13px', borderRadius:10, border:'none', cursor:canSave?'pointer':'not-allowed', fontWeight:800, fontSize:12, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff', boxShadow:BRAND_SHADOW, opacity:canSave?1:0.4 }}>
+          Save hours
+        </button>
+        <div style={{ fontSize:11, color:'#f4fff9' }}>{selectedStats.creditedDay ? 'Leave days credit 435 minutes automatically.' : 'Breaks subtract from the day total.'}</div>
+      </div>
     </section>
   );
 }
 
-function WorkHoursPanel({ selectedDate, selectedNote, notes, onSaveRows, onStatusChange, hasDailyFolder }) {
-  const [draft, setDraft] = useState(timeDraftFromRows(selectedNote?.timeClock || []));
+function WorkHoursPanel({ selectedDate, selectedNote, notes, draftRows, onDraftEventTime, hasDailyFolder }) {
   const stats = workStats(selectedNote);
   const week = weekDates(selectedDate);
   const weekStats = week.map(dateStr => ({ dateStr, ...workStats(notes[dateStr]) }));
@@ -3768,14 +3810,8 @@ function WorkHoursPanel({ selectedDate, selectedNote, notes, onSaveRows, onStatu
   const bandHeight = `${Math.max(0, ((upperTarget - lowerTarget) / chartMaxMinutes) * 100)}%`;
   const weekTolerance = TARGET_WORK_TOLERANCE * weekStats.length;
   const weekTone = workBandTone(weekTotalMinutes, WEEK_TARGET_MINUTES, weekTolerance);
-
-  useEffect(() => {
-    setDraft(timeDraftFromRows(selectedNote?.timeClock || []));
-  }, [selectedDate, selectedNote]);
-
-  const setDraftTime = (event, value) => setDraft(prev => ({ ...prev, [event]: value }));
+  const draft = timeDraftFromRows(draftRows);
   const canEditTimes = hasDailyFolder && !stats.creditedDay;
-  const canSave = canEditTimes && Object.values(draft).some(Boolean);
 
   return (
     <section className="glass-thin" style={{ borderRadius:18, padding:'14px' }}>
@@ -3791,7 +3827,7 @@ function WorkHoursPanel({ selectedDate, selectedNote, notes, onSaveRows, onStatu
         </div>
       </div>
 
-      <div style={{ height:138, position:'relative', borderRadius:16, border:'1px solid rgba(255,255,255,0.05)', background:'linear-gradient(180deg,rgba(10,34,22,0.88),rgba(8,25,18,0.82))', padding:'14px 12px 26px', marginBottom:12 }}>
+      <div style={{ height:220, position:'relative', borderRadius:16, border:'1px solid rgba(255,255,255,0.05)', background:'linear-gradient(180deg,rgba(10,34,22,0.88),rgba(8,25,18,0.82))', padding:'18px 12px 30px', marginBottom:12 }}>
         <div style={{ position:'relative', height:'100%' }}>
           <div style={{ position:'absolute', left:0, right:0, bottom:lowerBottom, height:bandHeight, background:'rgba(31,212,123,0.08)', borderTop:'1px dashed rgba(188,255,214,0.45)', borderBottom:'1px dashed rgba(188,255,214,0.45)', zIndex:2 }} />
           <div style={{ position:'absolute', right:0, bottom:lowerBottom, transform:'translateY(50%)', fontSize:9, color:'rgba(244,255,249,0.68)', background:'rgba(8,25,18,0.92)', padding:'1px 4px', zIndex:3 }}>{formatHoursMinutes(lowerTarget)}</div>
@@ -3826,22 +3862,10 @@ function WorkHoursPanel({ selectedDate, selectedNote, notes, onSaveRows, onStatu
         {WORK_EVENT_ORDER.map(event => (
           <label key={event} style={{ minWidth:0 }}>
             <span style={{ display:'block', fontSize:9, color:BRAND_LABEL, fontWeight:800, textTransform:'uppercase', marginBottom:5 }}>{event}</span>
-            <input type="time" value={draft[event] || ''} onChange={e=>setDraftTime(event, e.target.value)} disabled={!canEditTimes}
+            <input type="time" value={draft[event] || ''} onChange={e=>onDraftEventTime(event, e.target.value)} disabled={!canEditTimes}
               style={{ width:'100%', boxSizing:'border-box', padding:'9px 10px', borderRadius:10, background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.08)', color:'#e2e8f0', fontSize:12, outline:'none', fontFamily:'inherit', opacity:canEditTimes?1:0.45 }} />
           </label>
         ))}
-      </div>
-
-      <div style={{ display:'flex', gap:8, alignItems:'center', flexWrap:'wrap' }}>
-        <select value={selectedNote?.workStatus || 'workday'} onChange={e=>onStatusChange(selectedDate, e.target.value)} disabled={!hasDailyFolder}
-          style={{ padding:'9px 11px', borderRadius:10, background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.08)', color:'#e2e8f0', fontSize:12, fontFamily:'inherit', outline:'none', opacity:hasDailyFolder?1:0.45 }}>
-          {Object.entries(WORK_STATUS_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-        </select>
-        <button onClick={()=>onSaveRows(selectedDate, draft)} disabled={!canSave}
-          style={{ padding:'9px 13px', borderRadius:10, border:'none', cursor:canSave?'pointer':'not-allowed', fontWeight:800, fontSize:12, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff', boxShadow:BRAND_SHADOW, opacity:canSave?1:0.4 }}>
-          Save hours
-        </button>
-        <div style={{ fontSize:11, color:'#f4fff9' }}>{stats.creditedDay ? 'Leave days credit 435 minutes automatically.' : 'Breaks subtract from the day total.'}</div>
       </div>
     </section>
   );
