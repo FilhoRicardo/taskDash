@@ -52,6 +52,12 @@ function hasHiddenTaskTag(task) {
   });
 }
 
+function isBrainDumpTask(task) {
+  return [task?.title, task?.filename, task?.id]
+    .filter(Boolean)
+    .some(value => /^BD(?:\s|-)/i.test(String(value).trim()));
+}
+
 async function rememberWriteBackup(handle, oldText) {
   if (!oldText || typeof oldText !== 'string' || oldText.length > 500000) return;
   try {
@@ -245,7 +251,7 @@ function CommentCard({ log, index, onSave, onDelete }) {
   }, [body, log.date, log.text]);
 
   return (
-    <div style={{ width:'100%', height:'auto', minHeight:'max-content', boxSizing:'border-box', marginBottom:10, padding:'14px 16px', borderRadius:10, background:BRAND_SURFACE, border:`1px solid ${BRAND_BORDER}`, overflow:'visible' }}>
+    <div style={{ width:'100%', minWidth:0, maxWidth:'100%', height:'auto', minHeight:'max-content', boxSizing:'border-box', marginBottom:10, padding:'14px 16px', borderRadius:10, background:BRAND_SURFACE, border:`1px solid ${BRAND_BORDER}`, overflow:'hidden' }}>
       <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:10, marginBottom:8 }}>
         <div style={{ fontSize:10, color:BRAND_LABEL, fontWeight:700 }}>{log.date}{time?` · ${time}`:''}</div>
         <div style={{ display:'flex', gap:6, flexShrink:0 }}>
@@ -264,7 +270,7 @@ function CommentCard({ log, index, onSave, onDelete }) {
       </div>
       {editing ? (
         <textarea value={draft} onChange={e=>setDraft(e.target.value)} rows={editRows}
-          style={{ width:'100%', minHeight:120, boxSizing:'border-box', fieldSizing:'content', padding:'11px 12px', borderRadius:8, resize:'vertical', background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.09)', color:'#e2e8f0', fontSize:13, lineHeight:1.55, outline:'none', fontFamily:'inherit', whiteSpace:'pre-wrap', overflowWrap:'anywhere' }}/>
+          style={{ display:'block', width:'100%', minWidth:0, maxWidth:'100%', minHeight:120, maxHeight:360, boxSizing:'border-box', padding:'11px 12px', borderRadius:8, resize:'vertical', background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.09)', color:'#e2e8f0', fontSize:13, lineHeight:1.55, outline:'none', fontFamily:'inherit', whiteSpace:'pre-wrap', overflowWrap:'anywhere', overflowY:'auto', overflowX:'hidden' }}/>
       ) : (
         <MarkdownBody>{body}</MarkdownBody>
       )}
@@ -2008,7 +2014,18 @@ export default function App() {
         .filter(Boolean)
         .some(v => String(v).toLowerCase().includes(q));
     });
+  const filteredBd = filtered.filter(isBrainDumpTask);
+  const visibleTasks = view === 'bd' ? filteredBd : filtered;
   const openTasks = tasks.filter(isOpenTask);
+  const openBdTasks = openTasks.filter(isBrainDumpTask);
+
+  useEffect(() => {
+    if (view !== 'bd') return;
+    if (sel && filteredBd.some(t => t.id === sel)) return;
+    const nextId = filteredBd[0]?.id || null;
+    if (sel !== nextId) setSel(nextId);
+  }, [view, sel, filteredBd]);
+
   const byOldestCreated = (a, b) => (a.dateCreated || '9999').localeCompare(b.dateCreated || '9999') || a.title.localeCompare(b.title);
   const missionToday = openTasks.filter(t => !t.recurrent && (isToday(t.due) || isToday(t.scheduled))).sort(byOldestCreated);
   const missionOverdue = tasks.filter(isOverdueTask).sort(byOldestCreated);
@@ -2063,12 +2080,14 @@ export default function App() {
   const healthErrors = diagnostics.issues.filter(i => i.level === 'error').length;
   const healthWarnings = diagnostics.issues.filter(i => i.level === 'warning').length;
   const healthBadges = healthErrors + healthWarnings;
-  const headerLabel = view === 'mission' ? 'MISSION CONTROL' : view === 'tasks' ? "TODAY'S TOTAL" : view === 'hours' ? 'HOURS' : view === 'time' ? 'TIME DASHBOARD' : view === 'meetings' ? 'MEETINGS' : view === 'projects' ? 'PROJECT LIBRARY' : view === 'properties' ? 'PROPERTY LIBRARY' : view === 'people' ? 'PEOPLE' : 'VAULT HEALTH';
-  const headerMetric = view === 'mission' ? missionToday.length + missionOverdue.length + missionRecurrent.length : view === 'tasks' ? fmt(totalToday) : view === 'hours' ? formatHoursMinutes(selectedWorkStats.totalMinutes) : view === 'time' ? formatHoursMinutes(trailingWeekStats.summary.totalMinutes) : view === 'meetings' ? (meetingOpen ? fmt(getTime('__meeting__')) : meetings.length) : view === 'projects' ? projects.length : view === 'properties' ? properties.length : view === 'people' ? people.length : diagnostics.issues.length;
+  const headerLabel = view === 'mission' ? 'MISSION CONTROL' : view === 'tasks' ? "TODAY'S TOTAL" : view === 'bd' ? 'BD TASKS' : view === 'hours' ? 'HOURS' : view === 'time' ? 'TIME DASHBOARD' : view === 'meetings' ? 'MEETINGS' : view === 'projects' ? 'PROJECT LIBRARY' : view === 'properties' ? 'PROPERTY LIBRARY' : view === 'people' ? 'PEOPLE' : 'VAULT HEALTH';
+  const headerMetric = view === 'mission' ? missionToday.length + missionOverdue.length + missionRecurrent.length : view === 'tasks' ? fmt(totalToday) : view === 'bd' ? openBdTasks.length : view === 'hours' ? formatHoursMinutes(selectedWorkStats.totalMinutes) : view === 'time' ? formatHoursMinutes(trailingWeekStats.summary.totalMinutes) : view === 'meetings' ? (meetingOpen ? fmt(getTime('__meeting__')) : meetings.length) : view === 'projects' ? projects.length : view === 'properties' ? properties.length : view === 'people' ? people.length : diagnostics.issues.length;
   const headerDetail = view === 'mission'
     ? `${missionToday.length} today · ${missionOverdue.length} overdue · ${missionRecurrent.length} recurrent · ${dirs.daily ? 'daily on' : 'daily off'}`
     : view === 'tasks'
       ? `${openTasks.length} open tasks · ${Object.values(refs).reduce((a,r)=>a+r.length,0)} refs`
+      : view === 'bd'
+        ? `${openBdTasks.length} open BD tasks · ${filteredBd.length} shown`
       : view === 'hours'
         ? `${workDate} · ${selectedWorkStats.label} · ${formatHoursMinutes(selectedWeekTotal)} this week`
       : view === 'time'
@@ -2211,7 +2230,7 @@ export default function App() {
           </div>
         </div>
 
-        {view === 'tasks' ? (
+        {(view === 'tasks' || view === 'bd') ? (
           <>
             <div style={{ padding:'8px 10px', borderBottom:'1px solid rgba(255,255,255,0.06)' }}>
               <div style={{ fontSize:9, color:'#f4fff9', fontWeight:700, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:6 }}>Quick Track</div>
@@ -2254,7 +2273,7 @@ export default function App() {
 
 
             <div style={{ padding:'6px 10px 8px', borderBottom:'1px solid rgba(255,255,255,0.06)' }}>
-              <input value={taskSearch} onChange={e=>setTaskSearch(e.target.value)} placeholder="Search tasks..." style={{ ...inputBase, padding:'8px 10px', fontSize:12 }}/>
+              <input value={taskSearch} onChange={e=>setTaskSearch(e.target.value)} placeholder={view === 'bd' ? 'Search BD tasks...' : 'Search tasks...'} style={{ ...inputBase, padding:'8px 10px', fontSize:12 }}/>
             </div>
 
             <div style={{ display:'flex', gap:3, padding:'4px 10px 8px', borderBottom:'1px solid rgba(255,255,255,0.06)' }}>
@@ -2276,8 +2295,8 @@ export default function App() {
             </div>
 
             <div style={{ flex:1, overflowY:'auto', padding:'6px 8px' }}>
-              {!filtered.length && <div style={{ color:'#f4fff9', textAlign:'center', paddingTop:40, fontSize:12 }}>No tasks</div>}
-              {filtered.map(t => {
+              {!visibleTasks.length && <div style={{ color:'#f4fff9', textAlign:'center', paddingTop:40, fontSize:12 }}>{view === 'bd' ? 'No BD tasks' : 'No tasks'}</div>}
+              {visibleTasks.map(t => {
                 const running=timer?.taskId===t.id, active=sel===t.id, time=getTime(t.id);
                 const duplicateTitle = taskTitleCounts[(t.title || '').trim().toLowerCase()] > 1;
                 return (
@@ -2520,7 +2539,7 @@ export default function App() {
           </div>
         )}
 
-        {(view === 'tasks' || view === 'mission' || view === 'hours' || view === 'time' || view === 'meetings' || view === 'people' || view === 'health') && (
+        {(view === 'tasks' || view === 'bd' || view === 'mission' || view === 'hours' || view === 'time' || view === 'meetings' || view === 'people' || view === 'health') && (
           <div style={{ padding:'6px 10px 9px', borderTop:'1px solid rgba(255,255,255,0.04)' }}>
             <button onClick={()=>setFolderSetupOpen(true)} style={{ width:'100%', padding:'5px 10px', background:'transparent', border:'none', color:'#f4fff9', fontSize:10, cursor:'pointer', fontFamily:'inherit', textAlign:'center' }}>
               ⚙  Configure folders
@@ -2646,7 +2665,7 @@ export default function App() {
         )
       ) : view === 'health' ? (
         <HealthPanel diagnostics={diagnostics} dirs={dirs} backups={writeBackups} lastSync={lastSync} needsRefresh={needsRefresh} onForceSync={forceSyncAll} syncBusy={syncBusy} onConfigure={()=>setFolderSetupOpen(true)} onRestoreBackup={restoreBackup}/>
-      ) : view === 'tasks' && !dirs.tasks ? (
+      ) : (view === 'tasks' || view === 'bd') && !dirs.tasks ? (
         <TasksFolderRecoveryPanel issue={folderIssues.tasks} onConfigure={()=>setFolderSetupOpen(true)}/>
       ) : newPersonOpen ? (
         <NewPersonPanel onCancel={()=>setNewPersonOpen(false)} onCreate={createPerson} refs={refs} hasPeopleFolder={!!dirs.people} onConfigure={()=>setFolderSetupOpen(true)}/>
