@@ -917,7 +917,6 @@ export default function App() {
           return [];
         }
       })
-        .filter(t => !hasHiddenTaskTag(t))
         .sort((a,b) => (a.due||'9999') > (b.due||'9999') ? 1 : -1);
       setTasks(parsed);
       setFolderStats(prev => ({ ...prev, tasks: activeRaw.length, done: doneRaw.length }));
@@ -936,7 +935,7 @@ export default function App() {
       setNeedsRefresh(false);
       setSel(prev => {
         if (prev && parsed.some(t => t.id === prev)) return prev;
-        return parsed.find(t => !t.archived)?.id || parsed[0]?.id || null;
+        return parsed.find(t => !hasHiddenTaskTag(t) && !t.archived)?.id || parsed.find(t => !t.archived)?.id || parsed[0]?.id || null;
       });
     } catch(e) {
       console.error(e);
@@ -2004,7 +2003,7 @@ export default function App() {
     if (key) acc[key] = (acc[key] || 0) + 1;
     return acc;
   }, {});
-  const filtered  = tasks
+  const filterTaskList = list => list
     .filter(t => filt === 'done' ? isClosedTask(t) : isOpenTask(t))
     .filter(t => filt==='today'?isToday(t.due):filt==='overdue'?isOverdueTask(t):true)
     .filter(t => {
@@ -2014,10 +2013,12 @@ export default function App() {
         .filter(Boolean)
         .some(v => String(v).toLowerCase().includes(q));
     });
-  const filteredBd = filtered.filter(isBrainDumpTask);
+  const visibleTaskPool = tasks.filter(t => !hasHiddenTaskTag(t));
+  const filtered = filterTaskList(visibleTaskPool);
+  const filteredBd = filterTaskList(tasks.filter(isBrainDumpTask));
   const visibleTasks = view === 'bd' ? filteredBd : filtered;
-  const openTasks = tasks.filter(isOpenTask);
-  const openBdTasks = openTasks.filter(isBrainDumpTask);
+  const openTasks = visibleTaskPool.filter(isOpenTask);
+  const openBdTasks = tasks.filter(isBrainDumpTask).filter(isOpenTask);
 
   useEffect(() => {
     if (view !== 'bd') return;
