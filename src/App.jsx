@@ -1904,22 +1904,18 @@ export default function App() {
       .sort((a, b) => (a.date || '').localeCompare(b.date || '')));
   };
 
-  const addTimeClockEvent = async (event) => {
-    if (!dirs.daily || !dailyHandle || !dailyNote) {
+  const addTimeClockEvent = async (event, dateStr = tod()) => {
+    if (!dirs.daily) {
       alert('Pick a Daily Notes folder first.');
       return;
     }
 
     try {
-      const latest = await readHandleText(dailyHandle);
+      const result = await readDailyNoteForDate(dirs.daily, dateStr, true);
+      if (!result) return;
+      const latest = await readHandleText(result.handle);
       const updated = appendDailyTimeClockEvent(latest, event);
-      await writeFile(dailyHandle, updated);
-      const parsed = parseDailyNote(`${tod()}.md`, updated);
-      setDailyNote(parsed);
-      setWorkNotes(prev => ({ ...prev, [tod()]: parsed }));
-      setWorkHandles(prev => ({ ...prev, [tod()]: dailyHandle }));
-      upsertTimeNote(parsed);
-      setToast(`${event} saved to today's daily note`);
+      await saveWorkNote(dateStr, result.handle, updated, `${event} saved to ${dateStr}`);
     } catch(e) {
       console.error('time clock write failed', e);
       alert('Failed to update time clock: ' + e.message);
@@ -3138,14 +3134,12 @@ function HealthPanel({ diagnostics, dirs, backups, lastSync, needsRefresh, onFor
 }
 
 function HoursPanel({ selectedDate, selectedNote, notes, month, onSelectDate, onMonthChange, onTimeClockEvent, onSaveRows, onStatusChange, hasDailyFolder, onConfigure }) {
-  const todayKey = tod();
-  const todayNote = notes[todayKey];
-  const todayStats = workStats(todayNote);
-  const selectedStats = workStats(selectedNote);
   const selectedEvents = selectedNote?.timeClock || [];
   const [timeRowsDraft, setTimeRowsDraft] = useState(selectedEvents);
-  const todayTone = workBandTone(todayStats.totalMinutes);
-  const selectedTone = workBandTone(selectedStats.totalMinutes);
+  const normalizedDraftRows = normalizedTimeRows(timeRowsDraft);
+  const draftStats = workStats({ ...selectedNote, timeClock:normalizedDraftRows });
+  const selectedTone = workBandTone(draftStats.totalMinutes);
+  const canSaveSelected = hasDailyFolder && !draftStats.creditedDay && normalizedDraftRows.length > 0;
 
   useEffect(() => {
     setTimeRowsDraft(selectedNote?.timeClock || []);
@@ -3178,7 +3172,7 @@ function HoursPanel({ selectedDate, selectedNote, notes, month, onSelectDate, on
           <div style={{ fontSize:10, color:BRAND_LABEL, fontWeight:800, textTransform:'uppercase', letterSpacing:'0.14em', marginBottom:6 }}>Hours</div>
           <h2 style={{ margin:0, fontSize:30, color:'#f8fff9', letterSpacing:'-0.04em' }}>Time clock</h2>
           <div style={{ fontSize:13, color:'rgba(244,255,249,0.7)', marginTop:6 }}>
-            Punch today from the quick actions, then use the calendar and manual fields to correct or complete any day.
+            Pick a day on the calendar, then punch or edit that day&apos;s time clock.
           </div>
         </div>
         <button onClick={onConfigure} style={{ padding:'9px 14px', borderRadius:999, border:'1px solid rgba(255,255,255,0.08)', background:'rgba(255,255,255,0.03)', color:'#f4fff9', fontSize:11, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>
@@ -3190,32 +3184,32 @@ function HoursPanel({ selectedDate, selectedNote, notes, month, onSelectDate, on
         <section className="glass-thin" style={{ borderRadius:18, padding:'14px', height:'100%', boxSizing:'border-box' }}>
           <div style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline', gap:12, marginBottom:12 }}>
             <div>
-              <div style={{ fontSize:11, color:BRAND_LABEL, fontWeight:800, textTransform:'uppercase', letterSpacing:'0.14em', marginBottom:5 }}>Punch today</div>
-              <div style={{ fontSize:14, color:'#f8fff9', fontWeight:700 }}>{todayKey}</div>
+              <div style={{ fontSize:11, color:BRAND_LABEL, fontWeight:800, textTransform:'uppercase', letterSpacing:'0.14em', marginBottom:5 }}>Punch selected day</div>
+              <div style={{ fontSize:14, color:'#f8fff9', fontWeight:700 }}>{selectedDate}</div>
             </div>
-            <div style={{ fontSize:22, fontWeight:850, color:todayTone.text, fontVariantNumeric:'tabular-nums' }}>{formatHoursMinutes(todayStats.totalMinutes)}</div>
+            <div style={{ fontSize:22, fontWeight:850, color:selectedTone.text, fontVariantNumeric:'tabular-nums' }}>{formatHoursMinutes(draftStats.totalMinutes)}</div>
           </div>
           <div style={{ display:'grid', gridTemplateColumns:'repeat(2,minmax(0,1fr))', gap:8, marginBottom:10 }}>
             {WORK_EVENT_ORDER.map(event => (
               <button
                 key={event}
-                onClick={()=>onTimeClockEvent(event)}
+                onClick={()=>onTimeClockEvent(event, selectedDate)}
                 style={{ padding:'10px 11px', borderRadius:12, border:'1px solid rgba(255,255,255,0.08)', background:'rgba(255,255,255,0.04)', color:'#f4fff9', fontSize:12, fontWeight:800, cursor:'pointer', fontFamily:'inherit', textAlign:'left' }}
               >
                 {event}
               </button>
             ))}
           </div>
-          <div style={{ fontSize:11, color:'rgba(244,255,249,0.58)', marginBottom:8 }}>Quick actions always stamp the current time into today&apos;s daily note.</div>
+          <div style={{ fontSize:11, color:'rgba(244,255,249,0.58)', marginBottom:8 }}>Quick actions stamp the current time into the selected daily note.</div>
           <div style={{ display:'grid', gap:7 }}>
-            {(todayNote?.timeClock || []).length ? (todayNote.timeClock || []).map((row, index) => (
+            {timeRowsDraft.length ? timeRowsDraft.map((row, index) => (
               <div key={`${row.event}-${row.time}-${index}`} style={{ display:'flex', justifyContent:'space-between', gap:12, padding:'8px 10px', borderRadius:12, background:'rgba(255,255,255,0.035)', border:'1px solid rgba(255,255,255,0.06)' }}>
                 <span style={{ fontSize:12, color:'#f8fff9', fontWeight:700 }}>{row.event}</span>
                 <span style={{ fontSize:12, color:'rgba(244,255,249,0.68)', fontVariantNumeric:'tabular-nums' }}>{row.time}</span>
               </div>
             )) : (
               <div style={{ padding:'10px 12px', borderRadius:12, background:'rgba(255,255,255,0.03)', border:'1px solid rgba(255,255,255,0.06)', color:'rgba(244,255,249,0.6)', fontSize:12 }}>
-                No punches logged today yet.
+                No punches logged for this date yet.
               </div>
             )}
           </div>
@@ -3227,30 +3221,37 @@ function HoursPanel({ selectedDate, selectedNote, notes, month, onSelectDate, on
               <div style={{ fontSize:11, color:BRAND_LABEL, fontWeight:800, textTransform:'uppercase', letterSpacing:'0.14em', marginBottom:5 }}>Selected day</div>
               <div style={{ fontSize:14, color:'#f8fff9', fontWeight:700 }}>{selectedDate}</div>
             </div>
-            <div style={{ fontSize:12, color:'rgba(244,255,249,0.68)' }}>{selectedStats.label}</div>
+            <div style={{ fontSize:12, color:'rgba(244,255,249,0.68)' }}>{draftStats.label}</div>
           </div>
           <div style={{ display:'grid', gridTemplateColumns:'repeat(2,minmax(0,1fr))', gap:10, marginBottom:10 }}>
             <div style={{ padding:'12px', borderRadius:14, background:'rgba(255,255,255,0.035)', border:'1px solid rgba(255,255,255,0.06)' }}>
               <div style={{ fontSize:9, color:BRAND_LABEL, fontWeight:800, textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:5 }}>Worked</div>
-              <div style={{ fontSize:22, fontWeight:850, color:selectedTone.text, fontVariantNumeric:'tabular-nums' }}>{formatHoursMinutes(selectedStats.totalMinutes)}</div>
+              <div style={{ fontSize:22, fontWeight:850, color:selectedTone.text, fontVariantNumeric:'tabular-nums' }}>{formatHoursMinutes(draftStats.totalMinutes)}</div>
             </div>
             <div style={{ padding:'12px', borderRadius:14, background:'rgba(255,255,255,0.035)', border:'1px solid rgba(255,255,255,0.06)' }}>
               <div style={{ fontSize:9, color:BRAND_LABEL, fontWeight:800, textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:5 }}>Breaks</div>
-              <div style={{ fontSize:22, fontWeight:850, color:'#f8fff9', fontVariantNumeric:'tabular-nums' }}>{formatMinutes(selectedStats.breakMinutes)}</div>
+              <div style={{ fontSize:22, fontWeight:850, color:'#f8fff9', fontVariantNumeric:'tabular-nums' }}>{formatMinutes(draftStats.breakMinutes)}</div>
             </div>
           </div>
           <div style={{ display:'grid', gap:7 }}>
             {timeRowsDraft.length ? timeRowsDraft.map((row, index) => (
               <div key={`${selectedDate}-${row.event}-${index}`} style={{ display:'flex', justifyContent:'space-between', gap:12, padding:'8px 10px', borderRadius:12, background:'rgba(255,255,255,0.035)', border:'1px solid rgba(255,255,255,0.06)' }}>
                 <span style={{ fontSize:12, color:'#f8fff9', fontWeight:700 }}>{row.event}</span>
-                <input type="time" value={row.time || ''} onChange={e=>setDraftRowTime(index, e.target.value)} disabled={selectedStats.creditedDay}
-                  style={{ width:86, padding:'4px 6px', borderRadius:8, background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.08)', color:'#e2e8f0', fontSize:12, fontFamily:'inherit', outline:'none', opacity:selectedStats.creditedDay?0.45:1 }} />
+                <input type="time" value={row.time || ''} onChange={e=>setDraftRowTime(index, e.target.value)} disabled={draftStats.creditedDay}
+                  style={{ width:86, padding:'4px 6px', borderRadius:8, background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.08)', color:'#e2e8f0', fontSize:12, fontFamily:'inherit', outline:'none', opacity:draftStats.creditedDay?0.45:1 }} />
               </div>
             )) : (
               <div style={{ padding:'10px 12px', borderRadius:12, background:'rgba(255,255,255,0.03)', border:'1px solid rgba(255,255,255,0.06)', color:'rgba(244,255,249,0.6)', fontSize:12 }}>
                 This date has no saved clock events yet. Use the fields below to add or edit times manually.
               </div>
             )}
+          </div>
+          <div style={{ display:'flex', gap:8, alignItems:'center', flexWrap:'wrap', marginTop:10 }}>
+            <button onClick={()=>onSaveRows(selectedDate, timeRowsDraft)} disabled={!canSaveSelected}
+              style={{ padding:'9px 13px', borderRadius:10, border:'none', cursor:canSaveSelected?'pointer':'not-allowed', fontWeight:800, fontSize:12, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff', boxShadow:BRAND_SHADOW, opacity:canSaveSelected?1:0.4 }}>
+              Save hours
+            </button>
+            <span style={{ fontSize:11, color:'rgba(244,255,249,0.64)' }}>Saves edits for {selectedDate}</span>
           </div>
         </section>
 
@@ -3741,7 +3742,7 @@ function WorkCalendar({ month, selectedDate, notes, onMonthChange, onSelectDate,
   const days = monthDates(month);
   const firstPad = (dateFromStr(days[0]).getDay() + 6) % 7;
   const cells = [...Array(firstPad).fill(null), ...days];
-  const selectedStats = workStats(selectedNote);
+  const selectedStats = workStats({ ...selectedNote, timeClock:normalizedTimeRows(draftRows) });
   const canSave = hasDailyFolder && !selectedStats.creditedDay && normalizedTimeRows(draftRows).length > 0;
 
   return (
