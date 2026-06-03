@@ -611,6 +611,28 @@ export function updateTaskDates(raw, { due, scheduled }) {
   return raw.replace(/^---\n[\s\S]*?\n---/, `---\n${fm.trimEnd()}\n---`);
 }
 
+export function updateTaskThreadSubject(raw, threadSubject) {
+  const fmMatch = raw.match(/^---\n([\s\S]*?)\n---/);
+  if (!fmMatch) return raw;
+  let fm = fmMatch[1];
+  const value = String(threadSubject || '').trim();
+  const subjectRx = /^threadSubject:[ \t]*.*\n?/m;
+
+  if (value) {
+    const line = `threadSubject: ${yamlQuote(value)}`;
+    if (subjectRx.test(fm)) fm = fm.replace(subjectRx, `${line}\n`);
+    else fm = fm + (fm.endsWith('\n') ? '' : '\n') + `${line}\n`;
+  } else {
+    fm = fm.replace(subjectRx, '');
+  }
+
+  const modifiedRx = /^dateModified:[ \t]*.*$/m;
+  if (modifiedRx.test(fm)) fm = fm.replace(modifiedRx, `dateModified: ${isoLocal()}`);
+  else fm = fm + (fm.endsWith('\n') ? '' : '\n') + `dateModified: ${isoLocal()}`;
+
+  return raw.replace(/^---\n[\s\S]*?\n---/, `---\n${fm.trimEnd()}\n---`);
+}
+
 export function postponeTaskDates(raw, currentDue, currentScheduled, days = 7) {
   const due = currentDue ? addDays(currentDue, days) : (!currentScheduled ? addDays(tod(), days) : '');
   const scheduled = currentScheduled ? addDays(currentScheduled, days) : '';

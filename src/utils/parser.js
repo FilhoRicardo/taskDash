@@ -81,6 +81,7 @@ export function parseTask(name, txt) {
   return {
     id:name, title, filename:basename(name),
     priority:fm.priority||'normal', status:fm.status||'none', due:fm.due||null, scheduled:fm.scheduled||null,
+    threadSubject:fm.threadSubject||'',
     dateCreated:fm.dateCreated||null, dateModified:fm.dateModified||null,
     contexts:Array.isArray(fm.contexts)?fm.contexts:fm.contexts?[fm.contexts]:[],
     client:wl(fm.client), building:wl(fm.building),

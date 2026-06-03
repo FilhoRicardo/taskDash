@@ -9,6 +9,7 @@ import {
   setPropertyCover,
   touchDateModified,
   updateCommentLog,
+  updateTaskThreadSubject,
 } from '../formatter.js';
 
 describe('daily note mutation helpers', () => {
@@ -149,6 +150,27 @@ custom: keep me
 });
 
 describe('task date shortcut helpers', () => {
+  it('upserts and removes a task thread subject', () => {
+    const raw = `---
+title: Existing task
+status: none
+dateModified: 2026-06-01T08:00:00
+---
+
+# Existing task
+`;
+
+    const updated = updateTaskThreadSubject(raw, 'Check GBT thread before opening a new one');
+
+    expect(updated).toContain('threadSubject: "Check GBT thread before opening a new one"');
+    expect(updated).toMatch(/dateModified: \d{4}-\d{2}-\d{2}T/);
+
+    const cleared = updateTaskThreadSubject(updated, '');
+
+    expect(cleared).not.toContain('threadSubject:');
+    expect(cleared).toContain('title: Existing task');
+  });
+
   it('postpones task due and scheduled dates by one calendar month', () => {
     const raw = `---
 title: Month-end task

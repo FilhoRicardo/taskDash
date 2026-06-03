@@ -5,7 +5,7 @@ import IconRail from './IconRail.jsx';
 import TodayHero from './TodayHero.jsx';
 import { parseTask, parseProperty, parseProject, parseDailyNote, parseMeeting, parsePerson, readMdFiles, readDirNames, readImageFiles } from './utils/parser.js';
 import { idbGet, idbSet, idbDel, lsGet, lsSet, lsDel } from './utils/storage.js';
-import { fmt, tod, isToday, isOver, longDate, appendNoteToMd, appendPropertyCommentToMd, updateCommentLog, deleteCommentLog, appendDailySectionEntry, appendDailyTimeClockEvent, buildDailyNoteMd, buildTrackerRow, appendTrackerRow, buildMeetingMd, buildNewTaskMd, buildNewPropertyMd, buildNewProjectMd, buildNewPersonMd, finishRecurrentTaskInstance, markTaskDone, postponeTaskDates, postponeTaskDatesByMonths, replaceDailyTimeClockRows, setDailyWorkStatus, setPropertyCover, touchDateModified, updateTaskDates } from './utils/formatter.js';
+import { fmt, tod, isToday, isOver, longDate, appendNoteToMd, appendPropertyCommentToMd, updateCommentLog, deleteCommentLog, appendDailySectionEntry, appendDailyTimeClockEvent, buildDailyNoteMd, buildTrackerRow, appendTrackerRow, buildMeetingMd, buildNewTaskMd, buildNewPropertyMd, buildNewProjectMd, buildNewPersonMd, finishRecurrentTaskInstance, markTaskDone, postponeTaskDates, postponeTaskDatesByMonths, replaceDailyTimeClockRows, setDailyWorkStatus, setPropertyCover, touchDateModified, updateTaskDates, updateTaskThreadSubject } from './utils/formatter.js';
 import { TARGET_WORK_MINUTES, TARGET_WORK_TOLERANCE, WEEK_TARGET_MINUTES, WORK_CHART_MAX_MINUTES, WORK_EVENT_ORDER, WORK_STATUS_LABELS, dashboardStats, goalBand, minutesFromTime, workStats } from './utils/timeClock.js';
 
 const REFRESH_MS  = 5 * 60 * 1000;
@@ -766,6 +766,7 @@ export default function App() {
   const [tick,          setTick]          = useState(0);
   const [sel,           setSel]           = useState(null);
   const [note,          setNote]          = useState('');
+  const [threadSubjectDraft, setThreadSubjectDraft] = useState('');
   const [filt,          setFilt]          = useState('all');
   const [taskSearch,    setTaskSearch]    = useState('');
   const [filterName,    setFilterName]    = useState('');
@@ -1571,6 +1572,22 @@ export default function App() {
     }
   };
 
+  const saveThreadSubject = async (taskId) => {
+    const task = tasks.find(t => t.id === taskId);
+    const handle = taskHandles[taskId];
+    if (!task || !handle) return;
+    const nextSubject = threadSubjectDraft.trim();
+    if ((task.threadSubject || '') === nextSubject) return;
+    try {
+      const latestTask = parseTask(taskId, await readHandleText(handle));
+      const updated = updateTaskThreadSubject(latestTask.raw, nextSubject);
+      await writeTaskUpdate(taskId, updated, nextSubject ? 'Saved thread subject' : 'Cleared thread subject');
+    } catch(e) {
+      console.error('thread subject update failed', e);
+      alert('Failed to update thread subject: ' + e.message);
+    }
+  };
+
   const postponeTaskByWeek = async (taskId) => {
     const task = tasks.find(t => t.id === taskId);
     const handle = taskHandles[taskId];
@@ -1965,6 +1982,11 @@ export default function App() {
   const live      = timer?.taskId===sel;
   const taskDaysOpen = task ? daysOpenSince(task.dateCreated) : null;
   const taskAge = taskAgeTone(taskDaysOpen);
+
+  useEffect(() => {
+    setThreadSubjectDraft(task?.threadSubject || '');
+  }, [task?.id, task?.threadSubject]);
+
   const totalToday = [...tasks.map(t=>t.id),'__email__','__meeting__','__adhoc__'].reduce((a,id)=>a+getTime(id),0);
   const dueColor  = due => isOver(due)?'#ef4444':isToday(due)?'#f59e0b':'#f4fff9';
   const isClosedTask = t => t.archived || t.status === 'done';
@@ -2666,6 +2688,25 @@ export default function App() {
                   {task.building && <span style={{ fontSize:12, color:'#f4fff9' }}>· 🏢 {task.building}</span>}
                 </div>
                 <h2 style={{ margin:0, fontSize:19, fontWeight:700, lineHeight:1.35, color:'#f1f5f9' }}>{task.title}</h2>
+                <div style={{ marginTop:9, display:'flex', alignItems:'end', gap:8, width:'min(100%, 620px)' }}>
+                  <label style={{ flex:1, minWidth:0, display:'flex', flexDirection:'column', gap:4 }}>
+                    <span style={{ fontSize:9, color:BRAND_LABEL, fontWeight:800, letterSpacing:'0.08em', textTransform:'uppercase' }}>Thread subject</span>
+                    <input
+                      value={threadSubjectDraft}
+                      onChange={e=>setThreadSubjectDraft(e.target.value)}
+                      onBlur={()=>saveThreadSubject(task.id)}
+                      onKeyDown={e=>{ if (e.key === 'Enter') { e.preventDefault(); e.currentTarget.blur(); } }}
+                      placeholder="Optional topic to reuse for AI/chat threads..."
+                      style={{ ...inputBase, padding:'8px 10px', fontSize:13 }}
+                    />
+                  </label>
+                  {threadSubjectDraft.trim() !== (task.threadSubject || '') && (
+                    <button onMouseDown={e=>e.preventDefault()} onClick={()=>saveThreadSubject(task.id)}
+                      style={{ padding:'8px 12px', borderRadius:9, border:'none', cursor:'pointer', fontWeight:800, fontSize:12, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff', boxShadow:BRAND_SHADOW }}>
+                      Save
+                    </button>
+                  )}
+                </div>
                 <div style={{ marginTop:11, display:'inline-flex', alignItems:'center', gap:8, padding:'7px 11px', borderRadius:9, border:`1px solid ${taskAge.border}`, background:taskAge.bg, color:taskAge.color, fontSize:12, fontWeight:850 }}>
                   {taskDaysOpen === null ? 'Open age unknown - no dateCreated' : `Open for ${taskDaysOpen} day${taskDaysOpen === 1 ? '' : 's'}`}
                 </div>
