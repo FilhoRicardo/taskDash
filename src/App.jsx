@@ -2224,11 +2224,13 @@ export default function App() {
             <div style={{ width:6, height:6, borderRadius:3, background:'#10b981', boxShadow:'0 0 6px rgba(16,185,129,0.6)' }}/>
             <span style={{ fontSize:10, color:'#10b981' }}>{syncLabel} · auto while open every 5 min</span>
           </div>
-          <div style={{ padding:'11px 13px', borderRadius:10, background:BRAND_SURFACE, border:`1px solid ${BRAND_BORDER}` }}>
-            <div style={{ fontSize:9, color:BRAND_LABEL, fontWeight:800, letterSpacing:'0.1em', marginBottom:3 }}>{headerLabel}</div>
-            <div style={{ fontWeight:800, fontSize:23, letterSpacing:'-0.03em', fontVariantNumeric:'tabular-nums' }}>{headerMetric}</div>
-            <div style={{ fontSize:10, color:'#f4fff9', marginTop:2 }}>{headerDetail}</div>
-          </div>
+          {view !== 'mission' && (
+            <div style={{ padding:'11px 13px', borderRadius:10, background:BRAND_SURFACE, border:`1px solid ${BRAND_BORDER}` }}>
+              <div style={{ fontSize:9, color:BRAND_LABEL, fontWeight:800, letterSpacing:'0.1em', marginBottom:3 }}>{headerLabel}</div>
+              <div style={{ fontWeight:800, fontSize:23, letterSpacing:'-0.03em', fontVariantNumeric:'tabular-nums' }}>{headerMetric}</div>
+              <div style={{ fontSize:10, color:'#f4fff9', marginTop:2 }}>{headerDetail}</div>
+            </div>
+          )}
         </div>
 
         {(view === 'tasks' || view === 'bd') ? (
@@ -2502,41 +2504,6 @@ export default function App() {
                 ))}
               </div>
             ))}
-            <div style={{ paddingTop:4, marginTop:4, borderTop:'1px solid rgba(255,255,255,0.06)' }}>
-              <div style={{ fontSize:9, color:'#f4fff9', fontWeight:700, letterSpacing:'0.1em', textTransform:'uppercase', margin:'0 0 8px' }}>Task horizon</div>
-              <div style={{ display:'flex', gap:6, marginBottom:12 }}>
-                {[
-                  ['Tomorrow', tomorrowTasks.length, '🌤'],
-                  ['Next week', nextWeekTasks.length, '📆'],
-                  ['Next month', nextMonthTasks.length, '🗓'],
-                ].map(([label, value, icon]) => (
-                  <div key={label} style={{ flex:'1 1 0', minWidth:0, padding:'8px 7px', borderRadius:10, background:'rgba(255,255,255,0.025)', border:'1px solid rgba(255,255,255,0.05)' }}>
-                    <div style={{ display:'flex', alignItems:'center', gap:5, minWidth:0 }}>
-                      <span style={{ fontSize:13, lineHeight:1 }}>{icon}</span>
-                      <span style={{ fontSize:18, fontWeight:850, color:'#f8fff9', fontVariantNumeric:'tabular-nums', lineHeight:1 }}>{value}</span>
-                    </div>
-                    <div style={{ fontSize:9, color:'rgba(244,255,249,0.62)', marginTop:5, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{label}</div>
-                  </div>
-                ))}
-              </div>
-              <div style={{ fontSize:9, color:'#f4fff9', fontWeight:700, letterSpacing:'0.1em', textTransform:'uppercase', margin:'0 0 8px' }}>Vault counts</div>
-              <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
-                {[
-                  ['Tasks', vaultTotals.tasks, '✅'],
-                  ['Properties', vaultTotals.properties, '🏢'],
-                  ['Clients', vaultTotals.clients, '🤝'],
-                  ['People', vaultTotals.people, '👥'],
-                ].map(([label, value, icon]) => (
-                  <div key={label} style={{ flex:'1 1 calc(50% - 3px)', minWidth:82, display:'flex', justifyContent:'space-between', gap:7, alignItems:'center', padding:'7px 8px', borderRadius:9, background:'rgba(255,255,255,0.025)', border:'1px solid rgba(255,255,255,0.05)' }}>
-                    <span style={{ display:'flex', alignItems:'center', gap:5, minWidth:0, fontSize:10, color:'rgba(244,255,249,0.7)', fontWeight:750 }}>
-                      <span style={{ fontSize:12, lineHeight:1 }}>{icon}</span>
-                      <span style={{ overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{label}</span>
-                    </span>
-                    <span style={{ fontSize:12, color:'#f8fff9', fontWeight:850, fontVariantNumeric:'tabular-nums' }}>{value}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
           </div>
         )}
 
@@ -2579,12 +2546,10 @@ export default function App() {
           onConfigure={()=>setFolderSetupOpen(true)}
           completedToday={completedToday}
           tomorrowTasks={tomorrowTasks}
+          nextWeekTasks={nextWeekTasks}
+          nextMonthTasks={nextMonthTasks}
           weekDates={weekDates(tod())}
           vaultTotals={vaultTotals}
-          recentMeetings={meetings.slice(0, 4)}
-          recentProperties={properties.slice(0, 6)}
-          onOpenMeetings={()=>setView('meetings')}
-          onOpenProperties={()=>setView('properties')}
         />
       ) : view === 'hours' ? (
         <HoursPanel
@@ -3540,7 +3505,7 @@ function TimeDashboardPanel({ notes, trackerRows, tasks, hasDailyFolder, onConfi
   );
 }
 
-function MissionControlPanel({ today, overdue, recurrent, onNewTask, dailyNote, dailyInputs, setDailyInputs, onAddDailyEntry, workNotes, hasDailyFolder, onConfigure, completedToday = [], tomorrowTasks = [], weekDates: currentWeekDates = [], recentMeetings = [], recentProperties = [], onOpenMeetings, onOpenProperties }) {
+function MissionControlPanel({ today, overdue, recurrent, onNewTask, dailyNote, dailyInputs, setDailyInputs, onAddDailyEntry, workNotes, hasDailyFolder, onConfigure, completedToday = [], tomorrowTasks = [], nextWeekTasks = [], nextMonthTasks = [], weekDates: currentWeekDates = [], vaultTotals = {}, onSelectTask }) {
   const [noteSection, setNoteSection] = useState('notes');
   const greetingHour = new Date().getHours();
   const greeting = greetingHour < 12 ? 'Good morning' : greetingHour < 18 ? 'Good afternoon' : 'Good evening';
@@ -3560,40 +3525,133 @@ function MissionControlPanel({ today, overdue, recurrent, onNewTask, dailyNote, 
   ];
   const activeNote = noteSections.find(section => section.key === noteSection) || noteSections[0];
   const activeItems = activeNote.items.slice(-6).reverse();
+  const missionTotal = today.length + overdue.length + recurrent.length;
+  const horizonItems = [
+    ['Tomorrow', tomorrowTasks.length],
+    ['Next week', nextWeekTasks.length],
+    ['Next month', nextMonthTasks.length],
+  ];
+  const vaultCountItems = [
+    ['Tasks', vaultTotals.tasks ?? 0],
+    ['Properties', vaultTotals.properties ?? 0],
+    ['Clients', vaultTotals.clients ?? 0],
+    ['People', vaultTotals.people ?? 0],
+  ];
+  const taskDateDetail = task => {
+    if (task.due) return isOver(task.due) ? `due ${task.due}` : isToday(task.due) ? 'due today' : `due ${task.due}`;
+    if (task.scheduled) return isToday(task.scheduled) ? 'scheduled today' : `scheduled ${task.scheduled}`;
+    return task.dateCreated ? `created ${task.dateCreated.slice(0, 10)}` : 'date unknown';
+  };
+
+  const TopRailCard = ({ label, value, detail, children }) => (
+    <section className="glass" style={{ minWidth:0, height:'100%', borderRadius:16, padding:'12px 13px', boxSizing:'border-box', display:'flex', flexDirection:'column', justifyContent:'center' }}>
+      <div style={{ fontSize:9, color:BRAND_LABEL, fontWeight:850, letterSpacing:'0.13em', textTransform:'uppercase', marginBottom:5 }}>{label}</div>
+      {children || (
+        <>
+          <div style={{ fontSize:26, fontWeight:850, color:'#f8fff9', lineHeight:1, fontVariantNumeric:'tabular-nums' }}>{value}</div>
+          <div style={{ fontSize:10, color:'rgba(244,255,249,0.64)', marginTop:6, lineHeight:1.35 }}>{detail}</div>
+        </>
+      )}
+    </section>
+  );
+
+  const MiniMetricGrid = ({ items }) => (
+    <div style={{ display:'grid', gridTemplateColumns:'repeat(2,minmax(0,1fr))', gap:6 }}>
+      {items.map(([label, value]) => (
+        <div key={label} style={{ minWidth:0, display:'flex', justifyContent:'space-between', gap:8, alignItems:'center', padding:'6px 7px', borderRadius:9, background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.06)' }}>
+          <span style={{ minWidth:0, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', fontSize:10, color:'rgba(244,255,249,0.66)', fontWeight:750 }}>{label}</span>
+          <span style={{ fontSize:13, color:'#f8fff9', fontWeight:850, fontVariantNumeric:'tabular-nums' }}>{value}</span>
+        </div>
+      ))}
+    </div>
+  );
+
+  const TaskQueuePanel = ({ title, subtitle, tasks, tone, empty }) => (
+    <section className="glass-thin" style={{ minHeight:0, borderRadius:18, padding:'14px', display:'flex', flexDirection:'column' }}>
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:12, marginBottom:12 }}>
+        <div>
+          <div style={{ fontSize:11, color:tone, fontWeight:850, textTransform:'uppercase', letterSpacing:'0.14em', marginBottom:5 }}>{title}</div>
+          <div style={{ fontSize:13, color:'rgba(244,255,249,0.68)' }}>{subtitle}</div>
+        </div>
+        <span style={{ padding:'5px 9px', borderRadius:999, fontSize:11, fontWeight:850, color:tone, background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.08)', fontVariantNumeric:'tabular-nums' }}>{tasks.length}</span>
+      </div>
+      <div style={{ flex:1, minHeight:0, overflowY:'auto', display:'grid', gap:8, alignContent:'start' }}>
+        {tasks.length ? tasks.map(task => (
+          <button
+            key={task.id}
+            onClick={()=>onSelectTask?.(task.id)}
+            style={{
+              width:'100%',
+              textAlign:'left',
+              padding:'11px 12px',
+              borderRadius:14,
+              border:'1px solid rgba(255,255,255,0.06)',
+              background:'rgba(255,255,255,0.035)',
+              color:'#f4fff9',
+              cursor:'pointer',
+              fontFamily:'inherit',
+            }}
+          >
+            <div style={{ fontSize:13, fontWeight:800, lineHeight:1.35, color:'#f8fff9' }}>{task.title}</div>
+            <div style={{ fontSize:11, color:'rgba(244,255,249,0.62)', marginTop:4 }}>{taskDateDetail(task)}</div>
+          </button>
+        )) : (
+          <div style={{ height:'100%', display:'flex', alignItems:'center', justifyContent:'center', textAlign:'center', color:'rgba(244,255,249,0.58)', fontSize:13, padding:'24px 12px' }}>
+            {empty}
+          </div>
+        )}
+      </div>
+    </section>
+  );
 
   return (
     <div style={{ flex:1, display:'flex', flexDirection:'column', overflow:'hidden' }}>
-      <div style={{ padding:'20px 28px 16px', borderBottom:'1px solid rgba(255,255,255,0.06)', display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:18, flexShrink:0 }}>
-        <div style={{ minWidth:0 }}>
-          <div style={{ fontSize:10, color:'rgba(244,255,249,0.58)', fontWeight:700, letterSpacing:'0.18em', textTransform:'uppercase', marginBottom:8 }}>
-            {longDate(new Date())}
-          </div>
-          <h2 style={{ margin:0, fontSize:32, fontWeight:800, letterSpacing:'-0.04em', color:'#f8fff9' }}>{greeting}.</h2>
-          <div style={{ fontSize:13, color:'rgba(244,255,249,0.72)', marginTop:6, maxWidth:620 }}>
-            Queues stay in the sidebar. Use this view to steer the day, capture notes, and keep the most relevant meetings and property context in view.
+      <div style={{ padding:'12px 18px 13px', borderBottom:'1px solid rgba(255,255,255,0.06)', flexShrink:0 }}>
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline', gap:12, marginBottom:10 }}>
+          <div style={{ minWidth:0 }}>
+            <div style={{ fontSize:10, color:'rgba(244,255,249,0.58)', fontWeight:750, letterSpacing:'0.16em', textTransform:'uppercase', marginBottom:3 }}>
+              {longDate(new Date())}
+            </div>
+            <h2 style={{ margin:0, fontSize:24, fontWeight:850, letterSpacing:0, color:'#f8fff9' }}>{greeting}.</h2>
           </div>
         </div>
-        <div style={{ display:'flex', gap:8, flexShrink:0 }}>
-          <button onClick={onConfigure} style={{ padding:'9px 13px', borderRadius:10, border:'1px solid rgba(255,255,255,0.08)', cursor:'pointer', fontWeight:800, fontSize:12, fontFamily:'inherit', background:'rgba(255,255,255,0.03)', color:'#f4fff9' }}>
-            {hasDailyFolder ? 'Open in vault' : 'Set daily folder'}
-          </button>
-          <button onClick={onNewTask} style={{ padding:'9px 15px', borderRadius:10, border:'none', cursor:'pointer', fontWeight:800, fontSize:12, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff', boxShadow:BRAND_SHADOW }}>
-            + New task
-          </button>
+
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(160px,1fr))', gap:10, alignItems:'stretch' }}>
+          <TodayHero
+            workedMinutes={todayStats.totalMinutes}
+            goalMinutes={TARGET_WORK_MINUTES}
+            clockIn={clockIn}
+            shippedThisWeek={completedToday.length}
+            streakDays={streakDays}
+            compact
+          />
+
+          <TopRailCard
+            label="Mission control"
+            value={missionTotal}
+            detail={`${today.length} today · ${overdue.length} overdue · ${recurrent.length} recurrent`}
+          />
+
+          <TopRailCard label="Task horizon">
+            <MiniMetricGrid items={horizonItems} />
+          </TopRailCard>
+
+          <TopRailCard label="Vault counts">
+            <MiniMetricGrid items={vaultCountItems} />
+          </TopRailCard>
+
+          <section className="glass" style={{ minWidth:0, height:'100%', borderRadius:16, padding:'12px', boxSizing:'border-box', display:'grid', gap:8, alignContent:'center' }}>
+            <button onClick={onConfigure} style={{ width:'100%', padding:'8px 10px', borderRadius:10, border:'1px solid rgba(255,255,255,0.08)', cursor:'pointer', fontWeight:850, fontSize:11, fontFamily:'inherit', background:'rgba(255,255,255,0.035)', color:'#f4fff9' }}>
+              {hasDailyFolder ? 'Open in vault' : 'Set daily folder'}
+            </button>
+            <button onClick={onNewTask} style={{ width:'100%', padding:'8px 10px', borderRadius:10, border:'none', cursor:'pointer', fontWeight:850, fontSize:11, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff', boxShadow:BRAND_SHADOW }}>
+              + New task
+            </button>
+          </section>
         </div>
       </div>
 
-      <div style={{ padding:'14px 28px 0', flexShrink:0 }}>
-        <TodayHero
-          workedMinutes={todayStats.totalMinutes}
-          goalMinutes={TARGET_WORK_MINUTES}
-          clockIn={clockIn}
-          shippedThisWeek={completedToday.length}
-          streakDays={streakDays}
-        />
-      </div>
-
-      <div style={{ flex:1, minHeight:0, display:'grid', gridTemplateColumns:'minmax(430px,1.08fr) minmax(280px,0.72fr)', gap:16, padding:'16px 28px 24px', overflow:'hidden' }}>
+      <div style={{ flex:1, minHeight:0, display:'grid', gridTemplateColumns:'minmax(430px,1.08fr) minmax(280px,0.72fr)', gap:14, padding:'14px 18px 18px', overflow:'hidden' }}>
         <section className="glass-thin" style={{ minWidth:0, minHeight:0, borderRadius:18, display:'flex', flexDirection:'column', padding:'14px 14px 16px' }}>
           <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:14, marginBottom:12 }}>
             <div>
@@ -3706,93 +3764,21 @@ function MissionControlPanel({ today, overdue, recurrent, onNewTask, dailyNote, 
           </div>
         </section>
 
-        <div style={{ minWidth:0, minHeight:0, display:'grid', gridTemplateRows:'repeat(2,minmax(0,1fr))', gap:16 }}>
-          <section className="glass-thin" style={{ minHeight:0, borderRadius:18, padding:'14px', display:'flex', flexDirection:'column' }}>
-            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:12, marginBottom:12 }}>
-              <div>
-                <div style={{ fontSize:11, color:BRAND_LABEL, fontWeight:800, textTransform:'uppercase', letterSpacing:'0.14em', marginBottom:5 }}>Recent meetings</div>
-                <div style={{ fontSize:13, color:'rgba(244,255,249,0.68)' }}>The latest notes worth keeping in sight.</div>
-              </div>
-              <button onClick={onOpenMeetings} style={{ padding:'6px 10px', borderRadius:999, border:'1px solid rgba(255,255,255,0.08)', background:'rgba(255,255,255,0.03)', color:'#f4fff9', fontSize:11, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>
-                All
-              </button>
-            </div>
-            <div style={{ flex:1, minHeight:0, overflowY:'auto' }}>
-              {recentMeetings.length ? recentMeetings.map(meeting => (
-                <button
-                  key={meeting.id}
-                  onClick={onOpenMeetings}
-                  style={{
-                    width:'100%',
-                    textAlign:'left',
-                    padding:'12px 12px 11px',
-                    borderRadius:14,
-                    border:'1px solid rgba(255,255,255,0.06)',
-                    background:'rgba(255,255,255,0.035)',
-                    color:'#f4fff9',
-                    cursor:'pointer',
-                    fontFamily:'inherit',
-                    marginBottom:8,
-                  }}
-                >
-                  <div style={{ fontSize:13, fontWeight:700, lineHeight:1.35, color:'#f8fff9' }}>{meeting.title}</div>
-                  <div style={{ fontSize:11, color:'rgba(244,255,249,0.6)', marginTop:4 }}>{meeting.date || meeting.filename}</div>
-                </button>
-              )) : (
-                <div style={{ height:'100%', display:'flex', alignItems:'center', justifyContent:'center', textAlign:'center', color:'rgba(244,255,249,0.58)', fontSize:13, padding:'24px 12px' }}>
-                  Recent meeting notes will show up here once the Meetings folder is connected.
-                </div>
-              )}
-            </div>
-          </section>
-
-          <section className="glass-thin" style={{ minHeight:0, borderRadius:18, padding:'14px', display:'flex', flexDirection:'column' }}>
-            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:12, marginBottom:12 }}>
-              <div>
-                <div style={{ fontSize:11, color:BRAND_LABEL, fontWeight:800, textTransform:'uppercase', letterSpacing:'0.14em', marginBottom:5 }}>Properties</div>
-                <div style={{ fontSize:13, color:'rgba(244,255,249,0.68)' }}>Keep the active sites and buildings visible.</div>
-              </div>
-              <button onClick={onOpenProperties} style={{ padding:'6px 10px', borderRadius:999, border:'1px solid rgba(255,255,255,0.08)', background:'rgba(255,255,255,0.03)', color:'#f4fff9', fontSize:11, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>
-                All
-              </button>
-            </div>
-            <div style={{ flex:1, minHeight:0, display:'grid', gap:8, overflowY:'auto', alignContent:'start' }}>
-              {recentProperties.length ? recentProperties.map(property => (
-                <button
-                  key={property.id}
-                  onClick={onOpenProperties}
-                  style={{
-                    width:'100%',
-                    textAlign:'left',
-                    padding:'10px 11px',
-                    borderRadius:14,
-                    border:'1px solid rgba(255,255,255,0.06)',
-                    background:'rgba(255,255,255,0.035)',
-                    color:'#f4fff9',
-                    cursor:'pointer',
-                    fontFamily:'inherit',
-                    display:'flex',
-                    alignItems:'center',
-                    gap:10,
-                  }}
-                >
-                  <div style={{ width:30, height:30, borderRadius:999, background:BRAND_GRADIENT, color:'#fff', display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, fontWeight:800, flexShrink:0 }}>
-                    {initials(property.title)}
-                  </div>
-                  <div style={{ minWidth:0 }}>
-                    <div style={{ fontSize:13, fontWeight:700, color:'#f8fff9', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{property.title}</div>
-                    <div style={{ fontSize:11, color:'rgba(244,255,249,0.6)', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
-                      {property.client || property.summary || property.filename}
-                    </div>
-                  </div>
-                </button>
-              )) : (
-                <div style={{ color:'rgba(244,255,249,0.58)', fontSize:13, textAlign:'center', padding:'10px 0 4px' }}>
-                  Properties you track will show up here.
-                </div>
-              )}
-            </div>
-          </section>
+        <div style={{ minWidth:0, minHeight:0, display:'grid', gridTemplateRows:'repeat(2,minmax(0,1fr))', gap:14 }}>
+          <TaskQueuePanel
+            title="Overdue tasks"
+            subtitle="Items that need recovery first."
+            tasks={overdue}
+            tone="#f87171"
+            empty="No overdue tasks right now."
+          />
+          <TaskQueuePanel
+            title="Today tasks"
+            subtitle="Tasks due or scheduled today."
+            tasks={today}
+            tone="#fbbf24"
+            empty="No today tasks are queued."
+          />
         </div>
       </div>
     </div>
