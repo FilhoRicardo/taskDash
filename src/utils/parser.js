@@ -61,7 +61,7 @@ function parseDatedLogs(txt) {
   })).filter(h => h.date);
   headers.forEach((h, i) => {
     const section = txt.slice(h.end, headers[i + 1]?.start ?? txt.length);
-    [...section.matchAll(/^Log:\s*([\s\S]*?)(?=\nLog:\s|\n---[ \t]*(?=\n|$)|$)/gm)].forEach(lm => {
+    [...section.matchAll(/^Log:\s*([\s\S]*?)(?=\nLog:\s|\n---[ \t]*(?=\n|$)|(?![\s\S]))/gm)].forEach(lm => {
       const text = lm[1].trim();
       if (text) logs.push({ date: h.date, text, order: logs.length });
     });

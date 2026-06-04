@@ -77,6 +77,27 @@ tags:
     expect(task.contexts).toEqual(['Personal', 'Home']);
     expect(task.tags).toEqual(['task', 'LifeOS']);
   });
+
+  it('keeps multiline task logs together', () => {
+    const raw = `---
+title: Feedback - SwiftSquare meter issues
+---
+
+### [[2026-06-04]]
+Log: [09:02] First line of feedback
+Second line with more detail
+Third line with the outcome
+
+---
+`;
+
+    const task = parseTask('Feedback - SwiftSquare meter issues.md', raw);
+
+    expect(task.logs).toEqual([{
+      date: '2026-06-04',
+      text: '[09:02] First line of feedback\nSecond line with more detail\nThird line with the outcome',
+    }]);
+  });
 });
 
 describe('parseDailyNote', () => {

@@ -83,6 +83,27 @@ Log: [10:00] Same
     expect(updated).toContain('Log: [10:00] Updated');
   });
 
+  it('updates multiline dated logs', () => {
+    const raw = `# Task
+
+### [[2026-06-04]]
+Log: [09:02] First line
+Second line
+
+---
+`;
+
+    const updated = updateCommentLog(
+      raw,
+      '2026-06-04',
+      '[09:02] First line\nSecond line',
+      0,
+      '[09:02] First line\nSecond line edited',
+    );
+
+    expect(updated).toContain('Log: [09:02] First line\nSecond line edited');
+  });
+
   it('creates property comment sections when missing', () => {
     const updated = appendPropertyCommentToMd('# Building\n', 'First property note');
 
