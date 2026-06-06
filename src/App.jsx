@@ -2029,7 +2029,7 @@ export default function App() {
 
   const byOldestCreated = (a, b) => (a.dateCreated || '9999').localeCompare(b.dateCreated || '9999') || a.title.localeCompare(b.title);
   const missionToday = openTasks.filter(t => !t.recurrent && (isToday(t.due) || isToday(t.scheduled))).sort(byOldestCreated);
-  const missionOverdue = tasks.filter(isOverdueTask).sort(byOldestCreated);
+  const missionOverdue = openTasks.filter(isOverdueTask).sort(byOldestCreated);
   const missionRecurrent = openTasks.filter(t => t.recurrent && !isOver(t.due) && (isToday(t.due) || isToday(t.scheduled))).sort(byOldestCreated);
   const filteredProperties = properties.filter(p => {
     const q = propertySearch.trim().toLowerCase();
@@ -2061,7 +2061,8 @@ export default function App() {
   const historicalTimeStats = dashboardStats(timeNotes, timeNoteDates[0] || tod(), timeNoteDates[timeNoteDates.length - 1] || tod());
   const personSummary = personMetrics(person, tasks, meetings, isClosedTask);
   const tomorrow = addDays(tod(), 1);
-  const completedToday = tasks.filter(t => (t.completedDate || '').slice(0, 10) === tod());
+  const currentWeekDates = weekDates(tod());
+  const completedThisWeek = visibleTaskPool.filter(t => currentWeekDates.includes((t.completedDate || '').slice(0, 10)));
   const tomorrowTasks = openTasks.filter(t => t.due === tomorrow || t.scheduled === tomorrow).sort(byOldestCreated);
   const taskFallsBetween = (task, start, end) => [task.due, task.scheduled]
     .filter(Boolean)
@@ -2069,9 +2070,9 @@ export default function App() {
   const nextWeekTasks = openTasks.filter(t => taskFallsBetween(t, tomorrow, addDays(tod(), 7)));
   const nextMonthTasks = openTasks.filter(t => taskFallsBetween(t, tomorrow, addDays(tod(), 30)));
   const vaultTotals = {
-    tasks: tasks.length,
+    tasks: visibleTaskPool.length,
     tasksOpen: openTasks.length,
-    tasksFinished: tasks.filter(isClosedTask).length,
+    tasksFinished: visibleTaskPool.filter(isClosedTask).length,
     projects: projects.length,
     properties: properties.length,
     clients: refs.clients.length,
@@ -2544,11 +2545,11 @@ export default function App() {
           onWorkStatusChange={updateWorkStatus}
           hasDailyFolder={!!dirs.daily}
           onConfigure={()=>setFolderSetupOpen(true)}
-          completedToday={completedToday}
+          completedThisWeek={completedThisWeek}
           tomorrowTasks={tomorrowTasks}
           nextWeekTasks={nextWeekTasks}
           nextMonthTasks={nextMonthTasks}
-          weekDates={weekDates(tod())}
+          weekDates={currentWeekDates}
           vaultTotals={vaultTotals}
         />
       ) : view === 'hours' ? (
@@ -3505,7 +3506,7 @@ function TimeDashboardPanel({ notes, trackerRows, tasks, hasDailyFolder, onConfi
   );
 }
 
-function MissionControlPanel({ today, overdue, recurrent, onNewTask, dailyNote, dailyInputs, setDailyInputs, onAddDailyEntry, workNotes, hasDailyFolder, onConfigure, completedToday = [], tomorrowTasks = [], nextWeekTasks = [], nextMonthTasks = [], weekDates: currentWeekDates = [], vaultTotals = {}, onSelectTask }) {
+function MissionControlPanel({ today, overdue, recurrent, onNewTask, dailyNote, dailyInputs, setDailyInputs, onAddDailyEntry, workNotes, hasDailyFolder, onConfigure, completedThisWeek = [], tomorrowTasks = [], nextWeekTasks = [], nextMonthTasks = [], weekDates: currentWeekDates = [], vaultTotals = {}, onSelectTask }) {
   const [noteSection, setNoteSection] = useState('notes');
   const greetingHour = new Date().getHours();
   const greeting = greetingHour < 12 ? 'Good morning' : greetingHour < 18 ? 'Good afternoon' : 'Good evening';
@@ -3621,7 +3622,7 @@ function MissionControlPanel({ today, overdue, recurrent, onNewTask, dailyNote, 
             workedMinutes={todayStats.totalMinutes}
             goalMinutes={TARGET_WORK_MINUTES}
             clockIn={clockIn}
-            shippedThisWeek={completedToday.length}
+            shippedThisWeek={completedThisWeek.length}
             streakDays={streakDays}
             compact
           />
