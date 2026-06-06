@@ -2,7 +2,6 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import IconRail from './IconRail.jsx';
-import TodayHero from './TodayHero.jsx';
 import { parseTask, parseProperty, parseProject, parseDailyNote, parseMeeting, parsePerson, readMdFiles, readDirNames, readImageFiles } from './utils/parser.js';
 import { idbGet, idbSet, idbDel, lsGet, lsSet, lsDel } from './utils/storage.js';
 import { fmt, tod, isToday, isOver, longDate, appendNoteToMd, appendPropertyCommentToMd, updateCommentLog, deleteCommentLog, appendDailySectionEntry, appendDailyTimeClockEvent, buildDailyNoteMd, buildTrackerRow, appendTrackerRow, buildMeetingMd, buildNewTaskMd, buildNewPropertyMd, buildNewProjectMd, buildNewPersonMd, finishRecurrentTaskInstance, markTaskDone, postponeTaskDates, postponeTaskDatesByMonths, replaceDailyTimeClockRows, setDailyWorkStatus, setPropertyCover, touchDateModified, updateTaskDates, updateTaskThreadSubject } from './utils/formatter.js';
@@ -3510,9 +3509,6 @@ function MissionControlPanel({ today, overdue, recurrent, onNewTask, dailyNote, 
   const [noteSection, setNoteSection] = useState('notes');
   const greetingHour = new Date().getHours();
   const greeting = greetingHour < 12 ? 'Good morning' : greetingHour < 18 ? 'Good afternoon' : 'Good evening';
-  const todayKey = tod();
-  const todayStats = workStats(workNotes[todayKey]);
-  const clockIn = (workNotes[todayKey]?.timeClock || []).find(row => row.event === 'Clock in')?.time || '';
   let streakDays = 0;
   for (const dateStr of [...currentWeekDates].reverse()) {
     if (goalBand(workStats(workNotes[dateStr]).totalMinutes) === 'target') streakDays += 1;
@@ -3618,13 +3614,10 @@ function MissionControlPanel({ today, overdue, recurrent, onNewTask, dailyNote, 
         </div>
 
         <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(160px,1fr))', gap:10, alignItems:'stretch' }}>
-          <TodayHero
-            workedMinutes={todayStats.totalMinutes}
-            goalMinutes={TARGET_WORK_MINUTES}
-            clockIn={clockIn}
-            shippedThisWeek={completedThisWeek.length}
-            streakDays={streakDays}
-            compact
+          <TopRailCard
+            label="Finished this week"
+            value={completedThisWeek.length}
+            detail={`${streakDays ? `${streakDays}-day time streak · ` : ''}work tasks completed`}
           />
 
           <TopRailCard
