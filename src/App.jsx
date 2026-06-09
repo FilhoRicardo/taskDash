@@ -1,7 +1,9 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import IconRail from './IconRail.jsx';
+import MentionTextarea, { MentionProvider } from './MentionTextarea.jsx';
+import { wikilinksToMarkdown, isWikilinkHref, wikilinkTarget } from './utils/mentions.js';
 import { parseTask, parseProperty, parseProject, parseDailyNote, parseMeeting, parsePerson, readMdFiles, readDirNames, readImageFiles } from './utils/parser.js';
 import { idbGet, idbSet, idbDel, lsGet, lsSet, lsDel } from './utils/storage.js';
 import { fmt, tod, isToday, isOver, longDate, appendNoteToMd, appendPropertyCommentToMd, updateCommentLog, deleteCommentLog, appendDailySectionEntry, appendDailyTimeClockEvent, buildDailyNoteMd, buildTrackerRow, appendTrackerRow, buildMeetingMd, buildNewTaskMd, buildNewPropertyMd, buildNewProjectMd, buildNewPersonMd, finishRecurrentTaskInstance, markTaskDone, postponeTaskDates, postponeTaskDatesByMonths, replaceDailyTimeClockRows, setDailyWorkStatus, setPropertyCover, touchDateModified, updateTaskDates, updateTaskThreadSubject } from './utils/formatter.js';
@@ -224,17 +226,20 @@ function MarkdownBody({ children, emptyText = 'No Markdown content yet.', compac
   const text = String(children || '').trim();
   if (!text) return <div style={{ color:'#f4fff9' }}>{emptyText}</div>;
   return (
-    <ReactMarkdown
-      remarkPlugins={[remarkGfm]}
-      className={`markdown-body${compact ? ' markdown-compact' : ''}`}
-      components={{
-        a: ({ node: _node, ...props }) => <a {...props} target="_blank" rel="noreferrer" />,
-        img: ({ node: _node, ...props }) => <img {...props} loading="lazy" />,
-        input: ({ node: _node, ...props }) => <input {...props} disabled />,
-      }}
-    >
-      {text}
-    </ReactMarkdown>
+    <div className={`markdown-body${compact ? ' markdown-compact' : ''}`}>
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        components={{
+          a: ({ node: _node, href, children: linkChildren, ...props }) => isWikilinkHref(href)
+            ? <span className="wikilink" title={`Linked note: ${wikilinkTarget(href)}`}>{linkChildren}</span>
+            : <a {...props} href={href} target="_blank" rel="noreferrer">{linkChildren}</a>,
+          img: ({ node: _node, ...props }) => <img {...props} loading="lazy" />,
+          input: ({ node: _node, ...props }) => <input {...props} disabled />,
+        }}
+      >
+        {wikilinksToMarkdown(text)}
+      </ReactMarkdown>
+    </div>
   );
 }
 
@@ -268,7 +273,7 @@ function CommentCard({ log, index, onSave, onDelete }) {
         </div>
       </div>
       {editing ? (
-        <textarea value={draft} onChange={e=>setDraft(e.target.value)} rows={editRows}
+        <MentionTextarea value={draft} onChange={e=>setDraft(e.target.value)} rows={editRows}
           style={{ display:'block', width:'100%', minWidth:0, maxWidth:'100%', minHeight:120, maxHeight:360, boxSizing:'border-box', padding:'11px 12px', borderRadius:8, resize:'vertical', background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.09)', color:'#e2e8f0', fontSize:13, lineHeight:1.55, outline:'none', fontFamily:'inherit', whiteSpace:'pre-wrap', overflowWrap:'anywhere', overflowY:'auto', overflowX:'hidden' }}/>
       ) : (
         <MarkdownBody>{body}</MarkdownBody>
@@ -2077,6 +2082,12 @@ export default function App() {
     clients: refs.clients.length,
     people: people.length,
   };
+  const mentionOptions = useMemo(() => [
+    ...(refs.people || []).map(label => ({ label, type:'person' })),
+    ...(refs.projects || []).map(label => ({ label, type:'project' })),
+    ...(refs.clients || []).map(label => ({ label, type:'client' })),
+    ...(refs.properties || []).map(label => ({ label, type:'property' })),
+  ], [refs]);
   const diagnostics = buildDiagnostics({ tasks, projects, properties, refs, dirs, folderStats, folderIssues, backups:writeBackups });
   const healthErrors = diagnostics.issues.filter(i => i.level === 'error').length;
   const healthWarnings = diagnostics.issues.filter(i => i.level === 'warning').length;
@@ -2192,7 +2203,7 @@ export default function App() {
 
   // ── Main UI ──
   return (
-    <>
+    <MentionProvider options={mentionOptions}>
       <div className="wallpaper" aria-hidden="true"><div className="blob"/></div>
       <div className="shell">
         {toast && <Toast msg={toast} onClose={() => setToast(null)} />}
@@ -2749,8 +2760,8 @@ export default function App() {
           <div style={{ flex:1, minHeight:0, display:'grid', gridTemplateColumns:'minmax(420px, 0.58fr) minmax(360px, 0.42fr)', gap:0, overflow:'hidden' }}>
             <div style={{ minWidth:0, overflowY:'auto', padding:'18px 24px 18px 30px', borderRight:'1px solid rgba(255,255,255,0.06)' }}>
               <div style={{ display:'flex', gap:8, marginBottom:18, alignItems:'stretch' }}>
-                <textarea value={note} onChange={e=>setNote(e.target.value)} onKeyDown={e=>{ if(e.key==='Enter'&&!e.shiftKey){ e.preventDefault(); addNote(); }}}
-                  placeholder="Add a note... Enter to save, Shift+Enter for a new line"
+                <MentionTextarea value={note} onChange={e=>setNote(e.target.value)} onKeyDown={e=>{ if(e.key==='Enter'&&!e.shiftKey){ e.preventDefault(); addNote(); }}}
+                  placeholder="Add a note... @ to link a person/project, Enter to save, Shift+Enter for a new line"
                   rows={3}
                   style={{ flex:1, minHeight:76, fieldSizing:'content', padding:'10px 14px', borderRadius:10, resize:'vertical', background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.09)', color:'#e2e8f0', fontSize:13, lineHeight:1.5, outline:'none', fontFamily:'inherit' }}/>
                 <button onClick={addNote} disabled={!note.trim()} style={{ padding:'10px 20px', borderRadius:10, border:'none', cursor:'pointer', fontWeight:600, fontSize:13, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff', opacity:note.trim()?1:0.35 }}>Add</button>
@@ -2778,7 +2789,7 @@ export default function App() {
       )}
       </div>
       </div>
-    </>
+    </MentionProvider>
   );
 }
 
@@ -2871,7 +2882,7 @@ function PeoplePanel({ selected, draft, setDraft, onSave, summary, hasPeopleFold
             <div style={{ fontSize:12, color:'rgba(244,255,249,0.64)' }}>{selected.filename}{lastTouched ? ` · touched ${String(lastTouched).slice(0, 10)}` : ''}</div>
           </div>
         </div>
-        <textarea
+        <MentionTextarea
           value={noteParts.body}
           onChange={e=>setDraft(replaceNoteBody(draft, e.target.value))}
           spellCheck={false}
@@ -3017,8 +3028,8 @@ function MeetingPanel({ meetingOpen, meetingTitle, meetingNotes, meetingLinks, s
           </Field>
         </div>
         <div style={{ fontSize:10, color:'#f4fff9', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.1em' }}>Notes</div>
-        <textarea value={meetingNotes} onChange={e => setMeetingNotes(e.target.value)}
-          placeholder="Type your meeting notes here... markdown supported"
+        <MentionTextarea value={meetingNotes} onChange={e => setMeetingNotes(e.target.value)}
+          placeholder="Type your meeting notes here... markdown supported, @ to link people and projects"
           style={{ flex:1, padding:'14px', borderRadius:10, resize:'none', background:'rgba(255,255,255,0.03)', border:'1px solid rgba(255,255,255,0.08)', color:'#e2e8f0', fontSize:13, lineHeight:1.7, outline:'none', fontFamily:'inherit' }}/>
         <div style={{ fontSize:11, color:'#f4fff9' }}>
           Will save as: {filename}
@@ -3709,7 +3720,7 @@ function MissionControlPanel({ today, overdue, recurrent, onNewTask, dailyNote, 
             </div>
 
             <div style={{ marginTop:12, paddingTop:12, borderTop:'1px solid rgba(255,255,255,0.08)' }}>
-              <textarea
+              <MentionTextarea
                 value={dailyInputs[activeNote.key] || ''}
                 onChange={e=>setDailyInputs(prev => ({ ...prev, [activeNote.key]: e.target.value }))}
                 onKeyDown={e=>{ if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) onAddDailyEntry(activeNote.key); }}
@@ -3948,7 +3959,7 @@ function ProjectPanel({ projects, selected, selectedId, draft, setDraft, onSelec
             <div style={{ padding:'14px 22px 10px', fontSize:11, color:'rgba(244,255,249,0.62)' }}>
               Markdown editor only. The live preview pane was removed to keep this view focused and readable.
             </div>
-            <textarea value={draft} onChange={e=>setDraft(e.target.value)} spellCheck={false} style={{ minWidth:0, width:'100%', height:'100%', resize:'none', padding:'12px 22px 22px', background:'rgba(255,255,255,0.025)', border:'none', color:'#e2e8f0', outline:'none', fontFamily:'ui-monospace, SFMono-Regular, Consolas, monospace', fontSize:13, lineHeight:1.65 }}/>
+            <MentionTextarea value={draft} onChange={e=>setDraft(e.target.value)} spellCheck={false} style={{ minWidth:0, width:'100%', height:'100%', resize:'none', padding:'12px 22px 22px', background:'rgba(255,255,255,0.025)', border:'none', color:'#e2e8f0', outline:'none', fontFamily:'ui-monospace, SFMono-Regular, Consolas, monospace', fontSize:13, lineHeight:1.65 }}/>
           </div>
         ) : (
           <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', color:'#f4fff9', fontSize:13 }}>Select or create a project</div>
@@ -4041,7 +4052,7 @@ function PropertyPanel({ properties, selected, selectedId, images, loadError, on
               {selected.summary && <p style={{ margin:'0 0 20px', color:'#f4fff9', fontSize:15, lineHeight:1.6 }}>{selected.summary}</p>}
 
               <div style={{ display:'flex', gap:8, marginBottom:18 }}>
-                <textarea value={comment} onChange={e=>setComment(e.target.value)} placeholder="Add a property comment…" rows={6}
+                <MentionTextarea value={comment} onChange={e=>setComment(e.target.value)} placeholder="Add a property comment… @ to link a person/project" rows={6}
                   onKeyDown={e=>{ if(e.key==='Enter'&&!e.shiftKey){ e.preventDefault(); onAddComment(); }}}
                   style={{ flex:1, minHeight:160, fieldSizing:'content', padding:'12px 14px', borderRadius:10, resize:'vertical', background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.10)', color:'#f4fff9', fontSize:15, lineHeight:1.55, outline:'none', fontFamily:'inherit' }}/>
                 <button onClick={onAddComment} disabled={!comment.trim()} style={{ alignSelf:'stretch', padding:'0 20px', borderRadius:10, border:'none', cursor:'pointer', fontWeight:800, fontSize:14, fontFamily:'inherit', background:'linear-gradient(135deg,#0d8a5b,#063e2e)', color:'#f4fff9', opacity:comment.trim()?1:0.35 }}>Add</button>
@@ -4125,7 +4136,7 @@ function NewProjectPanel({ onCancel, onCreate, refs }) {
             <input value={form.tags} onChange={e=>set('tags', e.target.value)} placeholder="project, union" style={inputBase}/>
           </Field>
           <Field label="Initial notes">
-            <textarea value={form.body} onChange={e=>set('body', e.target.value)} placeholder="Project notes, scope, next actions..." rows={8} style={{ ...inputBase, resize:'vertical', lineHeight:1.55 }}/>
+            <MentionTextarea value={form.body} onChange={e=>set('body', e.target.value)} placeholder="Project notes, scope, next actions..." rows={8} style={{ ...inputBase, resize:'vertical', lineHeight:1.55 }}/>
           </Field>
         </form>
       </div>
@@ -4210,7 +4221,7 @@ function NewPropertyPanel({ onCancel, onCreate, refs, hasAttachmentsFolder, onCo
           </Field>
 
           <Field label="Initial notes (optional)">
-            <textarea value={form.body} onChange={e=>set('body', e.target.value)} placeholder="Optional property details..." rows={7} style={{ ...inputBase, resize:'vertical', lineHeight:1.55 }}/>
+            <MentionTextarea value={form.body} onChange={e=>set('body', e.target.value)} placeholder="Optional property details..." rows={7} style={{ ...inputBase, resize:'vertical', lineHeight:1.55 }}/>
           </Field>
         </form>
       </div>
@@ -4289,7 +4300,7 @@ function NewPersonPanel({ onCancel, onCreate, refs, hasPeopleFolder, onConfigure
           </Field>
 
           <Field label="Initial notes">
-            <textarea value={form.body} onChange={e=>set('body', e.target.value)} placeholder="Relationship notes, preferences, context..." rows={8} style={{ ...inputBase, resize:'vertical', lineHeight:1.55 }}/>
+            <MentionTextarea value={form.body} onChange={e=>set('body', e.target.value)} placeholder="Relationship notes, preferences, context..." rows={8} style={{ ...inputBase, resize:'vertical', lineHeight:1.55 }}/>
           </Field>
         </form>
       </div>
@@ -4456,7 +4467,7 @@ function NewTaskPanel({ onCancel, onCreate, refs }) {
           </Field>
 
           <Field label="Details / initial log (optional)">
-            <textarea value={form.body} onChange={e=>set('body', e.target.value)} placeholder="Initial task details…" rows={6} style={{ ...inputBase, resize:'vertical', lineHeight:1.55 }}/>
+            <MentionTextarea value={form.body} onChange={e=>set('body', e.target.value)} placeholder="Initial task details…" rows={6} style={{ ...inputBase, resize:'vertical', lineHeight:1.55 }}/>
           </Field>
         </form>
       </div>
