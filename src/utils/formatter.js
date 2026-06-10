@@ -464,6 +464,19 @@ export function buildNewTaskMd({
   return lines.join('\n') + '\n';
 }
 
+// Vault naming convention: lowercase kebab-case filenames ("Paula Chipont"
+// becomes paula-chipont.md). Used for every note created via the UI.
+export function kebabSlug(title, fallback = 'untitled') {
+  return String(title || '').trim()
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/&/g, ' and ')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 180) || fallback;
+}
+
 function yamlQuote(value = '') {
   return `"${String(value).replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
 }
@@ -535,6 +548,31 @@ export function buildNewPersonMd({ name, company, role, email, phone, tags, body
   lines.push(`person: ${yamlQuote(name)}`);
   if (company) lines.push(`company: ${yamlQuote(`[[${company}]]`)}`);
   if (role) lines.push(`role: ${yamlQuote(role)}`);
+  if (email) lines.push(`email: ${yamlQuote(email)}`);
+  if (phone) lines.push(`phone: ${yamlQuote(phone)}`);
+  lines.push('---');
+  lines.push(`# ${name}`);
+  lines.push('');
+  if (body && body.trim()) lines.push(body.trim());
+  else lines.push('## Notes', '');
+  return lines.join('\n') + '\n';
+}
+
+export function buildNewOrganizationMd({ name, industry, website, email, phone, tags, body }) {
+  const today = tod();
+  const tagArr = ['organizations'];
+  splitTags(tags).forEach(t => {
+    if (!tagArr.includes(t)) tagArr.push(t);
+  });
+
+  const lines = ['---'];
+  lines.push(`dateCreated: ${today}`);
+  lines.push(`dateModified: ${today}`);
+  lines.push(`tags: [${tagArr.join(', ')}]`);
+  lines.push('type: organization');
+  lines.push(`organization: ${yamlQuote(name)}`);
+  if (industry) lines.push(`industry: ${yamlQuote(industry)}`);
+  if (website) lines.push(`website: ${yamlQuote(website)}`);
   if (email) lines.push(`email: ${yamlQuote(email)}`);
   if (phone) lines.push(`phone: ${yamlQuote(phone)}`);
   lines.push('---');

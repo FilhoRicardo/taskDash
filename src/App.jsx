@@ -4,9 +4,9 @@ import remarkGfm from 'remark-gfm';
 import IconRail from './IconRail.jsx';
 import MentionTextarea, { MentionProvider } from './MentionTextarea.jsx';
 import { wikilinksToMarkdown, isWikilinkHref, wikilinkTarget } from './utils/mentions.js';
-import { parseTask, parseProperty, parseProject, parseDailyNote, parseMeeting, parsePerson, readMdFiles, readDirNames, readImageFiles } from './utils/parser.js';
+import { parseTask, parseProperty, parseProject, parseDailyNote, parseMeeting, parsePerson, parseOrganization, readMdFiles, readDirNames, readImageFiles } from './utils/parser.js';
 import { idbGet, idbSet, idbDel, lsGet, lsSet, lsDel } from './utils/storage.js';
-import { fmt, tod, isToday, isOver, longDate, appendNoteToMd, appendPropertyCommentToMd, updateCommentLog, deleteCommentLog, appendDailySectionEntry, appendDailyTimeClockEvent, buildDailyNoteMd, buildTrackerRow, appendTrackerRow, buildMeetingMd, buildNewTaskMd, buildNewPropertyMd, buildNewProjectMd, buildNewPersonMd, finishRecurrentTaskInstance, markTaskDone, postponeTaskDates, postponeTaskDatesByMonths, replaceDailyTimeClockRows, setDailyWorkStatus, setPropertyCover, touchDateModified, updateTaskDates, updateTaskThreadSubject } from './utils/formatter.js';
+import { fmt, tod, isToday, isOver, longDate, appendNoteToMd, appendPropertyCommentToMd, updateCommentLog, deleteCommentLog, appendDailySectionEntry, appendDailyTimeClockEvent, buildDailyNoteMd, buildTrackerRow, appendTrackerRow, buildMeetingMd, buildNewTaskMd, buildNewPropertyMd, buildNewProjectMd, buildNewPersonMd, buildNewOrganizationMd, kebabSlug, finishRecurrentTaskInstance, markTaskDone, postponeTaskDates, postponeTaskDatesByMonths, replaceDailyTimeClockRows, setDailyWorkStatus, setPropertyCover, touchDateModified, updateTaskDates, updateTaskThreadSubject } from './utils/formatter.js';
 import { TARGET_WORK_MINUTES, TARGET_WORK_TOLERANCE, WEEK_TARGET_MINUTES, WORK_CHART_MAX_MINUTES, WORK_EVENT_ORDER, WORK_STATUS_LABELS, dashboardStats, goalBand, minutesFromTime, workStats } from './utils/timeClock.js';
 
 const REFRESH_MS  = 5 * 60 * 1000;
@@ -21,10 +21,11 @@ const FOLDER_DEFS = [
   { key:'properties', label:'Properties', mode:'readwrite', required:false, desc:'For building autocomplete and property comments' },
   { key:'clients',    label:'Clients',    mode:'read',      required:false, desc:'For client autocomplete' },
   { key:'people',     label:'People',     mode:'readwrite', required:false, desc:'For "waiting for" autocomplete and adding new people' },
+  { key:'organizations', label:'Organizations', mode:'readwrite', required:false, desc:'For organization notes, autocomplete, and adding new organizations' },
   { key:'attachments', label:'Attachments', mode:'readwrite', required:false, desc:'For property cover images and uploads' },
   { key:'daily',      label:'Daily Notes', mode:'readwrite', required:false, desc:'Where TaskDash should auto-create YYYY-MM-DD daily notes' },
 ];
-const REF_KEYS = ['projects','properties','clients','people'];
+const REF_KEYS = ['projects','properties','clients','people','organizations'];
 const FOLDER_SETUP_SEEN = 'folderSetupV2Seen';
 const WRITE_BACKUPS_KEY = 'taskdashWriteBackups';
 const SAVED_FILTERS_KEY = 'taskdashSavedFilters';
@@ -394,17 +395,6 @@ function buildDiagnostics({ tasks, projects, properties, refs, dirs, folderStats
   };
 }
 
-function propertySlug(title) {
-  return title.trim()
-    .toLowerCase()
-    .normalize('NFKD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/&/g, ' and ')
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 180) || 'new-property';
-}
-
 function projectFilename(title) {
   const name = safeFilename(title).replace(/^project\s*-\s*/i, '');
   return `Project - ${name || 'Untitled project'}.md`;
@@ -749,6 +739,14 @@ export default function App() {
   const [personSel,     setPersonSel]     = useState(null);
   const [personDraft,   setPersonDraft]   = useState('');
 
+  // Organization library state
+  const [organizations, setOrganizations] = useState([]);
+  const [orgHandles,    setOrgHandles]    = useState({});
+  const [orgSel,        setOrgSel]        = useState(null);
+  const [orgDraft,      setOrgDraft]      = useState('');
+  const [orgSearch,     setOrgSearch]     = useState('');
+  const [newOrgOpen,    setNewOrgOpen]    = useState(false);
+
   // Meeting library state
   const [meetings,      setMeetings]      = useState([]);
   const [meetingSel,    setMeetingSel]    = useState(null);
@@ -908,6 +906,11 @@ export default function App() {
     setPersonDraft(person?.raw || '');
   }, [personSel, people]);
 
+  useEffect(() => {
+    const organization = organizations.find(o => o.id === orgSel);
+    setOrgDraft(organization?.raw || '');
+  }, [orgSel, organizations]);
+
   const loadFiles = useCallback(async (dir, doneDir = null) => {
     try {
       const raw = [];
@@ -1007,6 +1010,20 @@ export default function App() {
     } catch(e) { console.error('people load failed', e); }
   }, []);
 
+  const loadOrganizations = useCallback(async (dir) => {
+    try {
+      const raw = await readMdFiles(dir, [], '', { includeUnderscore: true });
+      const parsed = raw.map(f => parseOrganization(f.name, f.text))
+        .sort((a,b) => a.title.localeCompare(b.title));
+      setOrganizations(parsed);
+      setFolderStats(prev => ({ ...prev, organizations: raw.length }));
+      const handles = {};
+      raw.forEach(f => { handles[f.name] = f.handle; });
+      setOrgHandles(handles);
+      setOrgSel(prev => prev && parsed.some(o => o.id === prev) ? prev : (parsed[0]?.id || null));
+    } catch(e) { console.error('organizations load failed', e); }
+  }, []);
+
   const loadMeetings = useCallback(async (dir) => {
     try {
       const raw = await readMdFiles(dir, [], '', { includeUnderscore: true });
@@ -1104,7 +1121,7 @@ export default function App() {
   }, []);
 
   const loadRefs = useCallback(async (liveDirs) => {
-    const out = { projects:[], properties:[], clients:[], people:[] };
+    const out = { projects:[], properties:[], clients:[], people:[], organizations:[] };
     for (const k of REF_KEYS) {
       if (!liveDirs[k]) continue;
       try {
@@ -1122,6 +1139,7 @@ export default function App() {
     if (keys.includes('projects')) { setProjects([]); setProjectHandles({}); setProjectSel(null); setProjectDraft(''); }
     if (keys.includes('properties')) { setProperties([]); setPropertyHandles({}); setPropertySel(null); setPropertyLoadError(''); }
     if (keys.includes('people')) { setPeople([]); setPersonHandles({}); setPersonSel(null); setPersonDraft(''); }
+    if (keys.includes('organizations')) { setOrganizations([]); setOrgHandles({}); setOrgSel(null); setOrgDraft(''); }
     if (keys.includes('meetings')) { setMeetings([]); setMeetingSel(null); setMeetingOpen(false); setMeetingTitle(''); setMeetingNotes(''); setMeetingLinks({ clients:[], properties:[], tasks:[], people:[] }); meetingTitleRef.current = ''; meetingNotesRef.current = ''; meetingStartRef.current = null; }
     if (keys.includes('daily')) { setDailyNote(null); setDailyHandle(null); setDailyInputs({ notes:'', reflections:'', brainDump:'' }); setWorkNotes({}); setWorkHandles({}); setTimeNotes([]); }
     if (keys.includes('attachments')) {
@@ -1175,6 +1193,7 @@ export default function App() {
     if (available.projects) await loadProjects(available.projects);
     if (available.properties) await loadProperties(available.properties);
     if (available.people) await loadPeople(available.people);
+    if (available.organizations) await loadOrganizations(available.organizations);
     if (available.meetings) await loadMeetings(available.meetings);
     if (available.attachments) await loadAttachmentImages(available.attachments);
     if (available.daily) {
@@ -1185,7 +1204,7 @@ export default function App() {
       setLastSync(Date.now());
       setNeedsRefresh(false);
     }
-  }, [loadFiles, loadRefs, loadProjects, loadProperties, loadPeople, loadMeetings, loadAttachmentImages, ensureDailyNote, loadTimeNotes, clearUnavailableFolderData]);
+  }, [loadFiles, loadRefs, loadProjects, loadProperties, loadPeople, loadOrganizations, loadMeetings, loadAttachmentImages, ensureDailyNote, loadTimeNotes, clearUnavailableFolderData]);
 
   useEffect(() => {
     if (!dirs.tasks && !dirs.done && !dirs.meetings && !dirs.projects && !dirs.properties && !dirs.daily && !dirs.attachments) return;
@@ -1237,6 +1256,7 @@ export default function App() {
         if (key === 'projects') await loadProjects(dir);
         if (key === 'properties') await loadProperties(dir);
         if (key === 'people') await loadPeople(dir);
+        if (key === 'organizations') await loadOrganizations(dir);
         if (key === 'meetings') await loadMeetings(dir);
         if (key === 'attachments') await loadAttachmentImages(dir);
         if (key === 'daily') {
@@ -1268,6 +1288,7 @@ export default function App() {
           if (key === 'projects') await loadProjects(h);
           if (key === 'properties') await loadProperties(h);
           if (key === 'people') await loadPeople(h);
+          if (key === 'organizations') await loadOrganizations(h);
           if (key === 'meetings') await loadMeetings(h);
           if (key === 'attachments') await loadAttachmentImages(h);
           if (key === 'daily') {
@@ -1315,6 +1336,7 @@ export default function App() {
     else if (key === 'projects') { setProjects([]); setProjectHandles({}); setProjectSel(null); setProjectDraft(''); }
     else if (key === 'properties') { setProperties([]); setPropertyHandles({}); setPropertySel(null); setPropertyLoadError(''); }
     else if (key === 'people') { setPeople([]); setPersonHandles({}); setPersonSel(null); setPersonDraft(''); }
+    else if (key === 'organizations') { setOrganizations([]); setOrgHandles({}); setOrgSel(null); setOrgDraft(''); }
     else if (key === 'meetings') { setMeetings([]); setMeetingSel(null); setMeetingOpen(false); setMeetingTitle(''); setMeetingNotes(''); setMeetingLinks({ clients:[], properties:[], tasks:[], people:[] }); meetingTitleRef.current = ''; meetingNotesRef.current = ''; meetingStartRef.current = null; }
     else if (key === 'daily') { setDailyNote(null); setDailyHandle(null); setDailyInputs({ notes:'', reflections:'', brainDump:'' }); setWorkNotes({}); setWorkHandles({}); setTimeNotes([]); }
     else if (key === 'attachments') {
@@ -1710,7 +1732,7 @@ export default function App() {
   const saveCoverFile = async (file, label) => {
     if (!dirs.attachments) throw new Error('Pick an Attachments folder first.');
     const ext = coverExtension(file);
-    const preferred = `${propertySlug(label)}-cover.${ext}`;
+    const preferred = `${kebabSlug(label, 'new-property')}-cover.${ext}`;
     const filename = await uniqueFileNameInDir(dirs.attachments, preferred);
     const fh = await dirs.attachments.getFileHandle(filename, { create:true });
     await writeFile(fh, file);
@@ -1725,7 +1747,7 @@ export default function App() {
     }
 
     try {
-      const slug = propertySlug(form.title);
+      const slug = kebabSlug(form.title, 'new-property');
       const filename = await uniqueFileNameInDir(dirs.properties, `${slug}.md`);
       let coverPath = '';
       if (form.coverFile) {
@@ -1822,7 +1844,7 @@ export default function App() {
   const createPerson = async (form) => {
     if (!dirs.people || !form.name.trim()) return;
     try {
-      const filename = await uniqueFileNameInDir(dirs.people, `${safeFilename(form.name)}.md`);
+      const filename = await uniqueFileNameInDir(dirs.people, `${kebabSlug(form.name, 'new-person')}.md`);
       const content = buildNewPersonMd(form);
       const fh = await dirs.people.getFileHandle(filename, { create:true });
       await writeFile(fh, content);
@@ -1855,6 +1877,43 @@ export default function App() {
     }
   };
 
+  const createOrganization = async (form) => {
+    if (!dirs.organizations || !form.name.trim()) return;
+    try {
+      const filename = await uniqueFileNameInDir(dirs.organizations, `${kebabSlug(form.name, 'new-organization')}.md`);
+      const content = buildNewOrganizationMd(form);
+      const fh = await dirs.organizations.getFileHandle(filename, { create:true });
+      await writeFile(fh, content);
+      await loadOrganizations(dirs.organizations);
+      await loadRefs(dirs);
+      setOrgSearch('');
+      setOrgSel(filename);
+      setNewOrgOpen(false);
+      setToast(`Created organization "${form.name.trim()}"`);
+    } catch(e) {
+      console.error('create organization failed', e);
+      alert('Failed to create organization: ' + e.message);
+    }
+  };
+
+  const saveOrganization = async () => {
+    if (!orgSel) return;
+    const handle = orgHandles[orgSel];
+    if (!handle) return;
+    try {
+      const updated = touchDateModified(orgDraft);
+      await writeFile(handle, updated);
+      const updatedOrg = parseOrganization(orgSel, updated);
+      setOrganizations(prev => prev.map(o => o.id === orgSel ? updatedOrg : o).sort((a,b) => a.title.localeCompare(b.title)));
+      setOrgDraft(updated);
+      await loadRefs(dirs);
+      setToast(`Saved "${updatedOrg.title}"`);
+    } catch(e) {
+      console.error('save organization failed', e);
+      alert('Failed to save organization: ' + e.message);
+    }
+  };
+
   const saveProject = async () => {
     if (!projectSel) return;
     const handle = projectHandles[projectSel];
@@ -1875,7 +1934,7 @@ export default function App() {
   const findWritableHandleForBackup = (backup) => {
     const filename = backup?.filename;
     if (!filename) return null;
-    const maps = [taskHandles, projectHandles, propertyHandles, personHandles];
+    const maps = [taskHandles, projectHandles, propertyHandles, personHandles, orgHandles];
     for (const map of maps) {
       const exact = map[filename];
       if (exact) return exact;
@@ -2052,6 +2111,12 @@ export default function App() {
   });
   const meetingTaskOptions = [...new Set(tasks.filter(isOpenTask).map(t => t.filename || t.title).filter(Boolean))].sort();
   const person = people.find(p => p.id === personSel);
+  const filteredOrgs = organizations.filter(o => {
+    const q = orgSearch.trim().toLowerCase();
+    if (!q) return true;
+    return [o.title, o.filename, o.industry, o.website, o.email].filter(Boolean).some(v => String(v).toLowerCase().includes(q));
+  });
+  const organization = organizations.find(o => o.id === orgSel);
   const selectedWorkNote = workNotes[workDate];
   const selectedWorkStats = workStats(selectedWorkNote);
   const selectedWeekDates = weekDates(workDate);
@@ -2087,13 +2152,14 @@ export default function App() {
     ...(refs.projects || []).map(label => ({ label, type:'project' })),
     ...(refs.clients || []).map(label => ({ label, type:'client' })),
     ...(refs.properties || []).map(label => ({ label, type:'property' })),
+    ...(refs.organizations || []).map(label => ({ label, type:'organization' })),
   ], [refs]);
   const diagnostics = buildDiagnostics({ tasks, projects, properties, refs, dirs, folderStats, folderIssues, backups:writeBackups });
   const healthErrors = diagnostics.issues.filter(i => i.level === 'error').length;
   const healthWarnings = diagnostics.issues.filter(i => i.level === 'warning').length;
   const healthBadges = healthErrors + healthWarnings;
-  const headerLabel = view === 'mission' ? 'MISSION CONTROL' : view === 'tasks' ? "TODAY'S TOTAL" : view === 'bd' ? 'BD TASKS' : view === 'hours' ? 'HOURS' : view === 'time' ? 'TIME DASHBOARD' : view === 'meetings' ? 'MEETINGS' : view === 'projects' ? 'PROJECT LIBRARY' : view === 'properties' ? 'PROPERTY LIBRARY' : view === 'people' ? 'PEOPLE' : 'VAULT HEALTH';
-  const headerMetric = view === 'mission' ? missionToday.length + missionOverdue.length + missionRecurrent.length : view === 'tasks' ? fmt(totalToday) : view === 'bd' ? openBdTasks.length : view === 'hours' ? formatHoursMinutes(selectedWorkStats.totalMinutes) : view === 'time' ? formatHoursMinutes(trailingWeekStats.summary.totalMinutes) : view === 'meetings' ? (meetingOpen ? fmt(getTime('__meeting__')) : meetings.length) : view === 'projects' ? projects.length : view === 'properties' ? properties.length : view === 'people' ? people.length : diagnostics.issues.length;
+  const headerLabel = view === 'mission' ? 'MISSION CONTROL' : view === 'tasks' ? "TODAY'S TOTAL" : view === 'bd' ? 'BD TASKS' : view === 'hours' ? 'HOURS' : view === 'time' ? 'TIME DASHBOARD' : view === 'meetings' ? 'MEETINGS' : view === 'projects' ? 'PROJECT LIBRARY' : view === 'properties' ? 'PROPERTY LIBRARY' : view === 'people' ? 'PEOPLE' : view === 'organizations' ? 'ORGANIZATIONS' : 'VAULT HEALTH';
+  const headerMetric = view === 'mission' ? missionToday.length + missionOverdue.length + missionRecurrent.length : view === 'tasks' ? fmt(totalToday) : view === 'bd' ? openBdTasks.length : view === 'hours' ? formatHoursMinutes(selectedWorkStats.totalMinutes) : view === 'time' ? formatHoursMinutes(trailingWeekStats.summary.totalMinutes) : view === 'meetings' ? (meetingOpen ? fmt(getTime('__meeting__')) : meetings.length) : view === 'projects' ? projects.length : view === 'properties' ? properties.length : view === 'people' ? people.length : view === 'organizations' ? organizations.length : diagnostics.issues.length;
   const headerDetail = view === 'mission'
     ? `${missionToday.length} today · ${missionOverdue.length} overdue · ${missionRecurrent.length} recurrent · ${dirs.daily ? 'daily on' : 'daily off'}`
     : view === 'tasks'
@@ -2112,7 +2178,9 @@ export default function App() {
               ? `${dirs.properties ? dirs.properties.name : 'No folder'} · ${dirs.attachments ? 'covers on' : 'covers off'}`
               : view === 'people'
                 ? `${dirs.people ? dirs.people.name : 'No folder'} · ${personSummary.waitingFor} waiting-for · ${personSummary.meetings} meetings`
-                : `${healthErrors} errors · ${healthWarnings} warnings · ${writeBackups.length} backups`;
+                : view === 'organizations'
+                  ? `${dirs.organizations ? dirs.organizations.name : 'No folder'} · ${organizations.length} saved · editable`
+                  : `${healthErrors} errors · ${healthWarnings} warnings · ${writeBackups.length} backups`;
 
   const btnPrimary = { padding:'13px 34px', borderRadius:12, border:'none', cursor:'pointer', fontWeight:700, fontSize:14, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff', boxShadow:BRAND_SHADOW };
 
@@ -2210,7 +2278,7 @@ export default function App() {
 
         <IconRail
           view={view}
-          setView={(v) => { setView(v); setNewTaskOpen(false); setNewPropertyOpen(false); setNewProjectOpen(false); setNewPersonOpen(false); }}
+          setView={(v) => { setView(v); setNewTaskOpen(false); setNewPropertyOpen(false); setNewProjectOpen(false); setNewPersonOpen(false); setNewOrgOpen(false); }}
           vaultName={dirs.tasks?.name}
           healthOk={!healthBadges}
           onHealth={() => setView('health')}
@@ -2444,6 +2512,31 @@ export default function App() {
               </button>
             </div>
           </>
+        ) : view === 'organizations' ? (
+          <>
+            <div style={{ padding:'8px 10px 4px', display:'flex', gap:6, alignItems:'center' }}>
+              <button onClick={()=>setNewOrgOpen(true)} style={{ flex:1, padding:'8px 10px', borderRadius:9, border:'none', cursor:'pointer', fontWeight:700, fontSize:12, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff', boxShadow:BRAND_SHADOW }}>
+                + New Organization
+              </button>
+            </div>
+            <div style={{ padding:'10px', borderBottom:'1px solid rgba(255,255,255,0.06)' }}>
+              <input value={orgSearch} onChange={e=>setOrgSearch(e.target.value)} placeholder="Search organizations..." style={{ ...inputBase, padding:'8px 10px', fontSize:12 }}/>
+            </div>
+            <div style={{ flex:1, overflowY:'auto', padding:'6px 8px' }}>
+              {!dirs.organizations && <div style={{ color:'#f4fff9', textAlign:'center', paddingTop:40, fontSize:12 }}>Pick your Organizations folder in Configure folders</div>}
+              {filteredOrgs.map(o => (
+                <div key={o.id} onClick={()=>setOrgSel(o.id)} style={{ padding:'10px', marginBottom:4, borderRadius:10, cursor:'pointer', background:orgSel===o.id?BRAND_SURFACE:'rgba(255,255,255,0.02)', border:`1px solid ${orgSel===o.id?BRAND_BORDER:'rgba(255,255,255,0.04)'}` }}>
+                  <div style={{ fontSize:12, fontWeight:700, lineHeight:1.35, color:'#e2e8f0' }}>{o.title}</div>
+                  <div style={{ fontSize:10, color:'#f4fff9', marginTop:3 }}>{o.industry || o.website || o.filename}</div>
+                </div>
+              ))}
+            </div>
+            <div style={{ padding:'8px 10px', borderTop:'1px solid rgba(255,255,255,0.04)' }}>
+              <button onClick={()=>setFolderSetupOpen(true)} style={{ width:'100%', padding:'7px 10px', borderRadius:8, border:'1px solid rgba(255,255,255,0.06)', background:'rgba(255,255,255,0.02)', color:'#f4fff9', fontSize:11, cursor:'pointer', fontFamily:'inherit' }}>
+                Configure organizations folder
+              </button>
+            </div>
+          </>
         ) : view === 'hours' ? (
           <div style={{ flex:1, overflowY:'auto', padding:'14px 12px' }}>
             <div style={{ fontSize:9, color:'#f4fff9', fontWeight:800, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:9 }}>Time clock</div>
@@ -2638,6 +2731,20 @@ export default function App() {
             onNewPerson={()=>setNewPersonOpen(true)}
             onConfigure={()=>setFolderSetupOpen(true)}
             onOpenMeetings={()=>setView('meetings')}
+          />
+        )
+      ) : view === 'organizations' ? (
+        newOrgOpen ? (
+          <NewOrganizationPanel onCancel={()=>setNewOrgOpen(false)} onCreate={createOrganization} hasOrganizationsFolder={!!dirs.organizations} onConfigure={()=>setFolderSetupOpen(true)}/>
+        ) : (
+          <OrganizationPanel
+            selected={organization}
+            draft={orgDraft}
+            setDraft={setOrgDraft}
+            onSave={saveOrganization}
+            hasOrganizationsFolder={!!dirs.organizations}
+            onNewOrganization={()=>setNewOrgOpen(true)}
+            onConfigure={()=>setFolderSetupOpen(true)}
           />
         )
       ) : view === 'health' ? (
@@ -2876,6 +2983,87 @@ function PeoplePanel({ selected, draft, setDraft, onSave, summary, hasPeopleFold
       </div>
 
       <section className="glass-thin" style={{ borderRadius:18, padding:'16px', minHeight:360, display:'flex', flexDirection:'column' }}>
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline', gap:12, marginBottom:12 }}>
+          <div>
+            <div style={{ fontSize:10, color:BRAND_LABEL, fontWeight:800, textTransform:'uppercase', letterSpacing:'0.14em', marginBottom:5 }}>Notes (Markdown)</div>
+            <div style={{ fontSize:12, color:'rgba(244,255,249,0.64)' }}>{selected.filename}{lastTouched ? ` · touched ${String(lastTouched).slice(0, 10)}` : ''}</div>
+          </div>
+        </div>
+        <MentionTextarea
+          value={noteParts.body}
+          onChange={e=>setDraft(replaceNoteBody(draft, e.target.value))}
+          spellCheck={false}
+          style={{ flex:1, width:'100%', resize:'none', padding:'16px 18px', borderRadius:14, background:'rgba(10,24,18,0.42)', border:'1px solid rgba(255,255,255,0.08)', color:'#e2e8f0', outline:'none', fontFamily:'ui-monospace, SFMono-Regular, Consolas, monospace', fontSize:13, lineHeight:1.7 }}
+        />
+      </section>
+    </div>
+  );
+}
+
+function OrganizationPanel({ selected, draft, setDraft, onSave, hasOrganizationsFolder, onNewOrganization, onConfigure }) {
+  if (!hasOrganizationsFolder) {
+    return (
+      <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', color:'#f4fff9', fontSize:13 }}>
+        <button onClick={onConfigure} style={{ padding:'10px 18px', borderRadius:10, border:'none', cursor:'pointer', fontWeight:700, fontSize:13, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff' }}>Configure Organizations folder</button>
+      </div>
+    );
+  }
+
+  if (!selected) {
+    return (
+      <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', padding:30 }}>
+        <div style={{ width:'min(520px,100%)', borderRadius:18, border:'1px solid rgba(255,255,255,0.06)', background:'rgba(255,255,255,0.03)', padding:24, textAlign:'center' }}>
+          <div style={{ fontSize:10, color:BRAND_LABEL, fontWeight:800, letterSpacing:'0.14em', textTransform:'uppercase', marginBottom:10 }}>Organizations</div>
+          <h2 style={{ margin:'0 0 12px', fontSize:24, color:'#f8fff9' }}>Select an organization</h2>
+          <div style={{ color:'rgba(244,255,249,0.68)', fontSize:13, lineHeight:1.6, marginBottom:18 }}>
+            Pick an organization from the sidebar or create a new note to start tracking relationships and context.
+          </div>
+          <button onClick={onNewOrganization} style={{ padding:'10px 18px', borderRadius:10, border:'none', cursor:'pointer', fontWeight:800, fontSize:13, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff' }}>+ New Organization</button>
+        </div>
+      </div>
+    );
+  }
+
+  const noteParts = splitNoteDocument(draft);
+  const metadataLine = [selected.industry, selected.website].filter(Boolean).join(' · ') || selected.email || 'No industry or website captured yet.';
+  const lastTouched = selected.dateModified || selected.dateCreated;
+  const detailChips = [selected.website, selected.email, selected.phone].filter(Boolean);
+
+  return (
+    <div style={{ flex:1, minHeight:0, overflowY:'auto', padding:'22px 28px 24px' }}>
+      <div style={{ display:'flex', justifyContent:'space-between', gap:18, alignItems:'flex-start', marginBottom:18 }}>
+        <div style={{ minWidth:0 }}>
+          <div style={{ fontSize:10, color:BRAND_LABEL, fontWeight:800, textTransform:'uppercase', letterSpacing:'0.14em', marginBottom:6 }}>Organization</div>
+          <h2 style={{ margin:0, fontSize:30, color:'#f8fff9', letterSpacing:'-0.04em' }}>{selected.title}</h2>
+          <div style={{ fontSize:13, color:'rgba(244,255,249,0.68)', marginTop:6 }}>{metadataLine}</div>
+        </div>
+        <button onClick={onSave} style={{ padding:'9px 18px', borderRadius:999, border:'none', cursor:'pointer', fontWeight:800, fontSize:12, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff', boxShadow:BRAND_SHADOW }}>
+          Save
+        </button>
+      </div>
+
+      <section className="glass-thin" style={{ borderRadius:18, padding:'16px', marginBottom:12 }}>
+        <div style={{ display:'flex', alignItems:'center', gap:14, minWidth:0 }}>
+          <div style={{ width:50, height:50, borderRadius:14, background:BRAND_GRADIENT, color:'#fff', display:'flex', alignItems:'center', justifyContent:'center', fontSize:18, fontWeight:900, flexShrink:0 }}>
+            {initials(selected.title)}
+          </div>
+          <div style={{ minWidth:0 }}>
+            <div style={{ fontSize:20, color:'#f8fff9', fontWeight:800, lineHeight:1.1 }}>{selected.title}</div>
+            <div style={{ fontSize:12, color:'rgba(244,255,249,0.64)', marginTop:5 }}>{metadataLine}</div>
+            {!!detailChips.length && (
+              <div style={{ display:'flex', gap:8, flexWrap:'wrap', marginTop:8 }}>
+                {detailChips.map(chip => (
+                  <span key={chip} style={{ padding:'5px 9px', borderRadius:999, fontSize:10, fontWeight:800, color:'#f8fff9', background:'rgba(255,255,255,0.045)', border:'1px solid rgba(255,255,255,0.08)' }}>
+                    {chip}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </section>
+
+      <section className="glass-thin" style={{ borderRadius:18, padding:'16px', minHeight:420, display:'flex', flexDirection:'column' }}>
         <div style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline', gap:12, marginBottom:12 }}>
           <div>
             <div style={{ fontSize:10, color:BRAND_LABEL, fontWeight:800, textTransform:'uppercase', letterSpacing:'0.14em', marginBottom:5 }}>Notes (Markdown)</div>
@@ -4165,7 +4353,7 @@ function NewPropertyPanel({ onCancel, onCreate, refs, hasAttachmentsFolder, onCo
     setBusy(false);
   };
 
-  const slug = form.title.trim() ? propertySlug(form.title) : '<property-name>';
+  const slug = form.title.trim() ? kebabSlug(form.title, 'new-property') : '<property-name>';
 
   return (
     <div style={{ flex:1, display:'flex', flexDirection:'column', overflow:'hidden' }}>
@@ -4271,7 +4459,7 @@ function NewPersonPanel({ onCancel, onCreate, refs, hasPeopleFolder, onConfigure
         <form onSubmit={submit} style={{ maxWidth:720 }}>
           <Field label="Person name">
             <input autoFocus value={form.name} onChange={e=>set('name', e.target.value)} placeholder="e.g. Jane Smith" style={{ ...inputBase, fontSize:16, fontWeight:600, padding:'10px 14px' }}/>
-            <div style={{ fontSize:10, color:'#f4fff9', marginTop:4 }}>Filename will be <code style={{ color:'#f4fff9' }}>{form.name.trim() ? `${safeFilename(form.name)}.md` : '<person-name>.md'}</code></div>
+            <div style={{ fontSize:10, color:'#f4fff9', marginTop:4 }}>Filename will be <code style={{ color:'#f4fff9' }}>{form.name.trim() ? `${kebabSlug(form.name, 'new-person')}.md` : '<person-name>.md'}</code></div>
           </Field>
 
           <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:11 }}>
@@ -4301,6 +4489,81 @@ function NewPersonPanel({ onCancel, onCreate, refs, hasPeopleFolder, onConfigure
 
           <Field label="Initial notes">
             <MentionTextarea value={form.body} onChange={e=>set('body', e.target.value)} placeholder="Relationship notes, preferences, context..." rows={8} style={{ ...inputBase, resize:'vertical', lineHeight:1.55 }}/>
+          </Field>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// ─── New Organization Panel ───────────────────────────────
+function NewOrganizationPanel({ onCancel, onCreate, hasOrganizationsFolder, onConfigure }) {
+  const [form, setForm] = useState({
+    name:'',
+    industry:'',
+    website:'',
+    email:'',
+    phone:'',
+    tags:'organizations',
+    body:'',
+  });
+  const [busy, setBusy] = useState(false);
+  const set = (k, v) => setForm(prev => ({ ...prev, [k]: v }));
+
+  const submit = async (e) => {
+    e?.preventDefault?.();
+    if (!form.name.trim() || !hasOrganizationsFolder) return;
+    setBusy(true);
+    await onCreate(form);
+    setBusy(false);
+  };
+
+  return (
+    <div style={{ flex:1, display:'flex', flexDirection:'column', overflow:'hidden' }}>
+      <div style={{ padding:'22px 30px 16px', borderBottom:'1px solid rgba(255,255,255,0.06)', flexShrink:0, display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:24 }}>
+        <div>
+          <div style={{ fontSize:10, color:BRAND_LABEL, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:8 }}>+ New Organization</div>
+          <h2 style={{ margin:0, fontSize:19, fontWeight:700, color:'#f1f5f9' }}>Create an organization note</h2>
+        </div>
+        <div style={{ display:'flex', gap:8 }}>
+          <button onClick={onCancel} style={{ padding:'9px 16px', borderRadius:10, border:'1px solid rgba(255,255,255,0.1)', cursor:'pointer', fontWeight:700, fontSize:13, fontFamily:'inherit', background:'transparent', color:'#f4fff9' }}>Cancel</button>
+          <button onClick={hasOrganizationsFolder ? submit : onConfigure} disabled={busy || (hasOrganizationsFolder && !form.name.trim())} style={{ padding:'9px 22px', borderRadius:10, border:'none', cursor:'pointer', fontWeight:700, fontSize:13, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff', opacity:(busy || (hasOrganizationsFolder && !form.name.trim()))?0.4:1 }}>
+            {hasOrganizationsFolder ? (busy ? 'Creating...' : 'Create Organization') : 'Configure Organizations Folder'}
+          </button>
+        </div>
+      </div>
+
+      <div style={{ flex:1, overflowY:'auto', padding:'20px 30px' }}>
+        <form onSubmit={submit} style={{ maxWidth:720 }}>
+          <Field label="Organization name">
+            <input autoFocus value={form.name} onChange={e=>set('name', e.target.value)} placeholder="e.g. Acme Corp" style={{ ...inputBase, fontSize:16, fontWeight:600, padding:'10px 14px' }}/>
+            <div style={{ fontSize:10, color:'#f4fff9', marginTop:4 }}>Filename will be <code style={{ color:'#f4fff9' }}>{form.name.trim() ? `${kebabSlug(form.name, 'new-organization')}.md` : '<organization-name>.md'}</code></div>
+          </Field>
+
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:11 }}>
+            <Field label="Industry">
+              <input value={form.industry} onChange={e=>set('industry', e.target.value)} placeholder="e.g. Property management" style={inputBase}/>
+            </Field>
+            <Field label="Website">
+              <input value={form.website} onChange={e=>set('website', e.target.value)} placeholder="https://..." style={inputBase}/>
+            </Field>
+          </div>
+
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:11 }}>
+            <Field label="Email">
+              <input type="email" value={form.email} onChange={e=>set('email', e.target.value)} placeholder="info@example.com" style={inputBase}/>
+            </Field>
+            <Field label="Phone">
+              <input value={form.phone} onChange={e=>set('phone', e.target.value)} placeholder="+353..." style={inputBase}/>
+            </Field>
+          </div>
+
+          <Field label="Tags (comma-separated)">
+            <input value={form.tags} onChange={e=>set('tags', e.target.value)} placeholder="organizations, client" style={inputBase}/>
+          </Field>
+
+          <Field label="Initial notes">
+            <MentionTextarea value={form.body} onChange={e=>set('body', e.target.value)} placeholder="Relationship notes, key contacts, context..." rows={8} style={{ ...inputBase, resize:'vertical', lineHeight:1.55 }}/>
           </Field>
         </form>
       </div>

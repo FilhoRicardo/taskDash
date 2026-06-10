@@ -19,6 +19,7 @@ const TABS = [
   { id: 'projects',   label: 'Projects',   icon: 'folder' },
   { id: 'properties', label: 'Properties', icon: 'home' },
   { id: 'people',     label: 'People',     icon: 'people' },
+  { id: 'organizations', label: 'Organizations', icon: 'org' },
 ];
 
 const Icon = ({ name, size = 18, stroke = 1.8 }) => {
@@ -35,6 +36,7 @@ const Icon = ({ name, size = 18, stroke = 1.8 }) => {
     case 'folder': return (<svg {...p}><path d="M2.5 5.5a1.5 1.5 0 0 1 1.5-1.5h3.2l1.5 2h7.3a1.5 1.5 0 0 1 1.5 1.5v7a1.5 1.5 0 0 1-1.5 1.5h-12a1.5 1.5 0 0 1-1.5-1.5z"/></svg>);
     case 'home':   return (<svg {...p}><path d="M3 10l7-7 7 7v6.5A1.5 1.5 0 0 1 15.5 18h-3v-5h-5v5h-3A1.5 1.5 0 0 1 3 16.5z"/></svg>);
     case 'people': return (<svg {...p}><circle cx="7" cy="8" r="2.6"/><path d="M2.5 16c0-2.4 2-4 4.5-4s4.5 1.6 4.5 4"/><circle cx="14" cy="8.5" r="2.2"/><path d="M13 12.5c2 0 4 1 4.5 3.5"/></svg>);
+    case 'org':    return (<svg {...p}><path d="M4 18V4.5A1.5 1.5 0 0 1 5.5 3h6A1.5 1.5 0 0 1 13 4.5V18M13 8h2.5A1.5 1.5 0 0 1 17 9.5V18M2.5 18h15"/><path d="M6.5 6.5h1.5M9.5 6.5H11M6.5 9.5h1.5M9.5 9.5H11M6.5 12.5h1.5M9.5 12.5H11"/></svg>);
     case 'brain':  return (<svg {...p}><path d="M7.2 4.2A2.8 2.8 0 0 0 4.5 7c0 .4.1.8.2 1.1A3.2 3.2 0 0 0 3.5 10.6c0 1.5 1 2.7 2.3 3.1.2 1.5 1.4 2.8 3 2.8H10V3.8H8.8c-.6 0-1.1.1-1.6.4z"/><path d="M12.8 4.2A2.8 2.8 0 0 1 15.5 7c0 .4-.1.8-.2 1.1a3.2 3.2 0 0 1 1.2 2.5c0 1.5-1 2.7-2.3 3.1-.2 1.5-1.4 2.8-3 2.8H10V3.8h1.2c.6 0 1.1.1 1.6.4z"/><path d="M6.4 8.2c.7.1 1.4.5 1.8 1.1M13.6 8.2c-.7.1-1.4.5-1.8 1.1M7.4 12.8c.5-.5 1.1-.8 1.8-.8M12.6 12.8c-.5-.5-1.1-.8-1.8-.8"/></svg>);
     case 'cog':    return (<svg {...p}><circle cx="10" cy="10" r="2.5"/><path d="M10 1.5v2.2M10 16.3v2.2M3.5 10H1.3M18.7 10h-2.2M5.1 5.1L3.6 3.6M16.4 16.4l-1.5-1.5M5.1 14.9l-1.5 1.5M16.4 3.6l-1.5 1.5"/></svg>);
     case 'sparkle':return (<svg {...p}><path d="M10 3v3M10 14v3M3 10h3M14 10h3M5 5l2 2M13 13l2 2M5 15l2-2M13 7l2-2"/></svg>);

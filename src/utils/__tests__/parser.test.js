@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseDailyNote, parseMeeting, parseProperty, parseTask } from '../parser.js';
+import { parseDailyNote, parseMeeting, parseOrganization, parseProperty, parseTask } from '../parser.js';
 
 describe('parseTask', () => {
   it('reads TaskNotes frontmatter, checklist, dates, links, recurrence, and logs', () => {
@@ -203,5 +203,37 @@ Log: [10:20] Checked cover image
     expect(property.client).toBe('Acme');
     expect(property.coverName).toBe('kildare cover.jpg');
     expect(property.comments).toEqual([{ date: '2026-05-18', text: '[10:20] Checked cover image' }]);
+  });
+});
+
+describe('parseOrganization', () => {
+  it('reads organization frontmatter fields', () => {
+    const raw = `---
+dateCreated: 2026-06-01
+dateModified: 2026-06-09
+tags: [organizations]
+type: organization
+organization: "Acme Corp"
+industry: "Property management"
+website: "https://acme.example"
+email: "info@acme.example"
+---
+# Acme Corp
+
+## Notes
+`;
+    const org = parseOrganization('acme-corp.md', raw);
+    expect(org.title).toBe('Acme Corp');
+    expect(org.filename).toBe('acme-corp');
+    expect(org.industry).toBe('Property management');
+    expect(org.website).toBe('https://acme.example');
+    expect(org.email).toBe('info@acme.example');
+    expect(org.tags).toEqual(['organizations']);
+    expect(org.dateCreated).toBe('2026-06-01');
+  });
+
+  it('falls back to a title-cased filename when no frontmatter exists', () => {
+    const org = parseOrganization('blue-river-holdings.md', 'Just notes.');
+    expect(org.title).toBe('Blue River Holdings');
   });
 });

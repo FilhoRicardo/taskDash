@@ -2,8 +2,10 @@ import { describe, expect, it } from 'vitest';
 import {
   appendDailySectionEntry,
   appendPropertyCommentToMd,
+  buildNewOrganizationMd,
   buildNewProjectMd,
   buildNewPropertyMd,
+  kebabSlug,
   postponeTaskDatesByMonths,
   replaceDailyTimeClockRows,
   setPropertyCover,
@@ -207,5 +209,33 @@ scheduled: 2026-02-28
     expect(updated).toContain('due: 2026-02-28');
     expect(updated).toContain('scheduled: 2026-03-28');
     expect(updated).toMatch(/dateModified: \d{4}-\d{2}-\d{2}T/);
+  });
+});
+
+describe('kebabSlug', () => {
+  it('converts names to the kebab-case filename convention', () => {
+    expect(kebabSlug('Paula Chipont')).toBe('paula-chipont');
+  });
+
+  it('strips accents and symbols', () => {
+    expect(kebabSlug('José & María Núñez')).toBe('jose-and-maria-nunez');
+    expect(kebabSlug('  The Spire (Dublin) #1  ')).toBe('the-spire-dublin-1');
+  });
+
+  it('falls back when nothing slugs', () => {
+    expect(kebabSlug('', 'new-person')).toBe('new-person');
+    expect(kebabSlug('***')).toBe('untitled');
+  });
+});
+
+describe('buildNewOrganizationMd', () => {
+  it('writes organization frontmatter and heading', () => {
+    const md = buildNewOrganizationMd({ name:'Acme Corp', industry:'Real estate', website:'https://acme.example', email:'', phone:'', tags:'organizations, client', body:'' });
+    expect(md).toContain('type: organization');
+    expect(md).toContain('organization: "Acme Corp"');
+    expect(md).toContain('industry: "Real estate"');
+    expect(md).toContain('tags: [organizations, client]');
+    expect(md).toContain('# Acme Corp');
+    expect(md).not.toContain('email:');
   });
 });

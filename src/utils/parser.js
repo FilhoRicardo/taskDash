@@ -216,6 +216,25 @@ export function parsePerson(name, txt) {
   };
 }
 
+export function parseOrganization(name, txt) {
+  const fm = parseFrontmatter(txt);
+  const h1 = txt.match(/^#\s+(.+)$/m)?.[1]?.trim();
+  const tags = Array.isArray(fm.tags) ? fm.tags : fm.tags ? [fm.tags] : [];
+  return {
+    id: name,
+    filename: basename(name),
+    title: fm.organization || fm.name || fm.title || h1 || titleFromName(name),
+    industry: fm.industry || '',
+    website: fm.website || '',
+    email: fm.email || '',
+    phone: fm.phone || '',
+    tags,
+    dateCreated: fm.dateCreated || null,
+    dateModified: fm.dateModified || null,
+    raw: txt,
+  };
+}
+
 export async function readMdFiles(dir, acc = [], prefix = '', options = {}) {
   for await (const [name, h] of dir.entries()) {
     try {

@@ -18,6 +18,7 @@ const TYPE_BADGES = {
   project:  { label: 'Project',  color: '#93c5fd' },
   client:   { label: 'Client',   color: '#fcd34d' },
   property: { label: 'Property', color: '#f0abfc' },
+  organization: { label: 'Org', color: '#7dd3fc' },
 };
 
 const MIRROR_STYLE_PROPS = [
