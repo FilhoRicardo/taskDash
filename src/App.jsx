@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { Fragment, useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import IconRail from './IconRail.jsx';
@@ -371,10 +371,14 @@ function DetailMarkdownEditorCard({ meta, value, onChange, emptyText }) {
 
 function ScreenLogo() {
   return (
-    <div aria-hidden="true" style={{ position:'absolute', right:16, bottom:12, zIndex:8, pointerEvents:'none', opacity:0.18 }}>
-      <div style={{ width:30, height:30, borderRadius:10, display:'grid', placeItems:'center', background:'linear-gradient(150deg,#2bb172,#0f6b3f)', color:'#fff', boxShadow:'0 8px 18px rgba(15,107,63,0.22), inset 0 1px 0 rgba(255,255,255,0.5)' }}>
-        <svg width="17" height="17" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M10 2.7v3.1M10 14.2v3.1M2.7 10h3.1M14.2 10h3.1M5 5l2.2 2.2M12.8 12.8 15 15M5 15l2.2-2.2M12.8 7.2 15 5" />
+    <div aria-hidden="true" style={{ position:'absolute', right:16, bottom:12, zIndex:8, pointerEvents:'none', opacity:0.22 }}>
+      <div style={{ width:32, height:32, borderRadius:9, display:'grid', placeItems:'center', background:'linear-gradient(150deg,#24a661,#0d733f)', color:'#fff', boxShadow:'0 8px 18px rgba(15,107,63,0.22), inset 0 1px 0 rgba(255,255,255,0.35)' }}>
+        <svg width="23" height="23" viewBox="0 0 32 32" fill="none" stroke="currentColor" strokeWidth="2.7" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M6.5 16H20.5" />
+          <path d="M7.5 10.5L16.5 16L7.5 21.5" />
+          <path d="M16.5 8H25.5" />
+          <path d="M16.5 8V24" />
+          <path d="M16.5 12H23" />
         </svg>
       </div>
     </div>
@@ -3735,7 +3739,7 @@ function TimeHeatmap({ rows, start, end, title = 'Work heatmap', detail, minHeig
             </div>
           ))}
           {rows.map(row => (
-            <React.Fragment key={row.label}>
+            <Fragment key={row.label}>
               <div style={{ display:'flex', alignItems:'center', justifyContent:'flex-end', paddingRight:6, fontSize:10, color:TEXT_PRIMARY, fontWeight:850, fontFamily:"'JetBrains Mono', monospace" }}>
                 {row.label}
               </div>
@@ -3749,7 +3753,7 @@ function TimeHeatmap({ rows, start, end, title = 'Work heatmap', detail, minHeig
                   />
                 );
               })}
-            </React.Fragment>
+            </Fragment>
           ))}
         </div>
       </div>
