@@ -7,7 +7,7 @@ import { wikilinksToMarkdown, isWikilinkHref, wikilinkTarget } from './utils/men
 import { parseTask, parseProperty, parseProject, parseDailyNote, parseMeeting, parsePerson, parseOrganization, readMdFiles, readDirNames, readImageFiles } from './utils/parser.js';
 import { idbGet, idbSet, idbDel, lsGet, lsSet, lsDel } from './utils/storage.js';
 import { fmt, tod, isToday, isOver, longDate, appendNoteToMd, appendPropertyCommentToMd, updateCommentLog, deleteCommentLog, appendDailySectionEntry, appendDailyTimeClockEvent, buildDailyNoteMd, buildTrackerRow, appendTrackerRow, buildMeetingMd, buildNewTaskMd, buildNewPropertyMd, buildNewProjectMd, buildNewPersonMd, buildNewOrganizationMd, kebabSlug, finishRecurrentTaskInstance, markTaskDone, postponeTaskDates, postponeTaskDatesByMonths, replaceDailyTimeClockRows, setDailyWorkStatus, setPropertyCover, touchDateModified, updateTaskDates, updateTaskThreadSubject } from './utils/formatter.js';
-import { TARGET_WORK_MINUTES, TARGET_WORK_TOLERANCE, WEEK_TARGET_MINUTES, WORK_CHART_MAX_MINUTES, WEEKDAY_LABELS, WORK_EVENT_ORDER, WORK_STATUS_LABELS, dashboardStats, goalBand, minutesFromTime, workStats } from './utils/timeClock.js';
+import { TARGET_WORK_MINUTES, TARGET_WORK_TOLERANCE, WORK_CHART_MAX_MINUTES, WEEKDAY_LABELS, WORK_EVENT_ORDER, WORK_STATUS_LABELS, dashboardStats, goalBand, minutesFromTime, workStats } from './utils/timeClock.js';
 
 const REFRESH_MS  = 5 * 60 * 1000;
 const WARN_MS     = 60 * 60 * 1000;
@@ -371,8 +371,12 @@ function DetailMarkdownEditorCard({ meta, value, onChange, emptyText }) {
 
 function ScreenLogo() {
   return (
-    <div aria-hidden="true" style={{ position:'absolute', right:16, bottom:12, zIndex:8, pointerEvents:'none', fontFamily:"'JetBrains Mono', monospace", fontSize:18, fontWeight:900, letterSpacing:0, color:'rgba(17,92,52,0.16)', textShadow:'0 1px 0 rgba(255,255,255,0.42)' }}>
-      RF
+    <div aria-hidden="true" style={{ position:'absolute', right:16, bottom:12, zIndex:8, pointerEvents:'none', opacity:0.18 }}>
+      <div style={{ width:30, height:30, borderRadius:10, display:'grid', placeItems:'center', background:'linear-gradient(150deg,#2bb172,#0f6b3f)', color:'#fff', boxShadow:'0 8px 18px rgba(15,107,63,0.22), inset 0 1px 0 rgba(255,255,255,0.5)' }}>
+        <svg width="17" height="17" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M10 2.7v3.1M10 14.2v3.1M2.7 10h3.1M14.2 10h3.1M5 5l2.2 2.2M12.8 12.8 15 15M5 15l2.2-2.2M12.8 7.2 15 5" />
+        </svg>
+      </div>
     </div>
   );
 }
@@ -667,14 +671,6 @@ function workBandTone(minutes, targetMinutes = TARGET_WORK_MINUTES, toleranceMin
   if (band === 'empty') return { band, fill:'rgba(40,60,50,0.08)', text:TEXT_MUTED, glow:'none' };
   if (band === 'below') return { band, fill:'#d8a23c', text:'#a9791f', glow:'0 10px 18px rgba(208,150,52,0.12)' };
   return { band, fill:'linear-gradient(180deg,#ea8479,#d6493d)', text:'#c2533f', glow:'0 10px 18px rgba(225,91,79,0.14)' };
-}
-
-function timeDraftFromRows(rows = []) {
-  const draft = { 'Clock in':'', 'Break start':'', 'Break finish':'', 'Clock out':'' };
-  for (const row of rows) {
-    if (draft[row.event] !== undefined && !draft[row.event]) draft[row.event] = row.time || '';
-  }
-  return draft;
 }
 
 function rowsFromTimeDraft(draft) {
@@ -3585,14 +3581,6 @@ function HoursPanel({ selectedDate, selectedNote, notes, month, onSelectDate, on
     setTimeRowsDraft(rows => rows.map((row, i) => i === index ? { ...row, time } : row));
   };
 
-  const setDraftEventTime = (event, time) => {
-    setTimeRowsDraft(rows => {
-      const index = rows.findIndex(row => row.event === event);
-      if (index !== -1) return rows.map((row, i) => i === index ? { ...row, time } : row);
-      return time ? [...rows, { event, time }] : rows;
-    });
-  };
-
   if (!hasDailyFolder) {
     return (
       <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', color:'#5a615b', fontSize:13 }}>
@@ -3710,14 +3698,13 @@ function HoursPanel({ selectedDate, selectedNote, notes, month, onSelectDate, on
         selectedNote={selectedNote}
         notes={notes}
         draftRows={timeRowsDraft}
-        onDraftEventTime={setDraftEventTime}
         hasDailyFolder={hasDailyFolder}
       />
     </div>
   );
 }
 
-function TimeHeatmap({ rows, start, end }) {
+function TimeHeatmap({ rows, start, end, title = 'Work heatmap', detail, minHeight = 0 }) {
   const maxMinutes = Math.max(HEATMAP_SLOT_MINUTES, ...rows.flatMap(row => row.average));
   const cellColor = minutes => {
     if (!minutes) return 'rgba(255,255,255,0.38)';
@@ -3727,11 +3714,11 @@ function TimeHeatmap({ rows, start, end }) {
   };
 
   return (
-    <section className="glass-thin" style={{ borderRadius:18, padding:'14px', minHeight:0, flex:'1 1 0', display:'flex', flexDirection:'column', overflow:'hidden' }}>
+    <section className="glass-thin" style={{ borderRadius:18, padding:'14px', minHeight, flex:minHeight ? '0 0 auto' : '1 1 0', display:'flex', flexDirection:'column', overflow:'hidden' }}>
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:14, marginBottom:10, flexWrap:'wrap', flexShrink:0 }}>
         <div>
-          <div style={{ fontSize:11, color:BRAND_LABEL, fontWeight:800, textTransform:'uppercase', letterSpacing:'0.14em', marginBottom:4 }}>Work heatmap</div>
-          <div style={{ fontSize:12, color:TEXT_SECONDARY }}>{start} to {end} · weekdays x 30 min intervals</div>
+          <div style={{ fontSize:11, color:BRAND_LABEL, fontWeight:800, textTransform:'uppercase', letterSpacing:'0.14em', marginBottom:4 }}>{title}</div>
+          <div style={{ fontSize:12, color:TEXT_SECONDARY }}>{detail || `${start} to ${end} · weekdays x 30 min intervals`}</div>
         </div>
         <div style={{ display:'flex', gap:8, alignItems:'center', fontSize:10, color:TEXT_SECONDARY, fontWeight:800 }}>
           <span>0m</span>
@@ -4220,77 +4207,22 @@ function WorkCalendar({ month, selectedDate, notes, onMonthChange, onSelectDate,
   );
 }
 
-function WorkHoursPanel({ selectedDate, selectedNote, notes, draftRows, onDraftEventTime, hasDailyFolder }) {
-  const stats = workStats(selectedNote);
+function WorkHoursPanel({ selectedDate, selectedNote, notes, draftRows, hasDailyFolder }) {
   const week = weekDates(selectedDate);
-  const weekStats = week.map(dateStr => ({ dateStr, ...workStats(notes[dateStr]) }));
+  const weekStats = week.map(dateStr => ({ date:dateStr, note:notes[dateStr], ...workStats(notes[dateStr]) }));
   const weekTotalMinutes = weekStats.reduce((sum, day) => sum + day.totalMinutes, 0);
-  const lowerTarget = TARGET_WORK_MINUTES - TARGET_WORK_TOLERANCE;
-  const upperTarget = TARGET_WORK_MINUTES + TARGET_WORK_TOLERANCE;
-  const chartMaxMinutes = Math.max(WORK_CHART_MAX_MINUTES, upperTarget, ...weekStats.map(day => day.totalMinutes));
-  const lowerBottom = `${Math.min(100, (lowerTarget / chartMaxMinutes) * 100)}%`;
-  const upperBottom = `${Math.min(100, (upperTarget / chartMaxMinutes) * 100)}%`;
-  const bandHeight = `${Math.max(0, ((upperTarget - lowerTarget) / chartMaxMinutes) * 100)}%`;
-  const weekTolerance = TARGET_WORK_TOLERANCE * weekStats.length;
-  const weekTone = workBandTone(weekTotalMinutes, WEEK_TARGET_MINUTES, weekTolerance);
-  const draft = timeDraftFromRows(draftRows);
-  const canEditTimes = hasDailyFolder && !stats.creditedDay;
+  const heatmapRows = timeHeatmapDays(weekStats);
+  const selectedDraftStats = workStats({ ...selectedNote, timeClock:normalizedTimeRows(draftRows) });
 
   return (
-    <section className="glass-thin" style={{ borderRadius:18, padding:'14px' }}>
-      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:14, marginBottom:10, flexWrap:'wrap' }}>
-        <div>
-          <div style={{ fontSize:11, color:BRAND_LABEL, fontWeight:800, letterSpacing:'0.14em', textTransform:'uppercase', marginBottom:5 }}>Daily hours</div>
-          <h3 style={{ margin:0, fontSize:18, color:'#1d2421' }}>{selectedDate}</h3>
-          <div style={{ fontSize:11, color:'#5a615b', marginTop:4 }}>{stats.label}</div>
-        </div>
-        <div style={{ textAlign:'right' }}>
-          <div style={{ fontSize:26, fontWeight:850, color:weekTone.text, fontVariantNumeric:'tabular-nums' }}>{formatHoursMinutes(weekTotalMinutes)}</div>
-          <div style={{ fontSize:10, color:'#5a615b' }}>5 day target {formatHoursMinutes(WEEK_TARGET_MINUTES)} +/- {weekTolerance} min</div>
-        </div>
-      </div>
-
-      <div style={{ height:220, position:'relative', borderRadius:16, border:'1px solid rgba(255,255,255,0.58)', background:'linear-gradient(180deg,rgba(255,255,255,0.44),rgba(255,255,255,0.38))', padding:'18px 12px 30px', marginBottom:12 }}>
-        <div style={{ position:'relative', height:'100%' }}>
-          <div style={{ position:'absolute', left:0, right:0, bottom:lowerBottom, height:bandHeight, background:'rgba(20,120,72,0.08)', borderTop:'1px dashed rgba(20,120,72,0.45)', borderBottom:'1px dashed rgba(20,120,72,0.45)', zIndex:2 }} />
-          <div style={{ position:'absolute', right:0, bottom:lowerBottom, transform:'translateY(50%)', fontSize:9, color:'rgba(90,97,91,0.78)', background:'rgba(255,255,255,0.86)', padding:'1px 4px', zIndex:3 }}>{formatHoursMinutes(lowerTarget)}</div>
-          <div style={{ position:'absolute', right:0, bottom:upperBottom, transform:'translateY(50%)', fontSize:9, color:'rgba(90,97,91,0.78)', background:'rgba(255,255,255,0.86)', padding:'1px 4px', zIndex:3 }}>{formatHoursMinutes(upperTarget)}</div>
-          <div style={{ height:'100%', display:'grid', gridTemplateColumns:'repeat(5,1fr)', gap:10, alignItems:'stretch' }}>
-          {weekStats.map(day => {
-            const pct = Math.min(100, (day.totalMinutes / chartMaxMinutes) * 100);
-            const barHeight = day.totalMinutes > 0 ? Math.max(3, pct) : 0;
-            const isSelected = day.dateStr === selectedDate;
-            const isLeave = day.status && day.status !== 'workday';
-            const tone = workBandTone(day.totalMinutes);
-            const fill = isLeave
-              ? day.status === 'bank-holiday'
-                ? 'rgba(208,150,52,0.58)'
-                : day.status === 'sick-leave'
-                  ? 'rgba(251,113,133,0.58)'
-                  : 'rgba(91,141,239,0.5)'
-              : tone.fill;
-            return (
-              <div key={day.dateStr} style={{ minWidth:0, height:'100%', position:'relative' }}>
-                <div style={{ position:'absolute', left:0, right:0, bottom:`calc(${barHeight}% + 4px)`, textAlign:'center', fontSize:9, color:isSelected?BRAND_TEXT:'#5a615b', fontWeight:800 }}>{formatMinutes(day.totalMinutes)}</div>
-                <div style={{ position:'absolute', left:'15%', right:'15%', bottom:0, height:`${barHeight}%`, borderRadius:'10px 10px 4px 4px', background:fill, boxShadow:isLeave ? 'none' : tone.glow, border:isSelected?`1px solid ${BRAND_TEXT}`:'1px solid rgba(255,255,255,0.62)' }} />
-                <div style={{ position:'absolute', left:0, right:0, bottom:-21, textAlign:'center', fontSize:10, color:isSelected?'#1d2421':'#5a615b', fontWeight:800 }}>{dateFromStr(day.dateStr).toLocaleDateString('en-US', { weekday:'short' })}</div>
-              </div>
-            );
-          })}
-          </div>
-        </div>
-      </div>
-
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(4,minmax(95px,1fr))', gap:10, marginBottom:10 }}>
-        {WORK_EVENT_ORDER.map(event => (
-          <label key={event} style={{ minWidth:0 }}>
-            <span style={{ display:'block', fontSize:9, color:BRAND_LABEL, fontWeight:800, textTransform:'uppercase', marginBottom:5 }}>{event}</span>
-            <input type="time" value={draft[event] || ''} onChange={e=>onDraftEventTime(event, e.target.value)} disabled={!canEditTimes}
-              style={{ width:'100%', boxSizing:'border-box', padding:'9px 10px', borderRadius:10, background:'rgba(255,255,255,0.55)', border:'1px solid rgba(255,255,255,0.62)', color:'#222a25', fontSize:12, outline:'none', fontFamily:'inherit', opacity:canEditTimes?1:0.45 }} />
-          </label>
-        ))}
-      </div>
-    </section>
+    <TimeHeatmap
+      rows={heatmapRows}
+      start={week[0]}
+      end={week[week.length - 1]}
+      title="Daily hours"
+      detail={`${formatHoursMinutes(weekTotalMinutes)} this week · selected ${selectedDate} ${formatHoursMinutes(selectedDraftStats.totalMinutes)}`}
+      minHeight={280}
+    />
   );
 }
 
