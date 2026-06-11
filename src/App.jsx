@@ -3761,7 +3761,7 @@ function TimeHeatmap({ rows, start, end, title = 'Work heatmap', detail, minHeig
   );
 }
 
-function TimeDashboardPanel({ notes, trackerRows, tasks, hasDailyFolder, onConfigure }) {
+function TimeDashboardPanel({ notes, hasDailyFolder, onConfigure }) {
   const [period, setPeriod] = useState('week');
   const [customStart, setCustomStart] = useState(addDays(tod(), -6));
   const [customEnd, setCustomEnd] = useState(tod());
@@ -3783,17 +3783,40 @@ function TimeDashboardPanel({ notes, trackerRows, tasks, hasDailyFolder, onConfi
         ? { start:normalizedStart || addDays(anchorDate, -6), end:normalizedEnd || anchorDate, label:'Custom range', metric:'selected range' }
         : { start:addDays(anchorDate, -6), end:anchorDate, label:'Last 7 days', metric:'this week' };
   const stats = dashboardStats(datedNotes, range.start, range.end);
-  const chartDays = dateSpan(range.start, range.end).map(date => ({ date, note:noteMap[date], ...workStats(noteMap[date]) }));
-  const heatmapRows = timeHeatmapDays(chartDays);
-  const todayStats = workStats(noteMap[tod()]);
-  const lowerTarget = TARGET_WORK_MINUTES - TARGET_WORK_TOLERANCE;
-  const upperTarget = TARGET_WORK_MINUTES + TARGET_WORK_TOLERANCE;
-  const averageTone = workBandTone(stats.summary.averageMinutes);
-  const todayTone = workBandTone(todayStats.totalMinutes);
-  const metricCards = [
-    { label:`Total ${range.metric}`, value:formatHoursMinutes(stats.summary.totalMinutes), detail:`${stats.summary.totalDays} counted day${stats.summary.totalDays === 1 ? '' : 's'}`, color:'#13733f' },
-    { label:'Daily average', value:formatHoursMinutes(stats.summary.averageMinutes), detail:`target ${formatHoursMinutes(lowerTarget)}-${formatHoursMinutes(upperTarget)}`, color:averageTone.text },
-    { label:'Today', value:formatHoursMinutes(todayStats.totalMinutes), detail:todayStats.totalMinutes ? todayStats.label : 'no time logged yet', color:todayTone.text },
+  const trackedDays = stats.days.filter(day => day.totalMinutes > 0);
+  const weekTotals = trackedDays.reduce((weeks, day) => {
+    const start = addDays(day.date, -((dateFromStr(day.date).getDay() + 6) % 7));
+    weeks[start] = (weeks[start] || 0) + day.totalMinutes;
+    return weeks;
+  }, {});
+  const activeWeeks = Object.values(weekTotals);
+  const averageWeekMinutes = activeWeeks.length
+    ? Math.round(activeWeeks.reduce((sum, minutes) => sum + minutes, 0) / activeWeeks.length)
+    : 0;
+  const weekdayAverages = stats.weekdays.filter(day => day.count > 0);
+  const highestWeekday = weekdayAverages.reduce((best, day) => (!best || day.averageMinutes > best.averageMinutes ? day : best), null);
+  const lowestWeekday = weekdayAverages.reduce((best, day) => (!best || day.averageMinutes < best.averageMinutes ? day : best), null);
+  const weekendsWorked = trackedDays.filter(day => [0, 6].includes(dateFromStr(day.date).getDay())).length;
+  const streak = dateSpan(range.start, range.end).reduce((state, date) => {
+    const nextRun = workStats(noteMap[date]).totalMinutes > 0 ? state.current + 1 : 0;
+    return { current:nextRun, longest:Math.max(state.longest, nextRun) };
+  }, { current:0, longest:0 });
+  const mostRecent = trackedDays[trackedDays.length - 1];
+  const goalText = `${formatHoursMinutes(TARGET_WORK_MINUTES - TARGET_WORK_TOLERANCE)}-${formatHoursMinutes(TARGET_WORK_MINUTES + TARGET_WORK_TOLERANCE)}`;
+  const countLabel = (count, singular, plural = `${singular}s`) => `${count} ${count === 1 ? singular : plural}`;
+  const kpiCards = [
+    { label:'Total days tracked', value:String(stats.summary.totalDays), detail:countLabel(stats.summary.totalDays, 'counted day'), color:'#13733f' },
+    { label:'Total hours', value:formatHoursMinutes(stats.summary.totalMinutes), detail:range.label, color:'#13733f' },
+    { label:'Average hours', value:formatHoursMinutes(stats.summary.averageMinutes), detail:'per tracked day', color:workBandTone(stats.summary.averageMinutes).text },
+    { label:'Average week', value:formatHoursMinutes(averageWeekMinutes), detail:`${countLabel(activeWeeks.length, 'active week')}`, color:'#13733f' },
+    { label:'Days under goal', value:String(stats.summary.underGoal), detail:`below ${goalText}`, color:'#a9791f' },
+    { label:'Days over goal', value:String(stats.summary.overGoal), detail:`above ${goalText}`, color:'#c2533f' },
+    { label:'Highest average day', value:highestWeekday?.label || '--', detail:highestWeekday ? `${formatHoursMinutes(highestWeekday.averageMinutes)} avg` : 'no tracked days', color:'#13733f' },
+    { label:'Lowest average day', value:lowestWeekday?.label || '--', detail:lowestWeekday ? `${formatHoursMinutes(lowestWeekday.averageMinutes)} avg` : 'no tracked days', color:'#a9791f' },
+    { label:'Weekends worked', value:String(weekendsWorked), detail:'Sat or Sun tracked', color:'#13733f' },
+    { label:'Goal-hit days', value:String(stats.summary.goalMet), detail:`within ${formatMinutes(TARGET_WORK_TOLERANCE)} of target`, color:'#13733f' },
+    { label:'Longest streak', value:String(streak.longest), detail:countLabel(streak.longest, 'tracked day'), color:'#13733f' },
+    { label:'Most recent tracked', value:mostRecent ? mostRecent.date.slice(5).replace('-', '/') : '--', detail:mostRecent ? formatHoursMinutes(mostRecent.totalMinutes) : 'no tracked days', color:'#13733f' },
   ];
   const setPreset = key => {
     setPeriod(key);
@@ -3862,17 +3885,15 @@ function TimeDashboardPanel({ notes, trackerRows, tasks, hasDailyFolder, onConfi
         </div>
       </div>
 
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(3,minmax(0,1fr))', gap:10, marginBottom:10, flexShrink:0 }}>
-        {metricCards.map(card => (
-          <section key={card.label} className="glass-thin" style={{ borderRadius:14, padding:'12px 14px' }}>
-            <div style={{ fontSize:10, color:BRAND_LABEL, fontWeight:800, textTransform:'uppercase', letterSpacing:'0.12em', marginBottom:7 }}>{card.label}</div>
-            <div style={{ fontSize:30, fontWeight:850, color:card.color, lineHeight:1, fontVariantNumeric:'tabular-nums' }}>{card.value}</div>
-            <div style={{ fontSize:11, color:'rgba(90,97,91,0.78)', marginTop:6 }}>{card.detail}</div>
+      <div style={{ flex:1, minHeight:0, display:'grid', gridTemplateColumns:'repeat(3,minmax(0,1fr))', gridTemplateRows:'repeat(4,minmax(0,1fr))', gap:10 }}>
+        {kpiCards.map(card => (
+          <section key={card.label} className="glass-thin" style={{ borderRadius:14, padding:'12px 14px', minWidth:0, minHeight:0, display:'flex', flexDirection:'column', justifyContent:'center', overflow:'hidden' }}>
+            <div style={{ fontSize:10, color:BRAND_LABEL, fontWeight:800, textTransform:'uppercase', letterSpacing:'0.12em', marginBottom:8, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{card.label}</div>
+            <div style={{ fontSize:String(card.value).length > 8 ? 25 : 30, fontWeight:850, color:card.color, lineHeight:1.02, fontVariantNumeric:'tabular-nums', overflowWrap:'anywhere' }}>{card.value}</div>
+            <div style={{ fontSize:11, color:'rgba(90,97,91,0.78)', marginTop:7, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{card.detail}</div>
           </section>
         ))}
       </div>
-
-      <TimeHeatmap rows={heatmapRows} start={range.start} end={range.end} />
     </div>
   );
 }
