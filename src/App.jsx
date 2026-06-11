@@ -7,7 +7,7 @@ import { wikilinksToMarkdown, isWikilinkHref, wikilinkTarget } from './utils/men
 import { parseTask, parseProperty, parseProject, parseDailyNote, parseMeeting, parsePerson, parseOrganization, readMdFiles, readDirNames, readImageFiles } from './utils/parser.js';
 import { idbGet, idbSet, idbDel, lsGet, lsSet, lsDel } from './utils/storage.js';
 import { fmt, tod, isToday, isOver, longDate, appendNoteToMd, appendPropertyCommentToMd, updateCommentLog, deleteCommentLog, appendDailySectionEntry, appendDailyTimeClockEvent, buildDailyNoteMd, buildTrackerRow, appendTrackerRow, buildMeetingMd, buildNewTaskMd, buildNewPropertyMd, buildNewProjectMd, buildNewPersonMd, buildNewOrganizationMd, kebabSlug, finishRecurrentTaskInstance, markTaskDone, postponeTaskDates, postponeTaskDatesByMonths, replaceDailyTimeClockRows, setDailyWorkStatus, setPropertyCover, touchDateModified, updateTaskDates, updateTaskThreadSubject } from './utils/formatter.js';
-import { TARGET_WORK_MINUTES, TARGET_WORK_TOLERANCE, WEEK_TARGET_MINUTES, WORK_CHART_MAX_MINUTES, WORK_EVENT_ORDER, WORK_STATUS_LABELS, dashboardStats, goalBand, minutesFromTime, workStats } from './utils/timeClock.js';
+import { TARGET_WORK_MINUTES, TARGET_WORK_TOLERANCE, WEEK_TARGET_MINUTES, WORK_CHART_MAX_MINUTES, WEEKDAY_LABELS, WORK_EVENT_ORDER, WORK_STATUS_LABELS, dashboardStats, goalBand, minutesFromTime, workStats } from './utils/timeClock.js';
 
 const REFRESH_MS  = 5 * 60 * 1000;
 const WARN_MS     = 60 * 60 * 1000;
@@ -252,11 +252,11 @@ function MarkdownBody({ children, emptyText = 'No Markdown content yet.', compac
 
 function DetailPatternPanel({ eyebrow, title, subtitle, action, children }) {
   return (
-    <div style={{ flex:1, minHeight:0, overflowY:'auto', padding:'22px 28px 24px' }}>
-      <div style={{ display:'flex', justifyContent:'space-between', gap:18, alignItems:'flex-start', marginBottom:18 }}>
+    <div style={{ flex:1, minHeight:0, overflow:'hidden', padding:'18px 24px 20px', display:'flex', flexDirection:'column' }}>
+      <div style={{ display:'flex', justifyContent:'space-between', gap:16, alignItems:'flex-start', marginBottom:12, flexShrink:0 }}>
         <div style={{ minWidth:0 }}>
           <div style={{ fontSize:10, color:BRAND_LABEL, fontWeight:800, textTransform:'uppercase', letterSpacing:'0.14em', marginBottom:6 }}>{eyebrow}</div>
-          <h2 style={{ margin:0, fontSize:30, color:TEXT_PRIMARY, letterSpacing:0 }}>{title}</h2>
+          <h2 style={{ margin:0, fontSize:26, color:TEXT_PRIMARY, letterSpacing:0, lineHeight:1.1 }}>{title}</h2>
           {subtitle && <div style={{ fontSize:13, color:'rgba(90,97,91,0.78)', marginTop:6 }}>{subtitle}</div>}
         </div>
         {action}
@@ -268,14 +268,14 @@ function DetailPatternPanel({ eyebrow, title, subtitle, action, children }) {
 
 function DetailIdentityCard({ avatarText, avatarRadius = 999, title, subtitle, chips = [], action }) {
   return (
-    <section className="glass-thin" style={{ borderRadius:18, padding:'16px', marginBottom:12 }}>
-      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:16, flexWrap:'wrap' }}>
-        <div style={{ display:'flex', alignItems:'center', gap:14, minWidth:0 }}>
-          <div style={{ width:50, height:50, borderRadius:avatarRadius, background:BRAND_GRADIENT, color:'#fff', display:'flex', alignItems:'center', justifyContent:'center', fontSize:18, fontWeight:900, flexShrink:0, fontVariantNumeric:'tabular-nums' }}>
+    <section className="glass-thin" style={{ borderRadius:16, padding:'12px 14px', marginBottom:10, flexShrink:0 }}>
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:14, flexWrap:'wrap' }}>
+        <div style={{ display:'flex', alignItems:'center', gap:12, minWidth:0 }}>
+          <div style={{ width:42, height:42, borderRadius:avatarRadius, background:BRAND_GRADIENT, color:'#fff', display:'flex', alignItems:'center', justifyContent:'center', fontSize:16, fontWeight:900, flexShrink:0, fontVariantNumeric:'tabular-nums' }}>
             {avatarText}
           </div>
           <div style={{ minWidth:0 }}>
-            <div style={{ fontSize:20, color:TEXT_PRIMARY, fontWeight:800, lineHeight:1.1 }}>{title}</div>
+            <div style={{ fontSize:18, color:TEXT_PRIMARY, fontWeight:800, lineHeight:1.1 }}>{title}</div>
             {subtitle && <div style={{ fontSize:12, color:'rgba(90,97,91,0.72)', marginTop:5 }}>{subtitle}</div>}
             {!!chips.length && (
               <div style={{ display:'flex', gap:8, flexWrap:'wrap', marginTop:8 }}>
@@ -296,14 +296,14 @@ function DetailIdentityCard({ avatarText, avatarRadius = 999, title, subtitle, c
 
 function DetailMetricStrip({ metrics }) {
   return (
-    <div style={{ display:'grid', gridTemplateColumns:'repeat(3,minmax(0,1fr))', gap:12, marginBottom:12 }}>
+    <div style={{ display:'grid', gridTemplateColumns:'repeat(3,minmax(0,1fr))', gap:10, marginBottom:10, flexShrink:0 }}>
       {metrics.map(({ label, value, tone }) => {
         const displayValue = value ?? '--';
         const valueText = String(displayValue);
         return (
-          <section key={label} className="glass-thin" style={{ borderRadius:14, padding:'14px 16px', minWidth:0 }}>
-            <div style={{ fontSize:valueText.length > 7 ? 18 : 28, fontWeight:850, color:tone || TEXT_PRIMARY, lineHeight:1.08, fontVariantNumeric:'tabular-nums', overflowWrap:'anywhere' }}>{displayValue}</div>
-            <div style={{ fontSize:10, color:BRAND_LABEL, fontWeight:800, textTransform:'uppercase', letterSpacing:'0.14em', marginTop:8 }}>{label}</div>
+          <section key={label} className="glass-thin" style={{ borderRadius:12, padding:'10px 12px', minWidth:0 }}>
+            <div style={{ fontSize:valueText.length > 7 ? 16 : 24, fontWeight:850, color:tone || TEXT_PRIMARY, lineHeight:1.08, fontVariantNumeric:'tabular-nums', overflowWrap:'anywhere' }}>{displayValue}</div>
+            <div style={{ fontSize:9, color:BRAND_LABEL, fontWeight:800, textTransform:'uppercase', letterSpacing:'0.12em', marginTop:7 }}>{label}</div>
           </section>
         );
       })}
@@ -313,7 +313,7 @@ function DetailMetricStrip({ metrics }) {
 
 function DetailNotesEditor({ meta, value, onChange, minHeight = 360, placeholder }) {
   return (
-    <section className="glass-thin" style={{ borderRadius:18, padding:'16px', minHeight, display:'flex', flexDirection:'column' }}>
+    <section className="glass-thin" style={{ borderRadius:16, padding:'14px', minHeight:0, flex:'1 1 0', display:'flex', flexDirection:'column' }}>
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline', gap:12, marginBottom:12 }}>
         <div>
           <div style={{ fontSize:10, color:BRAND_LABEL, fontWeight:800, textTransform:'uppercase', letterSpacing:'0.14em', marginBottom:5 }}>Notes (Markdown)</div>
@@ -333,10 +333,47 @@ function DetailNotesEditor({ meta, value, onChange, minHeight = 360, placeholder
 
 function DetailMarkdownCard({ label = 'Notes', children, minHeight = 260 }) {
   return (
-    <section className="glass-thin" style={{ borderRadius:18, padding:'16px 18px', minHeight, maxHeight:'min(420px, 48vh)', overflowY:'auto' }}>
+    <section className="glass-thin" style={{ borderRadius:16, padding:'14px 16px', minHeight:0, flex:'1 1 0', overflowY:'auto' }}>
       <div style={{ fontSize:10, color:BRAND_LABEL, fontWeight:800, textTransform:'uppercase', letterSpacing:'0.14em', marginBottom:10 }}>{label}</div>
       {children}
     </section>
+  );
+}
+
+function DetailMarkdownEditorCard({ meta, value, onChange, emptyText }) {
+  const [editing, setEditing] = useState(false);
+  return (
+    <section className="glass-thin" style={{ borderRadius:16, padding:'14px', minHeight:0, flex:'1 1 0', display:'flex', flexDirection:'column' }}>
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline', gap:12, marginBottom:10, flexShrink:0 }}>
+        <div>
+          <div style={{ fontSize:10, color:BRAND_LABEL, fontWeight:800, textTransform:'uppercase', letterSpacing:'0.14em', marginBottom:5 }}>Notes (Markdown)</div>
+          {meta && <div style={{ fontSize:12, color:'rgba(90,97,91,0.72)' }}>{meta}</div>}
+        </div>
+        <button onClick={()=>setEditing(value => !value)} style={{ padding:'6px 10px', borderRadius:999, border:'1px solid rgba(255,255,255,0.62)', background:'rgba(255,255,255,0.55)', color:BRAND_TEXT, fontSize:10, fontWeight:800, cursor:'pointer', fontFamily:'inherit' }}>
+          {editing ? 'Preview' : 'Edit'}
+        </button>
+      </div>
+      {editing ? (
+        <MentionTextarea
+          value={value}
+          onChange={onChange}
+          spellCheck={false}
+          style={{ flex:1, width:'100%', resize:'none', padding:'16px 18px', borderRadius:14, background:'rgba(255,255,255,0.50)', border:'1px solid rgba(255,255,255,0.62)', color:'#222a25', outline:'none', fontFamily:"'JetBrains Mono', ui-monospace, SFMono-Regular, Consolas, monospace", fontSize:13, lineHeight:1.7 }}
+        />
+      ) : (
+        <div style={{ flex:1, minHeight:0, overflowY:'auto', borderRadius:14, background:'rgba(255,255,255,0.50)', border:'1px solid rgba(255,255,255,0.62)', padding:'16px 18px' }}>
+          <MarkdownBody emptyText={emptyText}>{value}</MarkdownBody>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function ScreenLogo() {
+  return (
+    <div aria-hidden="true" style={{ position:'absolute', right:16, bottom:12, zIndex:8, pointerEvents:'none', fontFamily:"'JetBrains Mono', monospace", fontSize:18, fontWeight:900, letterSpacing:0, color:'rgba(17,92,52,0.16)', textShadow:'0 1px 0 rgba(255,255,255,0.42)' }}>
+      RF
+    </div>
   );
 }
 
@@ -534,9 +571,9 @@ const inputBase = {
 };
 const labelBase = { fontSize:11, color:TEXT_MUTED, fontWeight:700, letterSpacing:'0.10em', textTransform:'uppercase', display:'block', marginBottom:6, fontFamily:"'JetBrains Mono', monospace" };
 
-function Field({ label, children }) {
+function Field({ label, children, compact = false }) {
   return (
-    <div style={{ marginBottom:11 }}>
+    <div style={{ marginBottom:compact ? 0 : 11 }}>
       <label style={labelBase}>{label}</label>
       {children}
     </div>
@@ -734,6 +771,73 @@ function organizationMetrics(organization, tasks, meetings, isClosedTask) {
     meetings: meetings.filter(meeting => matchesRaw(meeting.raw)).length,
     tasksLinked: linkedTasks.filter(task => !isClosedTask(task)).length,
   };
+}
+
+const HEATMAP_SLOT_MINUTES = 30;
+const HEATMAP_SLOTS = Array.from({ length: 48 }, (_, index) => index * HEATMAP_SLOT_MINUTES);
+
+function formatSlotLabel(minutes) {
+  const hour = Math.floor(minutes / 60);
+  const minute = minutes % 60;
+  return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+}
+
+function dailyWorkSegments(note) {
+  const rows = (note?.timeClock || [])
+    .map(row => ({ ...row, minutes:minutesFromTime(row.time) }))
+    .filter(row => row.minutes !== null)
+    .sort((a, b) => a.minutes - b.minutes);
+  const clockIn = rows.find(row => row.event === 'Clock in')?.minutes;
+  const clockOut = [...rows].reverse().find(row => row.event === 'Clock out')?.minutes;
+  if (clockIn === undefined || clockOut === undefined || clockOut <= clockIn) return [];
+
+  let segments = [{ start:clockIn, end:clockOut }];
+  let breakStart = null;
+  rows.forEach(row => {
+    if (row.event === 'Break start') breakStart = row.minutes;
+    if (row.event === 'Break finish' && breakStart !== null && row.minutes > breakStart) {
+      const start = breakStart;
+      const end = row.minutes;
+      segments = segments.flatMap(segment => {
+        if (end <= segment.start || start >= segment.end) return [segment];
+        return [
+          { start:segment.start, end:Math.max(segment.start, start) },
+          { start:Math.min(segment.end, end), end:segment.end },
+        ].filter(part => part.end > part.start);
+      });
+      breakStart = null;
+    }
+  });
+  return segments;
+}
+
+function timeHeatmapDays(days) {
+  const rows = WEEKDAY_LABELS.map(label => ({
+    label,
+    days:0,
+    minutes:Array(HEATMAP_SLOTS.length).fill(0),
+  }));
+
+  days.forEach(day => {
+    if (!day.note || day.creditedDay) return;
+    const weekday = (dateFromStr(day.date).getDay() + 6) % 7;
+    const segments = dailyWorkSegments(day.note);
+    if (!segments.length) return;
+    rows[weekday].days += 1;
+    HEATMAP_SLOTS.forEach((slotStart, slotIndex) => {
+      const slotEnd = slotStart + HEATMAP_SLOT_MINUTES;
+      const activeMinutes = segments.reduce((sum, segment) => (
+        sum + Math.max(0, Math.min(segment.end, slotEnd) - Math.max(segment.start, slotStart))
+      ), 0);
+      rows[weekday].minutes[slotIndex] += activeMinutes;
+    });
+  });
+
+  rows.forEach(row => {
+    row.average = row.minutes.map(minutes => row.days ? Math.round(minutes / row.days) : 0);
+    row.total = row.average.reduce((sum, minutes) => sum + minutes, 0);
+  });
+  return rows;
 }
 
 function parseTrackerRows(raw = '') {
@@ -2339,7 +2443,7 @@ export default function App() {
   const allSavedReady = bootDone && Object.keys(savedDirs).length > 0;
 
   if (showSetup) return (
-    <div style={{ height:'100vh', overflowY:'auto', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'flex-start', padding:'36px 20px 28px', gap:18, color:'#222a25', background:'radial-gradient(ellipse at 50% -5%,rgba(20,120,72,0.24) 0%,#e1e7e3 65%)' }}>
+    <div style={{ position:'relative', height:'100vh', overflowY:'auto', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'flex-start', padding:'36px 20px 28px', gap:18, color:'#222a25', background:'radial-gradient(ellipse at 50% -5%,rgba(20,120,72,0.24) 0%,#e1e7e3 65%)' }}>
       <div style={{ fontSize:52, filter:'drop-shadow(0 0 20px rgba(20,120,72,0.55))' }}>⚡</div>
       <div style={{ textAlign:'center' }}>
         <h1 style={{ margin:'0 0 8px', fontSize:32, fontWeight:800, background:'linear-gradient(135deg,#f0f7f2,#23a564)', WebkitBackgroundClip:'text', WebkitTextFillColor:'transparent' }}>TaskDash</h1>
@@ -2393,6 +2497,7 @@ export default function App() {
           </button>
         </div>
       )}
+      <ScreenLogo />
     </div>
   );
 
@@ -2750,7 +2855,7 @@ export default function App() {
       </div>
 
       {/* ─── Main panel ─── */}
-      <div className="pane glass-strong" style={{ display:'flex', flexDirection:'column', minHeight:0, overflow:'hidden' }}>
+      <div className="pane glass-strong" style={{ position:'relative', display:'flex', flexDirection:'column', minHeight:0, overflow:'hidden' }}>
       {view === 'mission' ? (
         <MissionControlPanel
           today={missionToday}
@@ -3022,6 +3127,7 @@ export default function App() {
           </div>
         </div>
       )}
+      <ScreenLogo />
       </div>
       </div>
     </MentionProvider>
@@ -3085,10 +3191,11 @@ function PeoplePanel({ selected, draft, setDraft, onSave, summary, hasPeopleFold
         )}
       />
       <DetailMetricStrip metrics={stats} />
-      <DetailNotesEditor
+      <DetailMarkdownEditorCard
         meta={`${selected.filename}${lastTouched ? ` · touched ${String(lastTouched).slice(0, 10)}` : ''}`}
         value={noteParts.body}
         onChange={e=>setDraft(replaceNoteBody(draft, e.target.value))}
+        emptyText="No person notes yet."
       />
     </DetailPatternPanel>
   );
@@ -3152,11 +3259,11 @@ function OrganizationPanel({ selected, draft, setDraft, onSave, summary, hasOrga
         )}
       />
       <DetailMetricStrip metrics={stats} />
-      <DetailNotesEditor
+      <DetailMarkdownEditorCard
         meta={`${selected.filename}${lastTouched ? ` · touched ${String(lastTouched).slice(0, 10)}` : ''}`}
         value={noteParts.body}
         onChange={e=>setDraft(replaceNoteBody(draft, e.target.value))}
-        minHeight={420}
+        emptyText="No organization notes yet."
       />
     </DetailPatternPanel>
   );
@@ -3306,16 +3413,16 @@ function MeetingPanel({ meetingOpen, meetingTitle, meetingNotes, meetingLinks, s
       <section className="glass-thin" style={{ borderRadius:18, padding:'16px', marginBottom:12 }}>
         <div style={{ fontSize:10, color:BRAND_LABEL, fontWeight:800, textTransform:'uppercase', letterSpacing:'0.14em', marginBottom:12 }}>Linked context</div>
         <div style={{ display:'grid', gridTemplateColumns:'repeat(2,minmax(220px,1fr))', gap:10 }}>
-          <Field label="Clients">
+          <Field label="Clients" compact>
             <ChipMulti value={meetingLinks.clients || []} onChange={value=>setLinks('clients', value)} options={refs.clients || []} placeholder="Add clients..." />
           </Field>
-          <Field label="Properties">
+          <Field label="Properties" compact>
             <ChipMulti value={meetingLinks.properties || []} onChange={value=>setLinks('properties', value)} options={refs.properties || []} placeholder="Add properties..." />
           </Field>
-          <Field label="Tasks">
+          <Field label="Tasks" compact>
             <ChipMulti value={meetingLinks.tasks || []} onChange={value=>setLinks('tasks', value)} options={taskOptions || []} placeholder="Add tasks..." />
           </Field>
-          <Field label="People">
+          <Field label="People" compact>
             <ChipMulti value={meetingLinks.people || []} onChange={value=>setLinks('people', value)} options={refs.people || []} placeholder="Add people..." />
           </Field>
         </div>
@@ -3500,7 +3607,7 @@ function HoursPanel({ selectedDate, selectedNote, notes, month, onSelectDate, on
         <div>
           <div style={{ fontSize:10, color:BRAND_LABEL, fontWeight:800, textTransform:'uppercase', letterSpacing:'0.14em', marginBottom:6 }}>Hours</div>
           <h2 style={{ margin:0, fontSize:30, color:'#1d2421', letterSpacing:0 }}>Time clock</h2>
-          <div style={{ fontSize:13, color:'rgba(244,255,249,0.7)', marginTop:6 }}>
+          <div style={{ fontSize:13, color:TEXT_SECONDARY, marginTop:6 }}>
             Pick a day on the calendar, then punch or edit that day&apos;s time clock.
           </div>
         </div>
@@ -3610,6 +3717,59 @@ function HoursPanel({ selectedDate, selectedNote, notes, month, onSelectDate, on
   );
 }
 
+function TimeHeatmap({ rows, start, end }) {
+  const maxMinutes = Math.max(HEATMAP_SLOT_MINUTES, ...rows.flatMap(row => row.average));
+  const cellColor = minutes => {
+    if (!minutes) return 'rgba(255,255,255,0.38)';
+    const pct = Math.min(1, minutes / maxMinutes);
+    const alpha = 0.10 + pct * 0.48;
+    return `rgba(19,115,63,${alpha.toFixed(2)})`;
+  };
+
+  return (
+    <section className="glass-thin" style={{ borderRadius:18, padding:'14px', minHeight:0, flex:'1 1 0', display:'flex', flexDirection:'column', overflow:'hidden' }}>
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:14, marginBottom:10, flexWrap:'wrap', flexShrink:0 }}>
+        <div>
+          <div style={{ fontSize:11, color:BRAND_LABEL, fontWeight:800, textTransform:'uppercase', letterSpacing:'0.14em', marginBottom:4 }}>Work heatmap</div>
+          <div style={{ fontSize:12, color:TEXT_SECONDARY }}>{start} to {end} · weekdays x 30 min intervals</div>
+        </div>
+        <div style={{ display:'flex', gap:8, alignItems:'center', fontSize:10, color:TEXT_SECONDARY, fontWeight:800 }}>
+          <span>0m</span>
+          <span style={{ width:68, height:8, borderRadius:999, background:'linear-gradient(90deg,rgba(255,255,255,0.38),rgba(19,115,63,0.58))', border:'1px solid rgba(255,255,255,0.60)' }} />
+          <span>30m</span>
+        </div>
+      </div>
+      <div style={{ flex:1, minHeight:0, overflow:'hidden', borderRadius:14, background:'rgba(255,255,255,0.42)', border:'1px solid rgba(255,255,255,0.60)', padding:'10px 10px 12px' }}>
+        <div style={{ height:'100%', display:'grid', gridTemplateColumns:'48px repeat(48,minmax(6px,1fr))', gridTemplateRows:'18px repeat(7,minmax(20px,1fr))', gap:3, alignItems:'stretch' }}>
+          <div />
+          {HEATMAP_SLOTS.map(minutes => (
+            <div key={`slot-${minutes}`} title={formatSlotLabel(minutes)} style={{ fontSize:8, color:minutes % 120 === 0 ? TEXT_SECONDARY : 'transparent', fontWeight:800, textAlign:'center', alignSelf:'end', fontFamily:"'JetBrains Mono', monospace" }}>
+              {minutes % 120 === 0 ? formatSlotLabel(minutes).slice(0, 2) : ''}
+            </div>
+          ))}
+          {rows.map(row => (
+            <React.Fragment key={row.label}>
+              <div style={{ display:'flex', alignItems:'center', justifyContent:'flex-end', paddingRight:6, fontSize:10, color:TEXT_PRIMARY, fontWeight:850, fontFamily:"'JetBrains Mono', monospace" }}>
+                {row.label}
+              </div>
+              {row.average.map((minutes, index) => {
+                const slot = HEATMAP_SLOTS[index];
+                return (
+                  <div
+                    key={`${row.label}-${slot}`}
+                    title={`${row.label} ${formatSlotLabel(slot)}-${formatSlotLabel(slot + HEATMAP_SLOT_MINUTES)} · avg ${minutes}m across ${row.days} day${row.days === 1 ? '' : 's'}`}
+                    style={{ borderRadius:4, background:cellColor(minutes), border:'1px solid rgba(255,255,255,0.42)' }}
+                  />
+                );
+              })}
+            </React.Fragment>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function TimeDashboardPanel({ notes, trackerRows, tasks, hasDailyFolder, onConfigure }) {
   const [period, setPeriod] = useState('week');
   const [customStart, setCustomStart] = useState(addDays(tod(), -6));
@@ -3632,19 +3792,11 @@ function TimeDashboardPanel({ notes, trackerRows, tasks, hasDailyFolder, onConfi
         ? { start:normalizedStart || addDays(anchorDate, -6), end:normalizedEnd || anchorDate, label:'Custom range', metric:'selected range' }
         : { start:addDays(anchorDate, -6), end:anchorDate, label:'Last 7 days', metric:'this week' };
   const stats = dashboardStats(datedNotes, range.start, range.end);
-  const historicalStats = dashboardStats(datedNotes, firstDate, lastDate);
   const chartDays = dateSpan(range.start, range.end).map(date => ({ date, note:noteMap[date], ...workStats(noteMap[date]) }));
+  const heatmapRows = timeHeatmapDays(chartDays);
   const todayStats = workStats(noteMap[tod()]);
   const lowerTarget = TARGET_WORK_MINUTES - TARGET_WORK_TOLERANCE;
   const upperTarget = TARGET_WORK_MINUTES + TARGET_WORK_TOLERANCE;
-  const chartMaxMinutes = Math.max(WORK_CHART_MAX_MINUTES, upperTarget, ...chartDays.map(day => day.totalMinutes));
-  const lowerBottom = `${Math.min(100, (lowerTarget / chartMaxMinutes) * 100)}%`;
-  const upperBottom = `${Math.min(100, (upperTarget / chartMaxMinutes) * 100)}%`;
-  const bandHeight = `${Math.max(0, ((upperTarget - lowerTarget) / chartMaxMinutes) * 100)}%`;
-  const tickEvery = Math.max(1, Math.ceil(chartDays.length / 7));
-  const barGap = chartDays.length > 90 ? 1 : chartDays.length > 45 ? 2 : chartDays.length > 20 ? 4 : 8;
-  const barWidth = chartDays.length > 90 ? '76%' : chartDays.length > 45 ? '64%' : chartDays.length > 20 ? '56%' : '42%';
-  const showBarValues = chartDays.length <= 14;
   const averageTone = workBandTone(stats.summary.averageMinutes);
   const todayTone = workBandTone(todayStats.totalMinutes);
   const metricCards = [
@@ -3675,11 +3827,11 @@ function TimeDashboardPanel({ notes, trackerRows, tasks, hasDailyFolder, onConfi
   }
 
   return (
-    <div style={{ flex:1, minHeight:0, overflowY:'auto', padding:'18px 24px 20px' }}>
-      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:18, marginBottom:16, flexWrap:'wrap' }}>
+    <div style={{ flex:1, minHeight:0, overflow:'hidden', padding:'14px 20px 18px', display:'flex', flexDirection:'column' }}>
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:14, marginBottom:10, flexWrap:'wrap', flexShrink:0 }}>
         <div>
           <div style={{ fontSize:10, color:BRAND_LABEL, fontWeight:800, textTransform:'uppercase', letterSpacing:'0.14em', marginBottom:6 }}>Time dashboard · {range.label.toLowerCase()}</div>
-          <h2 style={{ margin:0, fontSize:30, color:'#1d2421', letterSpacing:0 }}>Time</h2>
+          <h2 style={{ margin:0, fontSize:26, color:'#1d2421', letterSpacing:0 }}>Time</h2>
         </div>
         <div style={{ display:'flex', gap:8, alignItems:'center', flexWrap:'wrap', justifyContent:'flex-end' }}>
           <div style={{ display:'inline-flex', gap:6, padding:4, borderRadius:999, background:'rgba(255,255,255,0.55)', border:'1px solid rgba(255,255,255,0.62)' }}>
@@ -3691,7 +3843,7 @@ function TimeDashboardPanel({ notes, trackerRows, tasks, hasDailyFolder, onConfi
               <button
                 key={key}
                 onClick={()=>setPreset(key)}
-                style={{ padding:'8px 12px', borderRadius:999, border:'none', cursor:'pointer', fontWeight:800, fontSize:11, fontFamily:'inherit', background:period === key ? 'rgba(255,255,255,0.74)' : 'transparent', color:period === key ? '#fff' : 'rgba(90,97,91,0.72)' }}
+                style={{ padding:'7px 11px', borderRadius:999, border:'none', cursor:'pointer', fontWeight:800, fontSize:11, fontFamily:'inherit', background:period === key ? BRAND_GRADIENT : 'transparent', color:period === key ? '#fff' : TEXT_SECONDARY, boxShadow:period === key ? BRAND_SHADOW : 'none' }}
               >
                 {label}
               </button>
@@ -3704,7 +3856,7 @@ function TimeDashboardPanel({ notes, trackerRows, tasks, hasDailyFolder, onConfi
               min={firstDate}
               max={lastDate}
               onChange={e=>{ setCustomStart(e.target.value); setPeriod('custom'); }}
-              style={{ colorScheme:'light', width:132, padding:'7px 8px', borderRadius:9, border:'1px solid rgba(255,255,255,0.62)', background:'rgba(255,255,255,0.55)', color:'#1d2421', fontSize:11, fontWeight:750, fontFamily:'inherit', outline:'none' }}
+              style={{ colorScheme:'light', width:126, padding:'6px 8px', borderRadius:9, border:'1px solid rgba(255,255,255,0.62)', background:'rgba(255,255,255,0.55)', color:'#1d2421', fontSize:11, fontWeight:750, fontFamily:'inherit', outline:'none' }}
             />
             <span style={{ color:'rgba(90,97,91,0.48)', fontSize:11, fontWeight:800 }}>to</span>
             <input
@@ -3713,97 +3865,23 @@ function TimeDashboardPanel({ notes, trackerRows, tasks, hasDailyFolder, onConfi
               min={firstDate}
               max={lastDate}
               onChange={e=>{ setCustomEnd(e.target.value); setPeriod('custom'); }}
-              style={{ colorScheme:'light', width:132, padding:'7px 8px', borderRadius:9, border:'1px solid rgba(255,255,255,0.62)', background:'rgba(255,255,255,0.55)', color:'#1d2421', fontSize:11, fontWeight:750, fontFamily:'inherit', outline:'none' }}
+              style={{ colorScheme:'light', width:126, padding:'6px 8px', borderRadius:9, border:'1px solid rgba(255,255,255,0.62)', background:'rgba(255,255,255,0.55)', color:'#1d2421', fontSize:11, fontWeight:750, fontFamily:'inherit', outline:'none' }}
             />
           </div>
         </div>
       </div>
 
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(3,minmax(0,1fr))', gap:12, marginBottom:16 }}>
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(3,minmax(0,1fr))', gap:10, marginBottom:10, flexShrink:0 }}>
         {metricCards.map(card => (
-          <section key={card.label} className="glass-thin" style={{ borderRadius:16, padding:'16px 18px' }}>
-            <div style={{ fontSize:10, color:BRAND_LABEL, fontWeight:800, textTransform:'uppercase', letterSpacing:'0.12em', marginBottom:10 }}>{card.label}</div>
-            <div style={{ fontSize:40, fontWeight:850, color:card.color, lineHeight:1, fontVariantNumeric:'tabular-nums' }}>{card.value}</div>
-            <div style={{ fontSize:11, color:'rgba(90,97,91,0.70)', marginTop:8 }}>{card.detail}</div>
+          <section key={card.label} className="glass-thin" style={{ borderRadius:14, padding:'12px 14px' }}>
+            <div style={{ fontSize:10, color:BRAND_LABEL, fontWeight:800, textTransform:'uppercase', letterSpacing:'0.12em', marginBottom:7 }}>{card.label}</div>
+            <div style={{ fontSize:30, fontWeight:850, color:card.color, lineHeight:1, fontVariantNumeric:'tabular-nums' }}>{card.value}</div>
+            <div style={{ fontSize:11, color:'rgba(90,97,91,0.78)', marginTop:6 }}>{card.detail}</div>
           </section>
         ))}
       </div>
 
-      <section className="glass-thin" style={{ borderRadius:18, padding:'16px' }}>
-        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:14, marginBottom:14, flexWrap:'wrap' }}>
-          <div>
-            <div style={{ fontSize:11, color:BRAND_LABEL, fontWeight:800, textTransform:'uppercase', letterSpacing:'0.14em', marginBottom:5 }}>{range.metric}</div>
-            <div style={{ fontSize:14, color:'#1d2421', fontWeight:700 }}>{range.start} to {range.end}</div>
-          </div>
-          <div style={{ display:'flex', gap:12, flexWrap:'wrap', fontSize:10, fontWeight:800 }}>
-            <span style={{ color:'#13733f' }}>7:00-7:30</span>
-            <span style={{ color:'#a9791f' }}>below</span>
-            <span style={{ color:'#c2533f' }}>above</span>
-          </div>
-        </div>
-        <div style={{ height:'clamp(430px, 58vh, 560px)', borderRadius:16, background:'linear-gradient(180deg,rgba(255,255,255,0.44),rgba(255,255,255,0.38))', border:'1px solid rgba(255,255,255,0.58)', padding:'18px 14px 34px', overflow:'hidden' }}>
-          {chartDays.length ? (
-            <div style={{ height:'100%', display:'grid', gridTemplateColumns:'minmax(0,1fr) 58px', gap:10 }}>
-              <div style={{ height:'100%', position:'relative', minWidth:0 }}>
-                <div style={{ position:'absolute', left:0, right:0, bottom:lowerBottom, height:bandHeight, background:'rgba(20,120,72,0.08)', borderTop:'1px dashed rgba(20,120,72,0.5)', borderBottom:'1px dashed rgba(20,120,72,0.5)', zIndex:1 }} />
-                <div style={{ height:'100%', display:'flex', gap:barGap, alignItems:'stretch', position:'relative', zIndex:2 }}>
-                  {chartDays.map((day, index) => {
-                    const pct = Math.min(100, (day.totalMinutes / chartMaxMinutes) * 100);
-                    const showTick = chartDays.length <= 10 || index === 0 || index === chartDays.length - 1 || index % tickEvery === 0;
-                    const tone = workBandTone(day.totalMinutes);
-                    return (
-                      <div key={day.date} title={`${day.date} · ${formatHoursMinutes(day.totalMinutes)} · ${day.label}`} style={{ flex:'1 1 0', minWidth:0, position:'relative' }}>
-                        {showBarValues && day.totalMinutes > 0 && (
-                          <div style={{ position:'absolute', left:-8, right:-8, bottom:`calc(${Math.max(4, pct)}% + 6px)`, textAlign:'center', color:'#1d2421', fontSize:9, fontWeight:850, whiteSpace:'nowrap' }}>
-                            {formatMinutes(day.totalMinutes)}
-                          </div>
-                        )}
-                        <div style={{ position:'absolute', left:'50%', bottom:0, transform:'translateX(-50%)', width:barWidth, maxWidth:28, minHeight:day.totalMinutes ? 0 : 4, height:`${day.totalMinutes ? Math.max(4, pct) : 0}%`, borderRadius:'10px 10px 4px 4px', background:tone.fill, boxShadow:tone.glow, opacity:day.totalMinutes ? 0.95 : 0.38 }} />
-                        {showTick && (
-                          <div style={{ position:'absolute', left:-18, right:-18, bottom:-25, textAlign:'center', fontSize:10, color:'rgba(90,97,91,0.68)', fontWeight:700, whiteSpace:'nowrap' }}>
-                            {new Date(`${day.date}T12:00:00`).toLocaleDateString('en-US', { weekday:'short', day:'2-digit' })}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-              <div style={{ position:'relative', height:'100%', borderLeft:'1px solid rgba(255,255,255,0.60)' }}>
-                <div style={{ position:'absolute', left:8, bottom:upperBottom, transform:'translateY(50%)', fontSize:9, color:'#115c34', fontWeight:800, whiteSpace:'nowrap' }}>7h 30m</div>
-                <div style={{ position:'absolute', left:8, bottom:lowerBottom, transform:'translateY(50%)', fontSize:9, color:'#115c34', fontWeight:800, whiteSpace:'nowrap' }}>7h 00m</div>
-                <div style={{ position:'absolute', left:8, bottom:0, transform:'translateY(50%)', fontSize:9, color:'rgba(90,97,91,0.44)', fontWeight:800 }}>0</div>
-              </div>
-            </div>
-          ) : (
-            <div style={{ height:'100%', display:'flex', alignItems:'center', justifyContent:'center', color:'rgba(90,97,91,0.68)', fontSize:13 }}>
-              No dated daily notes were found in this range.
-            </div>
-          )}
-        </div>
-      </section>
-
-      <section className="glass-thin" style={{ borderRadius:18, padding:'14px 16px', marginTop:14 }}>
-        <div style={{ display:'flex', justifyContent:'space-between', gap:12, alignItems:'baseline', marginBottom:12 }}>
-          <div>
-            <div style={{ fontSize:11, color:BRAND_LABEL, fontWeight:800, textTransform:'uppercase', letterSpacing:'0.14em', marginBottom:4 }}>Historical weekday averages</div>
-            <div style={{ fontSize:12, color:'rgba(90,97,91,0.70)' }}>{firstDate} to {lastDate}</div>
-          </div>
-          <div style={{ fontSize:10, color:'rgba(90,97,91,0.64)', fontWeight:800 }}>Green 7h-7h30 · yellow below · red above</div>
-        </div>
-        <div style={{ display:'grid', gridTemplateColumns:'repeat(7,minmax(0,1fr))', gap:8 }}>
-          {historicalStats.weekdays.map(day => {
-            const tone = workBandTone(day.averageMinutes);
-            return (
-              <div key={day.label} style={{ minWidth:0, padding:'10px 9px', borderRadius:12, background:'rgba(255,255,255,0.52)', border:'1px solid rgba(255,255,255,0.60)' }}>
-                <div style={{ fontSize:10, color:'rgba(90,97,91,0.70)', fontWeight:850, marginBottom:7 }}>{day.label}</div>
-                <div style={{ fontSize:18, color:day.averageMinutes ? tone.text : 'rgba(90,97,91,0.44)', fontWeight:850, fontVariantNumeric:'tabular-nums', whiteSpace:'nowrap' }}>{day.averageMinutes ? formatHoursMinutes(day.averageMinutes) : '-'}</div>
-                <div style={{ fontSize:10, color:'rgba(90,97,91,0.62)', marginTop:5 }}>{day.count} day{day.count === 1 ? '' : 's'}</div>
-              </div>
-            );
-          })}
-        </div>
-      </section>
+      <TimeHeatmap rows={heatmapRows} start={range.start} end={range.end} />
     </div>
   );
 }
@@ -3859,7 +3937,7 @@ function MissionControlPanel({ today, overdue, recurrent, onNewTask, dailyNote, 
     <div style={{ display:'grid', gridTemplateColumns:'repeat(2,minmax(0,1fr))', gap:6 }}>
       {items.map(([label, value]) => (
         <div key={label} style={{ minWidth:0, display:'flex', justifyContent:'space-between', gap:8, alignItems:'center', padding:'6px 7px', borderRadius:9, background:'rgba(255,255,255,0.55)', border:'1px solid rgba(255,255,255,0.60)' }}>
-          <span style={{ minWidth:0, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', fontSize:10, color:'rgba(244,255,249,0.66)', fontWeight:750 }}>{label}</span>
+          <span style={{ minWidth:0, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', fontSize:10, color:TEXT_SECONDARY, fontWeight:750 }}>{label}</span>
           <span style={{ fontSize:13, color:'#1d2421', fontWeight:850, fontVariantNumeric:'tabular-nums' }}>{value}</span>
         </div>
       ))}
@@ -3982,7 +4060,7 @@ function MissionControlPanel({ today, overdue, recurrent, onNewTask, dailyNote, 
                   fontSize:11,
                   fontFamily:'inherit',
                   background:noteSection === section.key ? BRAND_GRADIENT : 'transparent',
-                  color:noteSection === section.key ? '#fff' : 'rgba(244,255,249,0.74)',
+                  color:noteSection === section.key ? '#fff' : TEXT_SECONDARY,
                   boxShadow:noteSection === section.key ? BRAND_SHADOW : 'none',
                 }}
               >
@@ -4274,11 +4352,11 @@ function ProjectPanel({ selected, draft, setDraft, onSave, summary, onNewProject
         )}
       />
       <DetailMetricStrip metrics={stats} />
-      <DetailNotesEditor
+      <DetailMarkdownEditorCard
         meta={`${selected.filename}${lastTouched ? ` · touched ${String(lastTouched).slice(0, 10)}` : ''}`}
         value={noteParts.body}
         onChange={e=>setDraft(replaceNoteBody(draft, e.target.value))}
-        minHeight={420}
+        emptyText="No project notes yet."
       />
     </DetailPatternPanel>
   );
