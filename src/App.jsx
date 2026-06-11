@@ -250,6 +250,96 @@ function MarkdownBody({ children, emptyText = 'No Markdown content yet.', compac
   );
 }
 
+function DetailPatternPanel({ eyebrow, title, subtitle, action, children }) {
+  return (
+    <div style={{ flex:1, minHeight:0, overflowY:'auto', padding:'22px 28px 24px' }}>
+      <div style={{ display:'flex', justifyContent:'space-between', gap:18, alignItems:'flex-start', marginBottom:18 }}>
+        <div style={{ minWidth:0 }}>
+          <div style={{ fontSize:10, color:BRAND_LABEL, fontWeight:800, textTransform:'uppercase', letterSpacing:'0.14em', marginBottom:6 }}>{eyebrow}</div>
+          <h2 style={{ margin:0, fontSize:30, color:TEXT_PRIMARY, letterSpacing:0 }}>{title}</h2>
+          {subtitle && <div style={{ fontSize:13, color:'rgba(90,97,91,0.78)', marginTop:6 }}>{subtitle}</div>}
+        </div>
+        {action}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function DetailIdentityCard({ avatarText, avatarRadius = 999, title, subtitle, chips = [], action }) {
+  return (
+    <section className="glass-thin" style={{ borderRadius:18, padding:'16px', marginBottom:12 }}>
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:16, flexWrap:'wrap' }}>
+        <div style={{ display:'flex', alignItems:'center', gap:14, minWidth:0 }}>
+          <div style={{ width:50, height:50, borderRadius:avatarRadius, background:BRAND_GRADIENT, color:'#fff', display:'flex', alignItems:'center', justifyContent:'center', fontSize:18, fontWeight:900, flexShrink:0, fontVariantNumeric:'tabular-nums' }}>
+            {avatarText}
+          </div>
+          <div style={{ minWidth:0 }}>
+            <div style={{ fontSize:20, color:TEXT_PRIMARY, fontWeight:800, lineHeight:1.1 }}>{title}</div>
+            {subtitle && <div style={{ fontSize:12, color:'rgba(90,97,91,0.72)', marginTop:5 }}>{subtitle}</div>}
+            {!!chips.length && (
+              <div style={{ display:'flex', gap:8, flexWrap:'wrap', marginTop:8 }}>
+                {chips.map(chip => (
+                  <span key={chip} style={{ padding:'5px 9px', borderRadius:999, fontSize:10, fontWeight:800, color:TEXT_PRIMARY, background:'rgba(255,255,255,0.55)', border:'1px solid rgba(255,255,255,0.62)' }}>
+                    {chip}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+        {action}
+      </div>
+    </section>
+  );
+}
+
+function DetailMetricStrip({ metrics }) {
+  return (
+    <div style={{ display:'grid', gridTemplateColumns:'repeat(3,minmax(0,1fr))', gap:12, marginBottom:12 }}>
+      {metrics.map(({ label, value, tone }) => {
+        const displayValue = value ?? '--';
+        const valueText = String(displayValue);
+        return (
+          <section key={label} className="glass-thin" style={{ borderRadius:14, padding:'14px 16px', minWidth:0 }}>
+            <div style={{ fontSize:valueText.length > 7 ? 18 : 28, fontWeight:850, color:tone || TEXT_PRIMARY, lineHeight:1.08, fontVariantNumeric:'tabular-nums', overflowWrap:'anywhere' }}>{displayValue}</div>
+            <div style={{ fontSize:10, color:BRAND_LABEL, fontWeight:800, textTransform:'uppercase', letterSpacing:'0.14em', marginTop:8 }}>{label}</div>
+          </section>
+        );
+      })}
+    </div>
+  );
+}
+
+function DetailNotesEditor({ meta, value, onChange, minHeight = 360, placeholder }) {
+  return (
+    <section className="glass-thin" style={{ borderRadius:18, padding:'16px', minHeight, display:'flex', flexDirection:'column' }}>
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline', gap:12, marginBottom:12 }}>
+        <div>
+          <div style={{ fontSize:10, color:BRAND_LABEL, fontWeight:800, textTransform:'uppercase', letterSpacing:'0.14em', marginBottom:5 }}>Notes (Markdown)</div>
+          {meta && <div style={{ fontSize:12, color:'rgba(90,97,91,0.72)' }}>{meta}</div>}
+        </div>
+      </div>
+      <MentionTextarea
+        value={value}
+        onChange={onChange}
+        placeholder={placeholder}
+        spellCheck={false}
+        style={{ flex:1, width:'100%', resize:'none', padding:'16px 18px', borderRadius:14, background:'rgba(255,255,255,0.50)', border:'1px solid rgba(255,255,255,0.62)', color:'#222a25', outline:'none', fontFamily:"'JetBrains Mono', ui-monospace, SFMono-Regular, Consolas, monospace", fontSize:13, lineHeight:1.7 }}
+      />
+    </section>
+  );
+}
+
+function DetailMarkdownCard({ label = 'Notes', children, minHeight = 260 }) {
+  return (
+    <section className="glass-thin" style={{ borderRadius:18, padding:'16px 18px', minHeight, maxHeight:'min(420px, 48vh)', overflowY:'auto' }}>
+      <div style={{ fontSize:10, color:BRAND_LABEL, fontWeight:800, textTransform:'uppercase', letterSpacing:'0.14em', marginBottom:10 }}>{label}</div>
+      {children}
+    </section>
+  );
+}
+
 function CommentCard({ log, index, onSave, onDelete }) {
   const { time, body } = parseLogText(log.text);
   const [editing, setEditing] = useState(false);
@@ -613,6 +703,36 @@ function personMetrics(person, tasks, meetings, isClosedTask) {
     waitingFor: tasks.filter(task => !isClosedTask(task) && tokens.some(token => normalizeLinkTarget(task.waitingfor) === normalizeLinkTarget(token))).length,
     meetings: meetings.filter(matchesMeeting).length,
     tasksLinked: tasks.filter(matchesTask).length,
+  };
+}
+
+function projectMetrics(project, tasks, isClosedTask) {
+  if (!project) return { status:'--', openTasks:0, tasksLinked:0 };
+  const tokens = [project.title, project.filename, project.id]
+    .map(value => String(value || '').trim())
+    .filter(Boolean);
+  const matchesTask = task => (task.projects || []).some(projectName =>
+      tokens.some(token => normalizeLinkTarget(projectName) === normalizeLinkTarget(token)))
+    || tokens.some(token => includesWikiLink(task.raw, token));
+  const linkedTasks = tasks.filter(matchesTask);
+  return {
+    status: project.status || 'active',
+    openTasks: linkedTasks.filter(task => !isClosedTask(task)).length,
+    tasksLinked: linkedTasks.length,
+  };
+}
+
+function organizationMetrics(organization, tasks, meetings, isClosedTask) {
+  if (!organization) return { details:0, meetings:0, tasksLinked:0 };
+  const tokens = [organization.title, organization.filename, organization.id]
+    .map(value => String(value || '').trim())
+    .filter(Boolean);
+  const matchesRaw = raw => tokens.some(token => includesWikiLink(raw, token));
+  const linkedTasks = tasks.filter(task => matchesRaw(task.raw));
+  return {
+    details: [organization.industry, organization.website, organization.email, organization.phone].filter(Boolean).length,
+    meetings: meetings.filter(meeting => matchesRaw(meeting.raw)).length,
+    tasksLinked: linkedTasks.filter(task => !isClosedTask(task)).length,
   };
 }
 
@@ -2136,6 +2256,8 @@ export default function App() {
     .sort();
   const historicalTimeStats = dashboardStats(timeNotes, timeNoteDates[0] || tod(), timeNoteDates[timeNoteDates.length - 1] || tod());
   const personSummary = personMetrics(person, tasks, meetings, isClosedTask);
+  const projectSummary = projectMetrics(project, tasks, isClosedTask);
+  const organizationSummary = organizationMetrics(organization, tasks, meetings, isClosedTask);
   const tomorrow = addDays(tod(), 1);
   const currentWeekDates = weekDates(tod());
   const completedThisWeek = visibleTaskPool.filter(t => currentWeekDates.includes((t.completedDate || '').slice(0, 10)));
@@ -2683,13 +2805,11 @@ export default function App() {
           <NewProjectPanel onCancel={()=>setNewProjectOpen(false)} onCreate={createProject} refs={refs}/>
         ) : (
           <ProjectPanel
-            projects={filteredProjects}
             selected={project}
-            selectedId={projectSel}
             draft={projectDraft}
             setDraft={setProjectDraft}
-            onSelect={setProjectSel}
             onSave={saveProject}
+            summary={projectSummary}
             onNewProject={()=>setNewProjectOpen(true)}
             hasProjectsFolder={!!dirs.projects}
             onConfigure={()=>setFolderSetupOpen(true)}
@@ -2749,6 +2869,7 @@ export default function App() {
             draft={orgDraft}
             setDraft={setOrgDraft}
             onSave={saveOrganization}
+            summary={organizationSummary}
             hasOrganizationsFolder={!!dirs.organizations}
             onNewOrganization={()=>setNewOrgOpen(true)}
             onConfigure={()=>setFolderSetupOpen(true)}
@@ -2936,78 +3057,44 @@ function PeoplePanel({ selected, draft, setDraft, onSave, summary, hasPeopleFold
   const lastTouched = selected.dateModified || selected.dateCreated;
   const detailChips = [selected.email, selected.phone].filter(Boolean);
   const stats = [
-    ['Waiting-for', summary?.waitingFor ?? 0],
-    ['Meetings', summary?.meetings ?? 0],
-    ['Tasks linked', summary?.tasksLinked ?? 0],
+    { label:'Waiting-for', value:summary?.waitingFor ?? 0 },
+    { label:'Meetings', value:summary?.meetings ?? 0 },
+    { label:'Tasks linked', value:summary?.tasksLinked ?? 0 },
   ];
 
   return (
-    <div style={{ flex:1, minHeight:0, overflowY:'auto', padding:'22px 28px 24px' }}>
-      <div style={{ display:'flex', justifyContent:'space-between', gap:18, alignItems:'flex-start', marginBottom:18 }}>
-        <div style={{ minWidth:0 }}>
-          <div style={{ fontSize:10, color:BRAND_LABEL, fontWeight:800, textTransform:'uppercase', letterSpacing:'0.14em', marginBottom:6 }}>Person</div>
-          <h2 style={{ margin:0, fontSize:30, color:'#1d2421', letterSpacing:0 }}>{selected.title}</h2>
-          <div style={{ fontSize:13, color:'rgba(90,97,91,0.78)', marginTop:6 }}>{metadataLine}</div>
-        </div>
+    <DetailPatternPanel
+      eyebrow="Person"
+      title={selected.title}
+      subtitle={metadataLine}
+      action={(
         <button onClick={onSave} style={{ padding:'9px 18px', borderRadius:999, border:'none', cursor:'pointer', fontWeight:800, fontSize:12, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff', boxShadow:BRAND_SHADOW }}>
           Save
         </button>
-      </div>
-
-      <section className="glass-thin" style={{ borderRadius:18, padding:'16px', marginBottom:12 }}>
-        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:16, flexWrap:'wrap' }}>
-          <div style={{ display:'flex', alignItems:'center', gap:14, minWidth:0 }}>
-            <div style={{ width:50, height:50, borderRadius:999, background:BRAND_GRADIENT, color:'#fff', display:'flex', alignItems:'center', justifyContent:'center', fontSize:18, fontWeight:900, flexShrink:0 }}>
-              {initials(selected.title)}
-            </div>
-            <div style={{ minWidth:0 }}>
-              <div style={{ fontSize:20, color:'#1d2421', fontWeight:800, lineHeight:1.1 }}>{selected.title}</div>
-              <div style={{ fontSize:12, color:'rgba(90,97,91,0.72)', marginTop:5 }}>{metadataLine}</div>
-              {!!detailChips.length && (
-                <div style={{ display:'flex', gap:8, flexWrap:'wrap', marginTop:8 }}>
-                  {detailChips.map(chip => (
-                    <span key={chip} style={{ padding:'5px 9px', borderRadius:999, fontSize:10, fontWeight:800, color:'#1d2421', background:'rgba(255,255,255,0.55)', border:'1px solid rgba(255,255,255,0.62)' }}>
-                      {chip}
-                    </span>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
+      )}
+    >
+      <DetailIdentityCard
+        avatarText={initials(selected.title)}
+        title={selected.title}
+        subtitle={metadataLine}
+        chips={detailChips}
+        action={(
           <button onClick={onOpenMeetings} style={{ padding:'8px 14px', borderRadius:999, border:'1px solid rgba(255,255,255,0.62)', background:'rgba(255,255,255,0.55)', color:'#5a615b', fontSize:11, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>
             New meeting...
           </button>
-        </div>
-      </section>
-
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(3,minmax(0,1fr))', gap:12, marginBottom:12 }}>
-        {stats.map(([label, value]) => (
-          <section key={label} className="glass-thin" style={{ borderRadius:14, padding:'14px 16px' }}>
-            <div style={{ fontSize:28, fontWeight:850, color:'#1d2421', lineHeight:1 }}>{value}</div>
-            <div style={{ fontSize:10, color:BRAND_LABEL, fontWeight:800, textTransform:'uppercase', letterSpacing:'0.14em', marginTop:8 }}>{label}</div>
-          </section>
-        ))}
-      </div>
-
-      <section className="glass-thin" style={{ borderRadius:18, padding:'16px', minHeight:360, display:'flex', flexDirection:'column' }}>
-        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline', gap:12, marginBottom:12 }}>
-          <div>
-            <div style={{ fontSize:10, color:BRAND_LABEL, fontWeight:800, textTransform:'uppercase', letterSpacing:'0.14em', marginBottom:5 }}>Notes (Markdown)</div>
-            <div style={{ fontSize:12, color:'rgba(90,97,91,0.72)' }}>{selected.filename}{lastTouched ? ` · touched ${String(lastTouched).slice(0, 10)}` : ''}</div>
-          </div>
-        </div>
-        <MentionTextarea
-          value={noteParts.body}
-          onChange={e=>setDraft(replaceNoteBody(draft, e.target.value))}
-          spellCheck={false}
-          style={{ flex:1, width:'100%', resize:'none', padding:'16px 18px', borderRadius:14, background:'rgba(255,255,255,0.50)', border:'1px solid rgba(255,255,255,0.62)', color:'#222a25', outline:'none', fontFamily:"'JetBrains Mono', ui-monospace, SFMono-Regular, Consolas, monospace", fontSize:13, lineHeight:1.7 }}
-        />
-      </section>
-    </div>
+        )}
+      />
+      <DetailMetricStrip metrics={stats} />
+      <DetailNotesEditor
+        meta={`${selected.filename}${lastTouched ? ` · touched ${String(lastTouched).slice(0, 10)}` : ''}`}
+        value={noteParts.body}
+        onChange={e=>setDraft(replaceNoteBody(draft, e.target.value))}
+      />
+    </DetailPatternPanel>
   );
 }
 
-function OrganizationPanel({ selected, draft, setDraft, onSave, hasOrganizationsFolder, onNewOrganization, onConfigure }) {
+function OrganizationPanel({ selected, draft, setDraft, onSave, summary, hasOrganizationsFolder, onNewOrganization, onConfigure }) {
   if (!hasOrganizationsFolder) {
     return (
       <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', color:'#5a615b', fontSize:13 }}>
@@ -3035,56 +3122,43 @@ function OrganizationPanel({ selected, draft, setDraft, onSave, hasOrganizations
   const metadataLine = [selected.industry, selected.website].filter(Boolean).join(' · ') || selected.email || 'No industry or website captured yet.';
   const lastTouched = selected.dateModified || selected.dateCreated;
   const detailChips = [selected.website, selected.email, selected.phone].filter(Boolean);
+  const stats = [
+    { label:'Details', value:summary?.details ?? detailChips.length },
+    { label:'Meetings', value:summary?.meetings ?? 0 },
+    { label:'Tasks linked', value:summary?.tasksLinked ?? 0 },
+  ];
 
   return (
-    <div style={{ flex:1, minHeight:0, overflowY:'auto', padding:'22px 28px 24px' }}>
-      <div style={{ display:'flex', justifyContent:'space-between', gap:18, alignItems:'flex-start', marginBottom:18 }}>
-        <div style={{ minWidth:0 }}>
-          <div style={{ fontSize:10, color:BRAND_LABEL, fontWeight:800, textTransform:'uppercase', letterSpacing:'0.14em', marginBottom:6 }}>Organization</div>
-          <h2 style={{ margin:0, fontSize:30, color:'#1d2421', letterSpacing:0 }}>{selected.title}</h2>
-          <div style={{ fontSize:13, color:'rgba(90,97,91,0.78)', marginTop:6 }}>{metadataLine}</div>
-        </div>
+    <DetailPatternPanel
+      eyebrow="Organization"
+      title={selected.title}
+      subtitle={metadataLine}
+      action={(
         <button onClick={onSave} style={{ padding:'9px 18px', borderRadius:999, border:'none', cursor:'pointer', fontWeight:800, fontSize:12, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff', boxShadow:BRAND_SHADOW }}>
           Save
         </button>
-      </div>
-
-      <section className="glass-thin" style={{ borderRadius:18, padding:'16px', marginBottom:12 }}>
-        <div style={{ display:'flex', alignItems:'center', gap:14, minWidth:0 }}>
-          <div style={{ width:50, height:50, borderRadius:14, background:BRAND_GRADIENT, color:'#fff', display:'flex', alignItems:'center', justifyContent:'center', fontSize:18, fontWeight:900, flexShrink:0 }}>
-            {initials(selected.title)}
-          </div>
-          <div style={{ minWidth:0 }}>
-            <div style={{ fontSize:20, color:'#1d2421', fontWeight:800, lineHeight:1.1 }}>{selected.title}</div>
-            <div style={{ fontSize:12, color:'rgba(90,97,91,0.72)', marginTop:5 }}>{metadataLine}</div>
-            {!!detailChips.length && (
-              <div style={{ display:'flex', gap:8, flexWrap:'wrap', marginTop:8 }}>
-                {detailChips.map(chip => (
-                  <span key={chip} style={{ padding:'5px 9px', borderRadius:999, fontSize:10, fontWeight:800, color:'#1d2421', background:'rgba(255,255,255,0.55)', border:'1px solid rgba(255,255,255,0.62)' }}>
-                    {chip}
-                  </span>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-      </section>
-
-      <section className="glass-thin" style={{ borderRadius:18, padding:'16px', minHeight:420, display:'flex', flexDirection:'column' }}>
-        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline', gap:12, marginBottom:12 }}>
-          <div>
-            <div style={{ fontSize:10, color:BRAND_LABEL, fontWeight:800, textTransform:'uppercase', letterSpacing:'0.14em', marginBottom:5 }}>Notes (Markdown)</div>
-            <div style={{ fontSize:12, color:'rgba(90,97,91,0.72)' }}>{selected.filename}{lastTouched ? ` · touched ${String(lastTouched).slice(0, 10)}` : ''}</div>
-          </div>
-        </div>
-        <MentionTextarea
-          value={noteParts.body}
-          onChange={e=>setDraft(replaceNoteBody(draft, e.target.value))}
-          spellCheck={false}
-          style={{ flex:1, width:'100%', resize:'none', padding:'16px 18px', borderRadius:14, background:'rgba(255,255,255,0.50)', border:'1px solid rgba(255,255,255,0.62)', color:'#222a25', outline:'none', fontFamily:"'JetBrains Mono', ui-monospace, SFMono-Regular, Consolas, monospace", fontSize:13, lineHeight:1.7 }}
-        />
-      </section>
-    </div>
+      )}
+    >
+      <DetailIdentityCard
+        avatarText={initials(selected.title)}
+        avatarRadius={14}
+        title={selected.title}
+        subtitle={metadataLine}
+        chips={detailChips}
+        action={(
+          <button onClick={onNewOrganization} style={{ padding:'8px 14px', borderRadius:999, border:'1px solid rgba(255,255,255,0.62)', background:'rgba(255,255,255,0.55)', color:'#5a615b', fontSize:11, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>
+            New organization...
+          </button>
+        )}
+      />
+      <DetailMetricStrip metrics={stats} />
+      <DetailNotesEditor
+        meta={`${selected.filename}${lastTouched ? ` · touched ${String(lastTouched).slice(0, 10)}` : ''}`}
+        value={noteParts.body}
+        onChange={e=>setDraft(replaceNoteBody(draft, e.target.value))}
+        minHeight={420}
+      />
+    </DetailPatternPanel>
   );
 }
 
@@ -3107,6 +3181,8 @@ function MeetingPanel({ meetingOpen, meetingTitle, meetingNotes, meetingLinks, s
   const timeLabel = new Date(meetingStart || Date.now()).toLocaleTimeString([], { hour:'2-digit', minute:'2-digit', hour12:false }).replace(':','');
   const filename = `Meeting - ${tod()} - ${meetingTitle.trim() || timeLabel}.md`;
   const setLinks = (key, value) => setMeetingLinks(prev => ({ ...prev, [key]: value }));
+  const meetingLinkCount = Object.values(meetingLinks || {}).reduce((sum, value) => sum + (Array.isArray(value) ? value.length : 0), 0);
+  const noteLineCount = String(meetingNotes || '').split('\n').filter(line => line.trim()).length;
 
   if (!hasMeetingsFolder) {
     return (
@@ -3119,37 +3195,43 @@ function MeetingPanel({ meetingOpen, meetingTitle, meetingNotes, meetingLinks, s
   if (!meetingOpen) {
     if (savedMeeting) {
       const meetingView = parseMeetingView(savedMeeting.raw);
-      const summaryCards = [
-        ['Date', meetingView.date || savedMeeting.date || 'Unknown'],
-        ['Start', meetingView.start || '--'],
-        ['End', meetingView.end || '--'],
-        ['Duration', meetingView.duration || '--'],
+      const linkedCount = meetingView.linkedContext.reduce((sum, group) => sum + group.values.length, 0);
+      const stats = [
+        { label:'Date', value:meetingView.date || savedMeeting.date || 'Unknown' },
+        { label:'Duration', value:meetingView.duration || '--', tone:BRAND_TEXT },
+        { label:'Links', value:linkedCount },
       ];
+      const detailChips = [
+        meetingView.start ? `Start ${meetingView.start}` : '',
+        meetingView.end ? `End ${meetingView.end}` : '',
+        savedMeeting.filename,
+      ].filter(Boolean);
       return (
-        <div style={{ flex:1, overflowY:'auto', padding:'22px 30px' }}>
-          <div style={{ display:'flex', justifyContent:'space-between', gap:18, alignItems:'flex-start', marginBottom:18 }}>
-            <div>
-              <div style={{ fontSize:10, color:'#13733f', fontWeight:800, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:8 }}>Saved meeting</div>
-              <h2 style={{ margin:0, fontSize:22, color:'#1d2421' }}>{savedMeeting.title}</h2>
-              <div style={{ fontSize:12, color:'#5a615b', marginTop:6 }}>{savedMeeting.date || savedMeeting.filename}</div>
-            </div>
-            <button onClick={onStart} style={{ padding:'10px 16px', borderRadius:10, border:'none', cursor:'pointer', fontWeight:800, fontSize:13, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff', flexShrink:0 }}>+ Start Meeting</button>
-          </div>
-          <div style={{ display:'grid', gridTemplateColumns:'repeat(4,minmax(0,1fr))', gap:10, marginBottom:12 }}>
-            {summaryCards.map(([label, value]) => (
-              <div key={label} style={{ borderRadius:14, border:'1px solid rgba(255,255,255,0.60)', background:'rgba(255,255,255,0.50)', padding:'12px 14px' }}>
-                <div style={{ fontSize:9, color:BRAND_LABEL, fontWeight:800, textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:5 }}>{label}</div>
-                <div style={{ fontSize:14, color:'#1d2421', fontWeight:800 }}>{value}</div>
-              </div>
-            ))}
-          </div>
+        <DetailPatternPanel
+          eyebrow="Saved meeting"
+          title={savedMeeting.title}
+          subtitle={savedMeeting.date || savedMeeting.filename}
+          action={(
+            <button onClick={onStart} style={{ padding:'9px 18px', borderRadius:999, border:'none', cursor:'pointer', fontWeight:800, fontSize:12, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff', boxShadow:BRAND_SHADOW }}>
+              + Start Meeting
+            </button>
+          )}
+        >
+          <DetailIdentityCard
+            avatarText={(meetingView.date || savedMeeting.date || 'M').slice(-2)}
+            avatarRadius={14}
+            title={savedMeeting.title}
+            subtitle={savedMeeting.date || savedMeeting.filename}
+            chips={detailChips}
+          />
+          <DetailMetricStrip metrics={stats} />
           {!!meetingView.linkedContext.length && (
-            <div style={{ borderRadius:14, border:'1px solid rgba(255,255,255,0.60)', background:'rgba(255,255,255,0.50)', padding:'14px 16px', marginBottom:12 }}>
-              <div style={{ fontSize:10, color:BRAND_LABEL, fontWeight:800, textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:10 }}>Linked context</div>
+            <section className="glass-thin" style={{ borderRadius:18, padding:'16px', marginBottom:12 }}>
+              <div style={{ fontSize:10, color:BRAND_LABEL, fontWeight:800, textTransform:'uppercase', letterSpacing:'0.14em', marginBottom:10 }}>Linked context</div>
               <div style={{ display:'grid', gap:10 }}>
                 {meetingView.linkedContext.map(group => (
                   <div key={group.label}>
-                    <div style={{ fontSize:11, color:'#1d2421', fontWeight:800, marginBottom:6 }}>{group.label}</div>
+                    <div style={{ fontSize:11, color:TEXT_PRIMARY, fontWeight:800, marginBottom:6 }}>{group.label}</div>
                     <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
                       {group.values.map(value => (
                         <span key={`${group.label}-${value}`} style={{ padding:'5px 9px', borderRadius:999, background:'rgba(255,255,255,0.55)', border:'1px solid rgba(255,255,255,0.62)', color:'#5a615b', fontSize:10, fontWeight:700 }}>
@@ -3160,10 +3242,9 @@ function MeetingPanel({ meetingOpen, meetingTitle, meetingNotes, meetingLinks, s
                   </div>
                 ))}
               </div>
-            </div>
+            </section>
           )}
-          <div style={{ borderRadius:14, border:'1px solid rgba(255,255,255,0.60)', background:'rgba(255,255,255,0.50)', padding:'16px 18px' }}>
-            <div style={{ fontSize:10, color:BRAND_LABEL, fontWeight:800, textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:10 }}>Notes</div>
+          <DetailMarkdownCard label="Notes">
             {meetingView.notes.length ? (
               <ul style={{ margin:0, paddingLeft:18, display:'grid', gap:10, color:'#222a25', lineHeight:1.6 }}>
                 {meetingView.notes.map((item, index) => (
@@ -3175,8 +3256,8 @@ function MeetingPanel({ meetingOpen, meetingTitle, meetingNotes, meetingLinks, s
             ) : (
               <MarkdownBody>{noteBodyText(savedMeeting.raw)}</MarkdownBody>
             )}
-          </div>
-        </div>
+          </DetailMarkdownCard>
+        </DetailPatternPanel>
       );
     }
 
@@ -3191,24 +3272,40 @@ function MeetingPanel({ meetingOpen, meetingTitle, meetingNotes, meetingLinks, s
     );
   }
 
+  const activeTitle = meetingTitle.trim() || 'Untitled meeting';
+  const activeStarted = new Date(meetingStart || Date.now()).toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' });
+  const activeStats = [
+    { label:'Elapsed', value:fmt(elapsed), tone:BRAND_TEXT },
+    { label:'Links', value:meetingLinkCount },
+    { label:'Note lines', value:noteLineCount },
+  ];
+
   return (
-    <div style={{ flex:1, display:'flex', flexDirection:'column', overflow:'hidden' }}>
-      <div style={{ padding:'22px 30px 20px', borderBottom:'1px solid rgba(255,255,255,0.60)', flexShrink:0 }}>
-        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:24 }}>
-          <div style={{ flex:1, minWidth:0 }}>
-            <div style={{ fontSize:10, color:'#13733f', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:10 }}>Meeting in Progress</div>
-            <input value={meetingTitle} onChange={e => setMeetingTitle(e.target.value)}
-              placeholder="Meeting title..."
-              style={{ width:'100%', padding:'6px 0', background:'transparent', border:'none', borderBottom:'2px solid rgba(255,255,255,0.68)', color:'#1d2421', fontSize:20, fontWeight:700, outline:'none', fontFamily:'inherit' }}/>
-          </div>
-          <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:10, flexShrink:0 }}>
-            <div style={{ fontSize:30, fontWeight:800, fontVariantNumeric:'tabular-nums', color:'#13733f', textShadow:'0 0 28px rgba(20,120,72,0.55)' }}>{fmt(elapsed)}</div>
-            <button onClick={onStop} style={{ padding:'9px 20px', borderRadius:10, border:'1px solid rgba(225,91,79,0.3)', cursor:'pointer', fontWeight:700, fontSize:13, fontFamily:'inherit', background:'rgba(225,91,79,0.1)', color:'#c2533f' }}>Save & Stop</button>
-          </div>
-        </div>
-      </div>
-      <div style={{ flex:1, padding:'20px 30px', display:'flex', flexDirection:'column', gap:8 }}>
-        <div style={{ display:'grid', gridTemplateColumns:'repeat(2,minmax(220px,1fr))', gap:10, marginBottom:10 }}>
+    <DetailPatternPanel
+      eyebrow="Meeting in Progress"
+      title={activeTitle}
+      subtitle={`Started ${activeStarted} · ${filename}`}
+      action={(
+        <button onClick={onStop} style={{ padding:'9px 18px', borderRadius:999, border:'1px solid rgba(225,91,79,0.3)', cursor:'pointer', fontWeight:800, fontSize:12, fontFamily:'inherit', background:'rgba(225,91,79,0.1)', color:'#c2533f' }}>
+          Save & Stop
+        </button>
+      )}
+    >
+      <DetailIdentityCard
+        avatarText="M"
+        avatarRadius={14}
+        title={(
+          <input value={meetingTitle} onChange={e => setMeetingTitle(e.target.value)}
+            placeholder="Meeting title..."
+            style={{ width:'min(520px, 100%)', padding:'4px 0', background:'transparent', border:'none', borderBottom:'2px solid rgba(255,255,255,0.68)', color:TEXT_PRIMARY, fontSize:20, fontWeight:800, outline:'none', fontFamily:'inherit' }}/>
+        )}
+        subtitle={`Live note · ${fmt(elapsed)} elapsed`}
+        action={<div style={{ fontSize:22, fontWeight:850, fontVariantNumeric:'tabular-nums', color:BRAND_TEXT }}>{fmt(elapsed)}</div>}
+      />
+      <DetailMetricStrip metrics={activeStats} />
+      <section className="glass-thin" style={{ borderRadius:18, padding:'16px', marginBottom:12 }}>
+        <div style={{ fontSize:10, color:BRAND_LABEL, fontWeight:800, textTransform:'uppercase', letterSpacing:'0.14em', marginBottom:12 }}>Linked context</div>
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(2,minmax(220px,1fr))', gap:10 }}>
           <Field label="Clients">
             <ChipMulti value={meetingLinks.clients || []} onChange={value=>setLinks('clients', value)} options={refs.clients || []} placeholder="Add clients..." />
           </Field>
@@ -3222,15 +3319,15 @@ function MeetingPanel({ meetingOpen, meetingTitle, meetingNotes, meetingLinks, s
             <ChipMulti value={meetingLinks.people || []} onChange={value=>setLinks('people', value)} options={refs.people || []} placeholder="Add people..." />
           </Field>
         </div>
-        <div style={{ fontSize:10, color:'#5a615b', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.1em' }}>Notes</div>
-        <MentionTextarea value={meetingNotes} onChange={e => setMeetingNotes(e.target.value)}
-          placeholder="Type your meeting notes here... markdown supported, @ to link people and projects"
-          style={{ flex:1, padding:'14px', borderRadius:10, resize:'none', background:'rgba(255,255,255,0.55)', border:'1px solid rgba(255,255,255,0.62)', color:'#222a25', fontSize:13, lineHeight:1.7, outline:'none', fontFamily:'inherit' }}/>
-        <div style={{ fontSize:11, color:'#5a615b' }}>
-          Will save as: {filename}
-        </div>
-      </div>
-    </div>
+      </section>
+      <DetailNotesEditor
+        meta={`Will save as: ${filename}`}
+        value={meetingNotes}
+        onChange={e => setMeetingNotes(e.target.value)}
+        placeholder="Type your meeting notes here... markdown supported, @ to link people and projects"
+        minHeight={300}
+      />
+    </DetailPatternPanel>
   );
 }
 
@@ -4119,7 +4216,7 @@ function WorkHoursPanel({ selectedDate, selectedNote, notes, draftRows, onDraftE
   );
 }
 
-function ProjectPanel({ projects, selected, selectedId, draft, setDraft, onSelect, onSave, onNewProject, hasProjectsFolder, onConfigure }) {
+function ProjectPanel({ selected, draft, setDraft, onSave, summary, onNewProject, hasProjectsFolder, onConfigure }) {
   if (!hasProjectsFolder) {
     return (
       <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', color:'#5a615b', fontSize:13 }}>
@@ -4128,39 +4225,62 @@ function ProjectPanel({ projects, selected, selectedId, draft, setDraft, onSelec
     );
   }
 
-  return (
-    <div style={{ flex:1, display:'grid', gridTemplateColumns:'minmax(260px, 0.38fr) minmax(420px, 1fr)', minHeight:0, overflow:'hidden' }}>
-      <div style={{ borderRight:'1px solid rgba(255,255,255,0.60)', overflowY:'auto', padding:'18px 16px' }}>
-        <button onClick={onNewProject} style={{ width:'100%', padding:'9px 12px', borderRadius:9, border:'none', cursor:'pointer', fontWeight:800, fontSize:12, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff', marginBottom:12 }}>+ New Project</button>
-        {!projects.length && <div style={{ color:'#5a615b', textAlign:'center', paddingTop:35, fontSize:12 }}>No project files</div>}
-        {projects.map(p => (
-          <button key={p.id} onClick={()=>onSelect(p.id)} style={{ width:'100%', textAlign:'left', padding:'11px 12px', marginBottom:6, borderRadius:9, border:`1px solid ${selectedId===p.id?BRAND_BORDER_STRONG:'rgba(255,255,255,0.58)'}`, background:selectedId===p.id?BRAND_SURFACE:'rgba(255,255,255,0.50)', color:'#222a25', cursor:'pointer', fontFamily:'inherit' }}>
-            <div style={{ fontSize:13, fontWeight:800, lineHeight:1.3 }}>{p.title}</div>
-            <div style={{ fontSize:10, color:'#5a615b', marginTop:4 }}>{p.status || p.filename}</div>
-          </button>
-        ))}
-      </div>
-      <div style={{ display:'flex', flexDirection:'column', minWidth:0, minHeight:0 }}>
-        <div style={{ padding:'20px 28px 14px', borderBottom:'1px solid rgba(255,255,255,0.60)', display:'flex', justifyContent:'space-between', gap:18, alignItems:'flex-start' }}>
-          <div style={{ minWidth:0 }}>
-            <div style={{ fontSize:10, color:BRAND_LABEL, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:7 }}>Projects</div>
-            <h2 style={{ margin:0, fontSize:20, color:'#1d2421' }}>{selected ? selected.title : 'Select a project'}</h2>
-            {selected && <div style={{ fontSize:11, color:'#5a615b', marginTop:5 }}>{selected.filename}</div>}
+  if (!selected) {
+    return (
+      <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', padding:30 }}>
+        <div style={{ width:'min(520px,100%)', borderRadius:18, border:'1px solid rgba(255,255,255,0.60)', background:'rgba(255,255,255,0.55)', padding:24, textAlign:'center' }}>
+          <div style={{ fontSize:10, color:BRAND_LABEL, fontWeight:800, letterSpacing:'0.14em', textTransform:'uppercase', marginBottom:10 }}>Projects</div>
+          <h2 style={{ margin:'0 0 12px', fontSize:24, color:TEXT_PRIMARY }}>Select a project</h2>
+          <div style={{ color:'rgba(90,97,91,0.78)', fontSize:13, lineHeight:1.6, marginBottom:18 }}>
+            Pick a project from the sidebar or create a new project note to start tracking scope, status, and context.
           </div>
-          <button onClick={onSave} disabled={!selected} style={{ padding:'9px 18px', borderRadius:10, border:'none', cursor:selected?'pointer':'not-allowed', fontWeight:800, fontSize:13, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff', opacity:selected?1:0.35 }}>Save</button>
+          <button onClick={onNewProject} style={{ padding:'10px 18px', borderRadius:10, border:'none', cursor:'pointer', fontWeight:800, fontSize:13, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff' }}>+ New Project</button>
         </div>
-        {selected ? (
-          <div style={{ flex:1, minHeight:0, display:'flex', flexDirection:'column', overflow:'hidden' }}>
-            <div style={{ padding:'14px 22px 10px', fontSize:11, color:'rgba(90,97,91,0.70)' }}>
-              Markdown editor only. The live preview pane was removed to keep this view focused and readable.
-            </div>
-            <MentionTextarea value={draft} onChange={e=>setDraft(e.target.value)} spellCheck={false} style={{ minWidth:0, width:'100%', height:'100%', resize:'none', padding:'12px 22px 22px', background:'rgba(255,255,255,0.50)', border:'none', color:'#222a25', outline:'none', fontFamily:"'JetBrains Mono', ui-monospace, SFMono-Regular, Consolas, monospace", fontSize:13, lineHeight:1.65 }}/>
-          </div>
-        ) : (
-          <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', color:'#5a615b', fontSize:13 }}>Select or create a project</div>
-        )}
       </div>
-    </div>
+    );
+  }
+
+  const noteParts = splitNoteDocument(draft);
+  const metadataLine = [selected.client, selected.status].filter(Boolean).join(' · ') || selected.filename;
+  const lastTouched = selected.dateModified || selected.dateCreated;
+  const detailChips = [selected.client, selected.status, ...(selected.tags || [])].filter(Boolean).slice(0, 4);
+  const stats = [
+    { label:'Status', value:summary?.status || selected.status || 'active', tone:BRAND_TEXT },
+    { label:'Open tasks', value:summary?.openTasks ?? 0 },
+    { label:'Tasks linked', value:summary?.tasksLinked ?? 0 },
+  ];
+
+  return (
+    <DetailPatternPanel
+      eyebrow="Projects"
+      title={selected.title}
+      subtitle={metadataLine}
+      action={(
+        <button onClick={onSave} style={{ padding:'9px 18px', borderRadius:999, border:'none', cursor:'pointer', fontWeight:800, fontSize:12, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff', boxShadow:BRAND_SHADOW }}>
+          Save
+        </button>
+      )}
+    >
+      <DetailIdentityCard
+        avatarText={initials(selected.title)}
+        avatarRadius={14}
+        title={selected.title}
+        subtitle={metadataLine}
+        chips={detailChips}
+        action={(
+          <button onClick={onNewProject} style={{ padding:'8px 14px', borderRadius:999, border:'1px solid rgba(255,255,255,0.62)', background:'rgba(255,255,255,0.55)', color:'#5a615b', fontSize:11, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>
+            New project...
+          </button>
+        )}
+      />
+      <DetailMetricStrip metrics={stats} />
+      <DetailNotesEditor
+        meta={`${selected.filename}${lastTouched ? ` · touched ${String(lastTouched).slice(0, 10)}` : ''}`}
+        value={noteParts.body}
+        onChange={e=>setDraft(replaceNoteBody(draft, e.target.value))}
+        minHeight={420}
+      />
+    </DetailPatternPanel>
   );
 }
 
