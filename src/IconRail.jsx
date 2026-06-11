@@ -58,10 +58,10 @@ export default function IconRail({ view, setView, vaultName = 'Vault', onSetting
     <div className="pane glass-strong rail">
       {/* Vault badge */}
       <button className="rail-btn" aria-label={vaultName} style={{
-        background: 'linear-gradient(135deg, oklch(0.7 0.18 var(--accent-h)), oklch(0.55 0.22 calc(var(--accent-h) + 40)))',
-        borderColor: 'oklch(0.55 0.22 var(--accent-h))',
+        background: 'linear-gradient(150deg,#2bb172,#0f6b3f)',
+        borderColor: 'rgba(20,120,72,0.28)',
         color: '#fff',
-        boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.3), 0 6px 14px -6px oklch(0.6 0.22 var(--accent-h) / 0.55)',
+        boxShadow: '0 8px 18px rgba(15,107,63,0.45), inset 0 1px 0 rgba(255,255,255,0.5)',
       }}>
         <Icon name="sparkle"/>
         <span className="tip">{vaultName}</span>
@@ -88,9 +88,9 @@ export default function IconRail({ view, setView, vaultName = 'Vault', onSetting
 
       {onHealth && (
         <button className="rail-btn" onClick={onHealth} aria-label="Vault health" style={{
-          color: healthOk ? 'oklch(0.85 0.16 160)' : 'oklch(0.85 0.18 25)',
-          borderColor: healthOk ? 'oklch(0.74 0.16 160 / 0.32)' : 'oklch(0.7 0.2 25 / 0.32)',
-          background: healthOk ? 'oklch(0.74 0.16 160 / 0.08)' : 'oklch(0.7 0.2 25 / 0.08)',
+          color: healthOk ? '#13733f' : '#c2533f',
+          borderColor: healthOk ? 'rgba(20,120,72,0.28)' : 'rgba(225,91,79,0.28)',
+          background: healthOk ? 'rgba(20,120,72,0.08)' : 'rgba(225,91,79,0.08)',
         }}>
           <Icon name="heart"/>
           <span className="tip">{healthOk ? 'Vault healthy' : 'Vault has issues'}</span>

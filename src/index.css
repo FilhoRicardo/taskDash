@@ -1,47 +1,68 @@
-﻿*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Schibsted+Grotesk:wght@400;500;600;700;800&display=swap');
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body, #root {
+  width: 100%;
+  height: 100%;
+}
 body {
-  font-family: 'Inter', system-ui, sans-serif;
-  background: #09090e;
-  color: #e2e8f0;
-  height: 100vh;
+  font-family: 'Schibsted Grotesk', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background:
+    radial-gradient(820px 620px at 6% -12%, rgba(20,120,72,0.18), transparent 58%),
+    radial-gradient(760px 640px at 106% 112%, rgba(20,120,72,0.15), transparent 55%),
+    radial-gradient(620px 520px at 52% 128%, rgba(26,86,116,0.08), transparent 60%),
+    linear-gradient(180deg,#eef1ef,#e1e7e3);
+  color: #1d2421;
   overflow: hidden;
 }
-::-webkit-scrollbar { width: 4px; }
+::placeholder { color: #9aa39d; }
+::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 4px; }
-input::placeholder { color: #475569; }
-button { font-family: inherit; }
+::-webkit-scrollbar-thumb {
+  background: rgba(40,60,50,0.16);
+  border-radius: 10px;
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover { background: rgba(40,60,50,0.24); background-clip: content-box; }
+button,
 input,
 textarea,
 select {
-  color-scheme: dark;
+  font-family: inherit;
+}
+input,
+textarea,
+select {
+  color-scheme: light;
 }
 select {
-  background-color: #11111a;
-  color: #e2e8f0;
+  background-color: rgba(255,255,255,0.72);
+  color: #222a25;
 }
 select option,
 select optgroup {
-  background-color: #11111a;
-  color: #e2e8f0;
+  background-color: #f7faf8;
+  color: #222a25;
 }
 select option:checked {
-  background-color: #166534;
-  color: #f8fafc;
+  background-color: #13733f;
+  color: #fff;
 }
 select:disabled,
 input:disabled,
 textarea:disabled {
-  color: #64748b;
-  -webkit-text-fill-color: #64748b;
+  color: #9aa19c;
+  -webkit-text-fill-color: #9aa19c;
 }
 input[type="date"]::-webkit-calendar-picker-indicator,
 input[type="time"]::-webkit-calendar-picker-indicator {
-  filter: invert(72%) sepia(16%) saturate(458%) hue-rotate(176deg);
-  opacity: 0.8;
+  filter: saturate(0.7) hue-rotate(70deg);
+  opacity: 0.72;
 }
+
 .markdown-body {
-  color: #d7e2ee;
+  color: #33403a;
   font-size: 13px;
   line-height: 1.72;
   overflow-wrap: anywhere;
@@ -62,13 +83,14 @@ input[type="time"]::-webkit-calendar-picker-indicator {
 .markdown-body h4,
 .markdown-body h5,
 .markdown-body h6 {
-  color: #f8fafc;
+  color: #1d2421;
   line-height: 1.25;
   font-weight: 800;
+  letter-spacing: 0;
 }
 .markdown-body h1 { font-size: 22px; margin-top: 20px; }
-.markdown-body h2 { font-size: 18px; margin-top: 19px; padding-bottom: 7px; border-bottom: 1px solid rgba(255,255,255,0.10); }
-.markdown-body h3 { font-size: 15px; margin-top: 17px; color: #e0f2fe; }
+.markdown-body h2 { font-size: 18px; margin-top: 19px; padding-bottom: 7px; border-bottom: 1px solid rgba(40,60,50,0.10); }
+.markdown-body h3 { font-size: 15px; margin-top: 17px; color: #115c34; }
 .markdown-body h4,
 .markdown-body h5,
 .markdown-body h6 { font-size: 13px; margin-top: 14px; }
@@ -90,46 +112,46 @@ input[type="time"]::-webkit-calendar-picker-indicator {
 .markdown-body li > p { margin: 0; }
 .markdown-body li > p + p { margin-top: 7px; }
 .markdown-body li::marker {
-  color: #8ee8be;
+  color: #13733f;
   font-weight: 800;
 }
-.markdown-body strong { color: #f8fafc; font-weight: 800; }
-.markdown-body em { color: #e2e8f0; }
+.markdown-body strong { color: #1d2421; font-weight: 800; }
+.markdown-body em { color: #5a615b; }
 .markdown-body a {
-  color: #9bd8ff;
+  color: #13733f;
   text-decoration: none;
-  border-bottom: 1px solid rgba(155,216,255,0.36);
+  border-bottom: 1px solid rgba(20,120,72,0.28);
   transition: color 0.15s, border-color 0.15s;
 }
 .markdown-body a:hover {
-  color: #c6f6ff;
-  border-bottom-color: rgba(198,246,255,0.78);
+  color: #115c34;
+  border-bottom-color: rgba(20,120,72,0.58);
 }
 .markdown-body blockquote {
-  border-left: 3px solid rgba(16,185,129,0.66);
+  border-left: 3px solid rgba(20,120,72,0.46);
   padding: 9px 12px;
   margin-left: 0;
-  color: #c4d3df;
-  background: rgba(16,185,129,0.055);
+  color: #5a615b;
+  background: rgba(20,120,72,0.055);
   border-radius: 0 8px 8px 0;
 }
 .markdown-body code {
-  border: 1px solid rgba(255,255,255,0.08);
+  border: 1px solid rgba(40,60,50,0.10);
   border-radius: 6px;
-  background: rgba(2, 8, 23, 0.72);
+  background: rgba(255,255,255,0.58);
   padding: 2px 6px;
-  color: #dbeafe;
+  color: #115c34;
   font-size: 12px;
-  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Consolas, monospace;
 }
 .markdown-body pre {
   overflow-x: auto;
-  border: 1px solid rgba(148,163,184,0.14);
-  border-radius: 8px;
-  background: rgba(2, 6, 23, 0.88);
+  border: 1px solid rgba(255,255,255,0.62);
+  border-radius: 10px;
+  background: rgba(255,255,255,0.50);
   padding: 12px 13px;
   white-space: pre;
-  box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.70);
 }
 .markdown-body pre code {
   border: 0;
@@ -143,13 +165,13 @@ input[type="time"]::-webkit-calendar-picker-indicator {
   max-width: 100%;
   height: auto;
   border-radius: 8px;
-  border: 1px solid rgba(255,255,255,0.10);
-  background: rgba(255,255,255,0.035);
+  border: 1px solid rgba(255,255,255,0.60);
+  background: rgba(255,255,255,0.45);
 }
 .markdown-body hr {
   height: 1px;
   border: 0;
-  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.16), transparent);
+  background: linear-gradient(90deg, transparent, rgba(40,60,50,0.14), transparent);
   margin-top: 18px;
 }
 .markdown-body table {
@@ -160,31 +182,31 @@ input[type="time"]::-webkit-calendar-picker-indicator {
   border-collapse: separate;
   border-spacing: 0;
   font-size: 12px;
-  border: 1px solid rgba(255,255,255,0.10);
+  border: 1px solid rgba(255,255,255,0.60);
   border-radius: 8px;
-  background: rgba(2, 6, 23, 0.22);
+  background: rgba(255,255,255,0.45);
 }
 .markdown-body th,
 .markdown-body td {
-  border-right: 1px solid rgba(255,255,255,0.08);
-  border-bottom: 1px solid rgba(255,255,255,0.08);
+  border-right: 1px solid rgba(40,60,50,0.08);
+  border-bottom: 1px solid rgba(40,60,50,0.08);
   padding: 7px 9px;
   text-align: left;
   vertical-align: top;
 }
 .markdown-body tr > :last-child { border-right: 0; }
 .markdown-body tbody tr:last-child > * { border-bottom: 0; }
-.markdown-body tbody tr:nth-child(odd) td { background: rgba(255,255,255,0.022); }
+.markdown-body tbody tr:nth-child(odd) td { background: rgba(255,255,255,0.28); }
 .markdown-body th {
-  color: #f8fafc;
-  background: rgba(16,185,129,0.10);
+  color: #1d2421;
+  background: rgba(20,120,72,0.08);
 }
 .markdown-body input[type="checkbox"] {
   width: 14px;
   height: 14px;
   margin: 0 7px 0 -2px;
   vertical-align: -2px;
-  accent-color: #22c55e;
+  accent-color: #13733f;
 }
 .markdown-body .contains-task-list {
   list-style: none;
@@ -194,28 +216,27 @@ input[type="time"]::-webkit-calendar-picker-indicator {
   padding-left: 0;
 }
 .markdown-body del {
-  color: #94a3b8;
+  color: #8a928d;
 }
 .markdown-body kbd {
-  border: 1px solid rgba(255,255,255,0.14);
-  border-bottom-color: rgba(255,255,255,0.26);
+  border: 1px solid rgba(40,60,50,0.14);
+  border-bottom-color: rgba(40,60,50,0.26);
   border-radius: 6px;
-  background: rgba(255,255,255,0.06);
-  color: #f8fafc;
+  background: rgba(255,255,255,0.55);
+  color: #222a25;
   padding: 1px 5px;
-  font: 11px ui-monospace, SFMono-Regular, Consolas, monospace;
+  font: 11px 'JetBrains Mono', ui-monospace, SFMono-Regular, Consolas, monospace;
 }
 
-/* ── Obsidian wikilinks rendered as chips ─────────────────────────────────── */
 .markdown-body .wikilink {
   display: inline-flex;
   align-items: center;
   gap: 4px;
   padding: 1px 8px 2px;
   border-radius: 999px;
-  background: rgba(34,197,94,0.13);
-  border: 1px solid rgba(34,197,94,0.30);
-  color: #bbf7d0;
+  background: rgba(20,120,72,0.10);
+  border: 1px solid rgba(20,120,72,0.20);
+  color: #115c34;
   font-weight: 650;
   font-size: 0.95em;
   line-height: 1.45;
@@ -228,22 +249,21 @@ input[type="time"]::-webkit-calendar-picker-indicator {
 .markdown-body .wikilink::before {
   content: '@';
   font-weight: 800;
-  color: #4ade80;
+  color: #13733f;
   opacity: 0.85;
 }
 
-/* ── @-mention dropdown ───────────────────────────────────────────────────── */
 .mention-menu {
   position: fixed;
   z-index: 1000;
   overflow-y: auto;
   padding: 5px;
   border-radius: 12px;
-  background: rgba(13,18,16,0.97);
-  border: 1px solid rgba(34,197,94,0.26);
-  box-shadow: 0 18px 44px rgba(0,0,0,0.55), 0 0 0 1px rgba(0,0,0,0.3);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+  background: rgba(255,255,255,0.88);
+  border: 1px solid rgba(255,255,255,0.70);
+  box-shadow: 0 18px 44px rgba(20,40,30,0.16), inset 0 1px 0 rgba(255,255,255,0.80);
+  backdrop-filter: blur(24px) saturate(1.6);
+  -webkit-backdrop-filter: blur(24px) saturate(1.6);
 }
 .mention-menu-hint {
   padding: 5px 9px 7px;
@@ -251,8 +271,8 @@ input[type="time"]::-webkit-calendar-picker-indicator {
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: rgba(187,247,208,0.55);
-  border-bottom: 1px solid rgba(255,255,255,0.06);
+  color: #5f9d79;
+  border-bottom: 1px solid rgba(40,60,50,0.08);
   margin-bottom: 4px;
 }
 .mention-item {
@@ -265,15 +285,15 @@ input[type="time"]::-webkit-calendar-picker-indicator {
   border: none;
   border-radius: 8px;
   background: transparent;
-  color: #e2e8f0;
+  color: #222a25;
   font-family: inherit;
   font-size: 12.5px;
   text-align: left;
   cursor: pointer;
 }
 .mention-item.active {
-  background: rgba(34,197,94,0.16);
-  color: #f0fdf4;
+  background: rgba(20,120,72,0.10);
+  color: #115c34;
 }
 .mention-item-label {
   min-width: 0;
@@ -291,16 +311,15 @@ input[type="time"]::-webkit-calendar-picker-indicator {
   opacity: 0.9;
 }
 
-/* ── Global visual polish ─────────────────────────────────────────────────── */
 ::selection {
-  background: rgba(34,197,94,0.32);
-  color: #f0fdf4;
+  background: rgba(20,120,72,0.20);
+  color: #115c34;
 }
 input:focus,
 textarea:focus,
 select:focus {
-  border-color: rgba(34,197,94,0.45) !important;
-  box-shadow: 0 0 0 3px rgba(34,197,94,0.12);
+  border-color: rgba(20,120,72,0.36) !important;
+  box-shadow: 0 0 0 3px rgba(20,120,72,0.10);
 }
 input,
 textarea,
@@ -318,9 +337,6 @@ button:focus-visible,
 input:focus-visible,
 textarea:focus-visible,
 select:focus-visible {
-  outline: 2px solid rgba(74,222,128,0.55);
+  outline: 2px solid rgba(20,120,72,0.42);
   outline-offset: 1px;
 }
-::-webkit-scrollbar { width: 6px; height: 6px; }
-::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.10); border-radius: 6px; }
-::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.18); }
