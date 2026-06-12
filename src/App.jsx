@@ -369,6 +369,24 @@ function DetailMarkdownEditorCard({ meta, value, onChange, emptyText }) {
   );
 }
 
+function DetailRawMarkdownEditorCard({ meta, value, onChange, placeholder = 'Edit this note...' }) {
+  return (
+    <section className="glass-thin" style={{ borderRadius:16, padding:'14px', minHeight:0, flex:'1 1 0', display:'flex', flexDirection:'column' }}>
+      <div style={{ marginBottom:10, flexShrink:0 }}>
+        <div style={{ fontSize:10, color:BRAND_LABEL, fontWeight:800, textTransform:'uppercase', letterSpacing:'0.14em', marginBottom:5 }}>Full note (Markdown)</div>
+        {meta && <div style={{ fontSize:12, color:'rgba(90,97,91,0.72)' }}>{meta}</div>}
+      </div>
+      <MentionTextarea
+        value={value}
+        onChange={onChange}
+        placeholder={placeholder}
+        spellCheck={false}
+        style={{ flex:1, width:'100%', resize:'none', padding:'16px 18px', borderRadius:14, background:'rgba(255,255,255,0.50)', border:'1px solid rgba(255,255,255,0.62)', color:'#222a25', outline:'none', fontFamily:"'JetBrains Mono', ui-monospace, SFMono-Regular, Consolas, monospace", fontSize:13, lineHeight:1.7 }}
+      />
+    </section>
+  );
+}
+
 function ScreenLogo() {
   return (
     <div aria-hidden="true" style={{ position:'absolute', right:16, bottom:12, zIndex:8, pointerEvents:'none', opacity:0.22 }}>
@@ -954,6 +972,7 @@ export default function App() {
   const [propertySel,      setPropertySel]      = useState(null);
   const [propertySearch,   setPropertySearch]   = useState('');
   const [propertyComment,  setPropertyComment]  = useState('');
+  const [propertyDraft,    setPropertyDraft]    = useState('');
   const [propertyLoadError, setPropertyLoadError] = useState('');
 
   // â”€â”€ Project library state â”€â”€
@@ -1131,6 +1150,11 @@ export default function App() {
     const project = projects.find(p => p.id === projectSel);
     setProjectDraft(project?.raw || '');
   }, [projectSel, projects]);
+
+  useEffect(() => {
+    const property = properties.find(p => p.id === propertySel);
+    setPropertyDraft(property?.raw || '');
+  }, [propertySel, properties]);
 
   useEffect(() => {
     const person = people.find(p => p.id === personSel);
@@ -2026,6 +2050,24 @@ export default function App() {
     } catch(e) {
       console.error('property cover upload failed', e);
       alert('Failed to upload cover: ' + e.message);
+    }
+  };
+
+  const saveProperty = async () => {
+    if (!propertySel) return;
+    const handle = propertyHandles[propertySel];
+    if (!handle) return;
+    try {
+      const updated = touchDateModified(propertyDraft);
+      await writeFile(handle, updated);
+      const updatedProperty = parseProperty(propertySel, updated);
+      setProperties(prev => prev.map(p => p.id === propertySel ? updatedProperty : p).sort((a,b) => a.title.localeCompare(b.title)));
+      setPropertyDraft(updated);
+      await loadRefs(dirs);
+      setToast(`Saved "${updatedProperty.title}"`);
+    } catch(e) {
+      console.error('save property failed', e);
+      alert('Failed to save property: ' + e.message);
     }
   };
 
@@ -2934,11 +2976,14 @@ export default function App() {
           properties={filteredProperties}
           selected={property}
           selectedId={propertySel}
+          draft={propertyDraft}
+          setDraft={setPropertyDraft}
           images={propertyImages}
           loadError={propertyLoadError}
           onSelect={setPropertySel}
           comment={propertyComment}
           setComment={setPropertyComment}
+          onSave={saveProperty}
           onAddComment={addPropertyComment}
           onEditComment={editPropertyComment}
           onDeleteComment={deletePropertyComment}
@@ -3135,6 +3180,8 @@ export default function App() {
 }
 
 function PeoplePanel({ selected, draft, setDraft, onSave, summary, hasPeopleFolder, onNewPerson, onConfigure, onOpenMeetings }) {
+  const [editingMetadata, setEditingMetadata] = useState(false);
+
   if (!hasPeopleFolder) {
     return (
       <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', color:'#5a615b', fontSize:13 }}>
@@ -3174,34 +3221,52 @@ function PeoplePanel({ selected, draft, setDraft, onSave, summary, hasPeopleFold
       title={selected.title}
       subtitle={metadataLine}
       action={(
-        <button onClick={onSave} style={{ padding:'9px 18px', borderRadius:999, border:'none', cursor:'pointer', fontWeight:800, fontSize:12, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff', boxShadow:BRAND_SHADOW }}>
-          Save
-        </button>
+        <div style={{ display:'flex', gap:8, alignItems:'center', flexWrap:'wrap', justifyContent:'flex-end' }}>
+          <button onClick={()=>setEditingMetadata(value => !value)} style={{ padding:'9px 14px', borderRadius:999, border:'1px solid rgba(255,255,255,0.62)', background:'rgba(255,255,255,0.55)', color:BRAND_TEXT, cursor:'pointer', fontWeight:800, fontSize:12, fontFamily:'inherit' }}>
+            {editingMetadata ? 'Done editing' : 'Edit metadata'}
+          </button>
+          <button onClick={onSave} style={{ padding:'9px 18px', borderRadius:999, border:'none', cursor:'pointer', fontWeight:800, fontSize:12, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff', boxShadow:BRAND_SHADOW }}>
+            Save
+          </button>
+        </div>
       )}
     >
-      <DetailIdentityCard
-        avatarText={initials(selected.title)}
-        title={selected.title}
-        subtitle={metadataLine}
-        chips={detailChips}
-        action={(
-          <button onClick={onOpenMeetings} style={{ padding:'8px 14px', borderRadius:999, border:'1px solid rgba(255,255,255,0.62)', background:'rgba(255,255,255,0.55)', color:'#5a615b', fontSize:11, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>
-            New meeting...
-          </button>
-        )}
-      />
-      <DetailMetricStrip metrics={stats} />
-      <DetailMarkdownEditorCard
-        meta={`${selected.filename}${lastTouched ? ` · touched ${String(lastTouched).slice(0, 10)}` : ''}`}
-        value={noteParts.body}
-        onChange={e=>setDraft(replaceNoteBody(draft, e.target.value))}
-        emptyText="No person notes yet."
-      />
+      {editingMetadata ? (
+        <DetailRawMarkdownEditorCard
+          meta={`${selected.filename}${lastTouched ? ` · touched ${String(lastTouched).slice(0, 10)}` : ''}`}
+          value={draft}
+          onChange={e=>setDraft(e.target.value)}
+          placeholder="Edit person metadata and notes..."
+        />
+      ) : (
+        <>
+          <DetailIdentityCard
+            avatarText={initials(selected.title)}
+            title={selected.title}
+            subtitle={metadataLine}
+            chips={detailChips}
+            action={(
+              <button onClick={onOpenMeetings} style={{ padding:'8px 14px', borderRadius:999, border:'1px solid rgba(255,255,255,0.62)', background:'rgba(255,255,255,0.55)', color:'#5a615b', fontSize:11, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>
+                New meeting...
+              </button>
+            )}
+          />
+          <DetailMetricStrip metrics={stats} />
+          <DetailMarkdownEditorCard
+            meta={`${selected.filename}${lastTouched ? ` · touched ${String(lastTouched).slice(0, 10)}` : ''}`}
+            value={noteParts.body}
+            onChange={e=>setDraft(replaceNoteBody(draft, e.target.value))}
+            emptyText="No person notes yet."
+          />
+        </>
+      )}
     </DetailPatternPanel>
   );
 }
 
 function OrganizationPanel({ selected, draft, setDraft, onSave, summary, hasOrganizationsFolder, onNewOrganization, onConfigure }) {
+  const [editingMetadata, setEditingMetadata] = useState(false);
+
   if (!hasOrganizationsFolder) {
     return (
       <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', color:'#5a615b', fontSize:13 }}>
@@ -3241,30 +3306,46 @@ function OrganizationPanel({ selected, draft, setDraft, onSave, summary, hasOrga
       title={selected.title}
       subtitle={metadataLine}
       action={(
-        <button onClick={onSave} style={{ padding:'9px 18px', borderRadius:999, border:'none', cursor:'pointer', fontWeight:800, fontSize:12, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff', boxShadow:BRAND_SHADOW }}>
-          Save
-        </button>
+        <div style={{ display:'flex', gap:8, alignItems:'center', flexWrap:'wrap', justifyContent:'flex-end' }}>
+          <button onClick={()=>setEditingMetadata(value => !value)} style={{ padding:'9px 14px', borderRadius:999, border:'1px solid rgba(255,255,255,0.62)', background:'rgba(255,255,255,0.55)', color:BRAND_TEXT, cursor:'pointer', fontWeight:800, fontSize:12, fontFamily:'inherit' }}>
+            {editingMetadata ? 'Done editing' : 'Edit metadata'}
+          </button>
+          <button onClick={onSave} style={{ padding:'9px 18px', borderRadius:999, border:'none', cursor:'pointer', fontWeight:800, fontSize:12, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff', boxShadow:BRAND_SHADOW }}>
+            Save
+          </button>
+        </div>
       )}
     >
-      <DetailIdentityCard
-        avatarText={initials(selected.title)}
-        avatarRadius={14}
-        title={selected.title}
-        subtitle={metadataLine}
-        chips={detailChips}
-        action={(
-          <button onClick={onNewOrganization} style={{ padding:'8px 14px', borderRadius:999, border:'1px solid rgba(255,255,255,0.62)', background:'rgba(255,255,255,0.55)', color:'#5a615b', fontSize:11, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>
-            New organization...
-          </button>
-        )}
-      />
-      <DetailMetricStrip metrics={stats} />
-      <DetailMarkdownEditorCard
-        meta={`${selected.filename}${lastTouched ? ` · touched ${String(lastTouched).slice(0, 10)}` : ''}`}
-        value={noteParts.body}
-        onChange={e=>setDraft(replaceNoteBody(draft, e.target.value))}
-        emptyText="No organization notes yet."
-      />
+      {editingMetadata ? (
+        <DetailRawMarkdownEditorCard
+          meta={`${selected.filename}${lastTouched ? ` · touched ${String(lastTouched).slice(0, 10)}` : ''}`}
+          value={draft}
+          onChange={e=>setDraft(e.target.value)}
+          placeholder="Edit organization metadata and notes..."
+        />
+      ) : (
+        <>
+          <DetailIdentityCard
+            avatarText={initials(selected.title)}
+            avatarRadius={14}
+            title={selected.title}
+            subtitle={metadataLine}
+            chips={detailChips}
+            action={(
+              <button onClick={onNewOrganization} style={{ padding:'8px 14px', borderRadius:999, border:'1px solid rgba(255,255,255,0.62)', background:'rgba(255,255,255,0.55)', color:'#5a615b', fontSize:11, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>
+                New organization...
+              </button>
+            )}
+          />
+          <DetailMetricStrip metrics={stats} />
+          <DetailMarkdownEditorCard
+            meta={`${selected.filename}${lastTouched ? ` · touched ${String(lastTouched).slice(0, 10)}` : ''}`}
+            value={noteParts.body}
+            onChange={e=>setDraft(replaceNoteBody(draft, e.target.value))}
+            emptyText="No organization notes yet."
+          />
+        </>
+      )}
     </DetailPatternPanel>
   );
 }
@@ -4252,6 +4333,8 @@ function WorkHoursPanel({ selectedDate, selectedNote, notes, draftRows, hasDaily
 }
 
 function ProjectPanel({ selected, draft, setDraft, onSave, summary, onNewProject, hasProjectsFolder, onConfigure }) {
+  const [editingMetadata, setEditingMetadata] = useState(false);
+
   if (!hasProjectsFolder) {
     return (
       <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', color:'#5a615b', fontSize:13 }}>
@@ -4291,36 +4374,53 @@ function ProjectPanel({ selected, draft, setDraft, onSave, summary, onNewProject
       title={selected.title}
       subtitle={metadataLine}
       action={(
-        <button onClick={onSave} style={{ padding:'9px 18px', borderRadius:999, border:'none', cursor:'pointer', fontWeight:800, fontSize:12, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff', boxShadow:BRAND_SHADOW }}>
-          Save
-        </button>
+        <div style={{ display:'flex', gap:8, alignItems:'center', flexWrap:'wrap', justifyContent:'flex-end' }}>
+          <button onClick={()=>setEditingMetadata(value => !value)} style={{ padding:'9px 14px', borderRadius:999, border:'1px solid rgba(255,255,255,0.62)', background:'rgba(255,255,255,0.55)', color:BRAND_TEXT, cursor:'pointer', fontWeight:800, fontSize:12, fontFamily:'inherit' }}>
+            {editingMetadata ? 'Done editing' : 'Edit client/meta'}
+          </button>
+          <button onClick={onSave} style={{ padding:'9px 18px', borderRadius:999, border:'none', cursor:'pointer', fontWeight:800, fontSize:12, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff', boxShadow:BRAND_SHADOW }}>
+            Save
+          </button>
+        </div>
       )}
     >
-      <DetailIdentityCard
-        avatarText={initials(selected.title)}
-        avatarRadius={14}
-        title={selected.title}
-        subtitle={metadataLine}
-        chips={detailChips}
-        action={(
-          <button onClick={onNewProject} style={{ padding:'8px 14px', borderRadius:999, border:'1px solid rgba(255,255,255,0.62)', background:'rgba(255,255,255,0.55)', color:'#5a615b', fontSize:11, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>
-            New project...
-          </button>
-        )}
-      />
-      <DetailMetricStrip metrics={stats} />
-      <DetailMarkdownEditorCard
-        meta={`${selected.filename}${lastTouched ? ` · touched ${String(lastTouched).slice(0, 10)}` : ''}`}
-        value={noteParts.body}
-        onChange={e=>setDraft(replaceNoteBody(draft, e.target.value))}
-        emptyText="No project notes yet."
-      />
+      {editingMetadata ? (
+        <DetailRawMarkdownEditorCard
+          meta={`${selected.filename}${lastTouched ? ` · touched ${String(lastTouched).slice(0, 10)}` : ''}`}
+          value={draft}
+          onChange={e=>setDraft(e.target.value)}
+          placeholder="Edit project client metadata and notes..."
+        />
+      ) : (
+        <>
+          <DetailIdentityCard
+            avatarText={initials(selected.title)}
+            avatarRadius={14}
+            title={selected.title}
+            subtitle={metadataLine}
+            chips={detailChips}
+            action={(
+              <button onClick={onNewProject} style={{ padding:'8px 14px', borderRadius:999, border:'1px solid rgba(255,255,255,0.62)', background:'rgba(255,255,255,0.55)', color:'#5a615b', fontSize:11, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>
+                New project...
+              </button>
+            )}
+          />
+          <DetailMetricStrip metrics={stats} />
+          <DetailMarkdownEditorCard
+            meta={`${selected.filename}${lastTouched ? ` · touched ${String(lastTouched).slice(0, 10)}` : ''}`}
+            value={noteParts.body}
+            onChange={e=>setDraft(replaceNoteBody(draft, e.target.value))}
+            emptyText="No project notes yet."
+          />
+        </>
+      )}
     </DetailPatternPanel>
   );
 }
 
-function PropertyPanel({ properties, selected, selectedId, images, loadError, onSelect, comment, setComment, onAddComment, onEditComment, onDeleteComment, onNewProperty, onUploadCover, hasPropertiesFolder, hasAttachmentsFolder, onConfigure }) {
+function PropertyPanel({ properties, selected, selectedId, draft, setDraft, images, loadError, onSelect, comment, setComment, onSave, onAddComment, onEditComment, onDeleteComment, onNewProperty, onUploadCover, hasPropertiesFolder, hasAttachmentsFolder, onConfigure }) {
   const coverInputRef = useRef(null);
+  const [editingMetadata, setEditingMetadata] = useState(false);
   const imageFor = p => p?.coverName ? images[p.coverName.toLowerCase()] : null;
   const photoPlaceholder = label => (
     <span style={{ fontFamily:"'JetBrains Mono', monospace", fontSize:9.5, color:'#6f7f75', background:'rgba(255,255,255,0.78)', padding:'3px 7px', borderRadius:6 }}>
@@ -4398,6 +4498,14 @@ function PropertyPanel({ properties, selected, selectedId, images, loadError, on
                 </div>
                 <div style={{ display:'flex', flexDirection:'column', alignItems:'flex-end', gap:8, flexShrink:0 }}>
                   <span style={{ fontSize:12, fontWeight:800, padding:'5px 9px', borderRadius:20, background:'rgba(255,255,255,0.60)', color:'#5a615b', border:'1px solid rgba(255,255,255,0.62)' }}>{selected.comments.length} notes</span>
+                  <button onClick={()=>setEditingMetadata(value => !value)} style={{ padding:'8px 11px', borderRadius:8, border:'1px solid rgba(255,255,255,0.68)', background:'rgba(255,255,255,0.58)', color:BRAND_TEXT, cursor:'pointer', fontWeight:800, fontSize:12, fontFamily:'inherit' }}>
+                    {editingMetadata ? 'Done editing' : 'Edit metadata'}
+                  </button>
+                  {editingMetadata && (
+                    <button onClick={onSave} style={{ padding:'8px 11px', borderRadius:8, border:'none', background:BRAND_GRADIENT, color:'#fff', cursor:'pointer', fontWeight:800, fontSize:12, fontFamily:'inherit', boxShadow:BRAND_SHADOW }}>
+                      Save
+                    </button>
+                  )}
                   <button onClick={()=>hasAttachmentsFolder ? coverInputRef.current?.click() : onConfigure()} style={{ padding:'8px 11px', borderRadius:8, border:'1px solid rgba(255,255,255,0.68)', background:'rgba(255,255,255,0.58)', color:'#5a615b', cursor:'pointer', fontWeight:800, fontSize:12, fontFamily:'inherit' }}>
                     Upload cover
                   </button>
@@ -4405,19 +4513,32 @@ function PropertyPanel({ properties, selected, selectedId, images, loadError, on
                 </div>
               </div>
 
-              {selected.summary && <p style={{ margin:'0 0 20px', color:'#5a615b', fontSize:15, lineHeight:1.6 }}>{selected.summary}</p>}
+              {editingMetadata ? (
+                <div style={{ minHeight:420, display:'flex' }}>
+                  <DetailRawMarkdownEditorCard
+                    meta={selected.filename}
+                    value={draft}
+                    onChange={e=>setDraft(e.target.value)}
+                    placeholder="Edit property metadata and notes..."
+                  />
+                </div>
+              ) : (
+                <>
+                  {selected.summary && <p style={{ margin:'0 0 20px', color:'#5a615b', fontSize:15, lineHeight:1.6 }}>{selected.summary}</p>}
 
-              <div style={{ display:'flex', gap:8, marginBottom:18 }}>
-                <MentionTextarea value={comment} onChange={e=>setComment(e.target.value)} placeholder="Add a property comment… @ to link a person/project" rows={6}
-                  onKeyDown={e=>{ if(e.key==='Enter'&&!e.shiftKey){ e.preventDefault(); onAddComment(); }}}
-                  style={{ flex:1, minHeight:160, fieldSizing:'content', padding:'12px 14px', borderRadius:10, resize:'vertical', background:GLASS_INNER, border:'1px solid rgba(255,255,255,0.68)', color:TEXT_PRIMARY, fontSize:15, lineHeight:1.55, outline:'none', fontFamily:'inherit' }}/>
-                <button onClick={onAddComment} disabled={!comment.trim()} style={{ alignSelf:'stretch', padding:'0 20px', borderRadius:10, border:'none', cursor:'pointer', fontWeight:800, fontSize:14, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff', opacity:comment.trim()?1:0.35, boxShadow:comment.trim()?BRAND_SHADOW:'none' }}>Add</button>
-              </div>
+                  <div style={{ display:'flex', gap:8, marginBottom:18 }}>
+                    <MentionTextarea value={comment} onChange={e=>setComment(e.target.value)} placeholder="Add a property comment… @ to link a person/project" rows={6}
+                      onKeyDown={e=>{ if(e.key==='Enter'&&!e.shiftKey){ e.preventDefault(); onAddComment(); }}}
+                      style={{ flex:1, minHeight:160, fieldSizing:'content', padding:'12px 14px', borderRadius:10, resize:'vertical', background:GLASS_INNER, border:'1px solid rgba(255,255,255,0.68)', color:TEXT_PRIMARY, fontSize:15, lineHeight:1.55, outline:'none', fontFamily:'inherit' }}/>
+                    <button onClick={onAddComment} disabled={!comment.trim()} style={{ alignSelf:'stretch', padding:'0 20px', borderRadius:10, border:'none', cursor:'pointer', fontWeight:800, fontSize:14, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff', opacity:comment.trim()?1:0.35, boxShadow:comment.trim()?BRAND_SHADOW:'none' }}>Add</button>
+                  </div>
 
-              {!selected.comments.length && <div style={{ color:'#5a615b', textAlign:'center', padding:'40px 0', fontSize:15, fontWeight:700 }}>No property comments yet</div>}
-              {selected.comments.map((l, i) => (
-                <CommentCard key={`${l.date}-${i}-${l.text}`} log={l} index={i} onSave={onEditComment} onDelete={onDeleteComment} />
-              ))}
+                  {!selected.comments.length && <div style={{ color:'#5a615b', textAlign:'center', padding:'40px 0', fontSize:15, fontWeight:700 }}>No property comments yet</div>}
+                  {selected.comments.map((l, i) => (
+                    <CommentCard key={`${l.date}-${i}-${l.text}`} log={l} index={i} onSave={onEditComment} onDelete={onDeleteComment} />
+                  ))}
+                </>
+              )}
             </div>
           )}
         </div>
