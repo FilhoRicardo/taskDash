@@ -369,21 +369,160 @@ function DetailMarkdownEditorCard({ meta, value, onChange, emptyText }) {
   );
 }
 
-function DetailRawMarkdownEditorCard({ meta, value, onChange, placeholder = 'Edit this note...' }) {
+function MetadataEditorCard({ label = 'Metadata', meta, children }) {
   return (
-    <section className="glass-thin" style={{ borderRadius:16, padding:'14px', minHeight:0, flex:'1 1 0', display:'flex', flexDirection:'column' }}>
-      <div style={{ marginBottom:10, flexShrink:0 }}>
-        <div style={{ fontSize:10, color:BRAND_LABEL, fontWeight:800, textTransform:'uppercase', letterSpacing:'0.14em', marginBottom:5 }}>Full note (Markdown)</div>
-        {meta && <div style={{ fontSize:12, color:'rgba(90,97,91,0.72)' }}>{meta}</div>}
+    <section className="glass-thin" style={{ borderRadius:16, padding:'16px', minHeight:0, flex:'1 1 0', overflowY:'auto' }}>
+      <div style={{ fontSize:10, color:BRAND_LABEL, fontWeight:800, textTransform:'uppercase', letterSpacing:'0.14em', marginBottom:5 }}>{label}</div>
+      {meta && <div style={{ fontSize:12, color:'rgba(90,97,91,0.72)', marginBottom:14 }}>{meta}</div>}
+      <div style={{ maxWidth:720 }}>
+        {children}
       </div>
-      <MentionTextarea
-        value={value}
-        onChange={onChange}
-        placeholder={placeholder}
-        spellCheck={false}
-        style={{ flex:1, width:'100%', resize:'none', padding:'16px 18px', borderRadius:14, background:'rgba(255,255,255,0.50)', border:'1px solid rgba(255,255,255,0.62)', color:'#222a25', outline:'none', fontFamily:"'JetBrains Mono', ui-monospace, SFMono-Regular, Consolas, monospace", fontSize:13, lineHeight:1.7 }}
-      />
     </section>
+  );
+}
+
+function PersonMetadataEditor({ selected, draft, setDraft, refs = { clients:[] } }) {
+  const current = parsePerson(selected?.id || 'person.md', draft || selected?.raw || '');
+  const dlClients = useMemo(() => `dl_edit_person_clients_${Math.random().toString(36).slice(2,8)}`, []);
+  const setMeta = (fields, headingTitle) => setDraft(updateNoteFrontmatter(draft, fields, headingTitle));
+  const setName = value => setMeta({ person: value.trim() ? yamlEditQuote(value) : '' }, value);
+  const setCompany = value => setMeta({ company: value.trim() ? yamlEditQuote(`[[${value.trim()}]]`) : '' });
+  const setQuoted = (key, value) => setMeta({ [key]: value.trim() ? yamlEditQuote(value) : '' });
+  const setTags = value => setMeta({ tags: yamlTagsValue(value, 'people') });
+
+  return (
+    <MetadataEditorCard label="Person metadata" meta={selected.filename}>
+      <Field label="Person name">
+        <input value={current.title || ''} onChange={e=>setName(e.target.value)} placeholder="e.g. Jane Smith" style={{ ...inputBase, fontSize:16, fontWeight:600, padding:'10px 14px' }}/>
+      </Field>
+      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:11 }}>
+        <Field label={`Company / client${refs.clients.length?` · ${refs.clients.length} available`:''}`}>
+          <input list={dlClients} value={current.company || ''} onChange={e=>setCompany(e.target.value)} placeholder="Pick or type..." style={inputBase}/>
+          <datalist id={dlClients}>
+            {refs.clients.map(c => <option key={c} value={c}/>)}
+          </datalist>
+        </Field>
+        <Field label="Role">
+          <input value={current.role || ''} onChange={e=>setQuoted('role', e.target.value)} placeholder="e.g. Asset manager" style={inputBase}/>
+        </Field>
+      </div>
+      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:11 }}>
+        <Field label="Email">
+          <input type="email" value={current.email || ''} onChange={e=>setQuoted('email', e.target.value)} placeholder="name@example.com" style={inputBase}/>
+        </Field>
+        <Field label="Phone">
+          <input value={current.phone || ''} onChange={e=>setQuoted('phone', e.target.value)} placeholder="+353..." style={inputBase}/>
+        </Field>
+      </div>
+      <Field label="Tags (comma-separated)">
+        <input value={csvTags(current.tags, 'people')} onChange={e=>setTags(e.target.value)} placeholder="people, client" style={inputBase}/>
+      </Field>
+    </MetadataEditorCard>
+  );
+}
+
+function OrganizationMetadataEditor({ selected, draft, setDraft }) {
+  const current = parseOrganization(selected?.id || 'organization.md', draft || selected?.raw || '');
+  const setMeta = (fields, headingTitle) => setDraft(updateNoteFrontmatter(draft, fields, headingTitle));
+  const setName = value => setMeta({ organization: value.trim() ? yamlEditQuote(value) : '' }, value);
+  const setQuoted = (key, value) => setMeta({ [key]: value.trim() ? yamlEditQuote(value) : '' });
+  const setTags = value => setMeta({ tags: yamlTagsValue(value, 'organizations') });
+
+  return (
+    <MetadataEditorCard label="Organization metadata" meta={selected.filename}>
+      <Field label="Organization name">
+        <input value={current.title || ''} onChange={e=>setName(e.target.value)} placeholder="e.g. Acme Corp" style={{ ...inputBase, fontSize:16, fontWeight:600, padding:'10px 14px' }}/>
+      </Field>
+      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:11 }}>
+        <Field label="Industry">
+          <input value={current.industry || ''} onChange={e=>setQuoted('industry', e.target.value)} placeholder="e.g. Property management" style={inputBase}/>
+        </Field>
+        <Field label="Website">
+          <input value={current.website || ''} onChange={e=>setQuoted('website', e.target.value)} placeholder="https://..." style={inputBase}/>
+        </Field>
+      </div>
+      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:11 }}>
+        <Field label="Email">
+          <input type="email" value={current.email || ''} onChange={e=>setQuoted('email', e.target.value)} placeholder="info@example.com" style={inputBase}/>
+        </Field>
+        <Field label="Phone">
+          <input value={current.phone || ''} onChange={e=>setQuoted('phone', e.target.value)} placeholder="+353..." style={inputBase}/>
+        </Field>
+      </div>
+      <Field label="Tags (comma-separated)">
+        <input value={csvTags(current.tags, 'organizations')} onChange={e=>setTags(e.target.value)} placeholder="organizations, client" style={inputBase}/>
+      </Field>
+    </MetadataEditorCard>
+  );
+}
+
+function ProjectMetadataEditor({ selected, draft, setDraft, refs = { clients:[] } }) {
+  const current = parseProject(selected?.id || 'project.md', draft || selected?.raw || '');
+  const dlClients = useMemo(() => `dl_edit_project_clients_${Math.random().toString(36).slice(2,8)}`, []);
+  const setMeta = (fields, headingTitle) => setDraft(updateNoteFrontmatter(draft, fields, headingTitle));
+  const setTitle = value => setMeta({ title: value.trim() ? yamlEditQuote(value) : '' }, value);
+  const setClient = value => setMeta({ client: value.trim() ? yamlEditQuote(`[[${value.trim()}]]`) : '' });
+  const setQuoted = (key, value) => setMeta({ [key]: value.trim() ? yamlEditQuote(value) : '' });
+  const setTags = value => setMeta({ tags: yamlTagsValue(value, 'project') });
+
+  return (
+    <MetadataEditorCard label="Project metadata" meta={selected.filename}>
+      <Field label="Project name">
+        <input value={current.title || ''} onChange={e=>setTitle(e.target.value)} placeholder="e.g. Union Module 4" style={{ ...inputBase, fontSize:16, fontWeight:600, padding:'10px 14px' }}/>
+      </Field>
+      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:11 }}>
+        <Field label="Status">
+          <select value={current.status || 'active'} onChange={e=>setMeta({ status: e.target.value || 'active' })} style={inputBase}>
+            <option value="active">Active</option>
+            <option value="paused">Paused</option>
+            <option value="done">Done</option>
+            <option value="archived">Archived</option>
+          </select>
+        </Field>
+        <Field label={`Client${refs.clients.length?` · ${refs.clients.length} available`:''}`}>
+          <input list={dlClients} value={current.client || ''} onChange={e=>setClient(e.target.value)} placeholder="Pick or type..." style={inputBase}/>
+          <datalist id={dlClients}>
+            {refs.clients.map(c => <option key={c} value={c}/>)}
+          </datalist>
+        </Field>
+      </div>
+      <Field label="Summary">
+        <textarea value={current.summary || ''} onChange={e=>setQuoted('summary', e.target.value)} placeholder="Short project summary" rows={3} style={{ ...inputBase, resize:'vertical', lineHeight:1.55 }}/>
+      </Field>
+      <Field label="Tags (comma-separated)">
+        <input value={csvTags(current.tags, 'project')} onChange={e=>setTags(e.target.value)} placeholder="project, union" style={inputBase}/>
+      </Field>
+    </MetadataEditorCard>
+  );
+}
+
+function PropertyMetadataEditor({ selected, draft, setDraft, refs = { clients:[] } }) {
+  const current = parseProperty(selected?.id || 'property.md', draft || selected?.raw || '');
+  const dlClients = useMemo(() => `dl_edit_property_clients_${Math.random().toString(36).slice(2,8)}`, []);
+  const setMeta = (fields, headingTitle) => setDraft(updateNoteFrontmatter(draft, fields, headingTitle));
+  const setTitle = value => setMeta({ building: value.trim() ? yamlEditQuote(value) : '' }, value);
+  const setClient = value => setMeta({ client: value.trim() ? yamlEditQuote(`[[${value.trim()}]]`) : '' });
+  const setSummary = value => setMeta({ summary: yamlEditQuote(value || '') });
+  const setTags = value => setMeta({ tags: yamlTagsValue(value, 'properties') });
+
+  return (
+    <MetadataEditorCard label="Property metadata" meta={selected.filename}>
+      <Field label="Property name">
+        <input value={current.title || ''} onChange={e=>setTitle(e.target.value)} placeholder="e.g. 20 Kildare Street" style={{ ...inputBase, fontSize:16, fontWeight:600, padding:'10px 14px' }}/>
+      </Field>
+      <Field label={`Client${refs.clients.length?` · ${refs.clients.length} available`:''}`}>
+        <input list={dlClients} value={current.client || ''} onChange={e=>setClient(e.target.value)} placeholder="Pick or type..." style={inputBase}/>
+        <datalist id={dlClients}>
+          {refs.clients.map(c => <option key={c} value={c}/>)}
+        </datalist>
+      </Field>
+      <Field label="Summary">
+        <textarea value={current.summary || ''} onChange={e=>setSummary(e.target.value)} placeholder="Short property summary for the card/library view" rows={3} style={{ ...inputBase, resize:'vertical', lineHeight:1.55 }}/>
+      </Field>
+      <Field label="Tags (comma-separated)">
+        <input value={csvTags(current.tags, 'properties')} onChange={e=>setTags(e.target.value)} placeholder="properties, dublin" style={inputBase}/>
+      </Field>
+    </MetadataEditorCard>
   );
 }
 
@@ -726,6 +865,63 @@ function replaceNoteBody(raw = '', nextBody = '') {
   const prefix = parts.join('');
   if (!prefix) return body ? `${body}\n` : '';
   return `${prefix}${body ? `\n${body}\n` : '\n'}`;
+}
+
+function yamlEditQuote(value = '') {
+  return `"${String(value).replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
+}
+
+function csvTags(tags = [], required = '') {
+  const items = Array.isArray(tags) ? tags : String(tags || '').split(',');
+  const out = [];
+  if (required) out.push(required);
+  items.map(tag => String(tag || '').trim()).filter(Boolean).forEach(tag => {
+    if (!out.includes(tag)) out.push(tag);
+  });
+  return out.join(', ');
+}
+
+function yamlTagsLine(tags = '', required = '') {
+  const items = csvTags(tags, required).split(',').map(tag => tag.trim()).filter(Boolean);
+  return `tags: [${items.join(', ')}]`;
+}
+
+function yamlTagsValue(tags = '', required = '') {
+  return yamlTagsLine(tags, required).replace(/^tags:\s*/, '');
+}
+
+function removeFrontmatterKey(fm, key) {
+  const lines = String(fm || '').split('\n');
+  const out = [];
+  for (let i = 0; i < lines.length; i += 1) {
+    if (new RegExp(`^${key}:`).test(lines[i])) {
+      while (i + 1 < lines.length && /^\s+/.test(lines[i + 1])) i += 1;
+    } else {
+      out.push(lines[i]);
+    }
+  }
+  return out.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+}
+
+function updateNoteFrontmatter(raw = '', fields = {}, headingTitle = '') {
+  const text = String(raw || '').replace(/\r\n/g, '\n');
+  const fmMatch = text.match(/^---\n([\s\S]*?)\n---/);
+  let fm = fmMatch?.[1] || '';
+  let body = fmMatch ? text.slice(fmMatch[0].length) : text;
+
+  Object.entries(fields).forEach(([key, value]) => {
+    fm = removeFrontmatterKey(fm, key);
+    if (value) fm = `${fm}${fm ? '\n' : ''}${key}: ${value}`;
+  });
+
+  if (headingTitle.trim()) {
+    const heading = `# ${headingTitle.trim()}`;
+    body = body.replace(/^\n+/, '');
+    if (/^#\s+.+$/m.test(body)) body = body.replace(/^#\s+.+$/m, heading);
+    else body = `${heading}\n\n${body}`;
+  }
+
+  return `---\n${fm.trim()}\n---\n${body.startsWith('\n') ? body : `\n${body}`}`.trimEnd() + '\n';
 }
 
 function normalizeLinkTarget(value = '') {
@@ -2957,6 +3153,7 @@ export default function App() {
             setDraft={setProjectDraft}
             onSave={saveProject}
             summary={projectSummary}
+            refs={refs}
             onNewProject={()=>setNewProjectOpen(true)}
             hasProjectsFolder={!!dirs.projects}
             onConfigure={()=>setFolderSetupOpen(true)}
@@ -2978,6 +3175,7 @@ export default function App() {
           selectedId={propertySel}
           draft={propertyDraft}
           setDraft={setPropertyDraft}
+          refs={refs}
           images={propertyImages}
           loadError={propertyLoadError}
           onSelect={setPropertySel}
@@ -3004,6 +3202,7 @@ export default function App() {
             setDraft={setPersonDraft}
             onSave={savePerson}
             summary={personSummary}
+            refs={refs}
             hasPeopleFolder={!!dirs.people}
             onNewPerson={()=>setNewPersonOpen(true)}
             onConfigure={()=>setFolderSetupOpen(true)}
@@ -3179,7 +3378,7 @@ export default function App() {
   );
 }
 
-function PeoplePanel({ selected, draft, setDraft, onSave, summary, hasPeopleFolder, onNewPerson, onConfigure, onOpenMeetings }) {
+function PeoplePanel({ selected, draft, setDraft, onSave, summary, refs, hasPeopleFolder, onNewPerson, onConfigure, onOpenMeetings }) {
   const [editingMetadata, setEditingMetadata] = useState(false);
 
   if (!hasPeopleFolder) {
@@ -3232,12 +3431,7 @@ function PeoplePanel({ selected, draft, setDraft, onSave, summary, hasPeopleFold
       )}
     >
       {editingMetadata ? (
-        <DetailRawMarkdownEditorCard
-          meta={`${selected.filename}${lastTouched ? ` · touched ${String(lastTouched).slice(0, 10)}` : ''}`}
-          value={draft}
-          onChange={e=>setDraft(e.target.value)}
-          placeholder="Edit person metadata and notes..."
-        />
+        <PersonMetadataEditor selected={selected} draft={draft} setDraft={setDraft} refs={refs} />
       ) : (
         <>
           <DetailIdentityCard
@@ -3317,12 +3511,7 @@ function OrganizationPanel({ selected, draft, setDraft, onSave, summary, hasOrga
       )}
     >
       {editingMetadata ? (
-        <DetailRawMarkdownEditorCard
-          meta={`${selected.filename}${lastTouched ? ` · touched ${String(lastTouched).slice(0, 10)}` : ''}`}
-          value={draft}
-          onChange={e=>setDraft(e.target.value)}
-          placeholder="Edit organization metadata and notes..."
-        />
+        <OrganizationMetadataEditor selected={selected} draft={draft} setDraft={setDraft} />
       ) : (
         <>
           <DetailIdentityCard
@@ -4332,7 +4521,7 @@ function WorkHoursPanel({ selectedDate, selectedNote, notes, draftRows, hasDaily
   );
 }
 
-function ProjectPanel({ selected, draft, setDraft, onSave, summary, onNewProject, hasProjectsFolder, onConfigure }) {
+function ProjectPanel({ selected, draft, setDraft, onSave, summary, refs, onNewProject, hasProjectsFolder, onConfigure }) {
   const [editingMetadata, setEditingMetadata] = useState(false);
 
   if (!hasProjectsFolder) {
@@ -4385,12 +4574,7 @@ function ProjectPanel({ selected, draft, setDraft, onSave, summary, onNewProject
       )}
     >
       {editingMetadata ? (
-        <DetailRawMarkdownEditorCard
-          meta={`${selected.filename}${lastTouched ? ` · touched ${String(lastTouched).slice(0, 10)}` : ''}`}
-          value={draft}
-          onChange={e=>setDraft(e.target.value)}
-          placeholder="Edit project client metadata and notes..."
-        />
+        <ProjectMetadataEditor selected={selected} draft={draft} setDraft={setDraft} refs={refs} />
       ) : (
         <>
           <DetailIdentityCard
@@ -4418,7 +4602,7 @@ function ProjectPanel({ selected, draft, setDraft, onSave, summary, onNewProject
   );
 }
 
-function PropertyPanel({ properties, selected, selectedId, draft, setDraft, images, loadError, onSelect, comment, setComment, onSave, onAddComment, onEditComment, onDeleteComment, onNewProperty, onUploadCover, hasPropertiesFolder, hasAttachmentsFolder, onConfigure }) {
+function PropertyPanel({ properties, selected, selectedId, draft, setDraft, refs, images, loadError, onSelect, comment, setComment, onSave, onAddComment, onEditComment, onDeleteComment, onNewProperty, onUploadCover, hasPropertiesFolder, hasAttachmentsFolder, onConfigure }) {
   const coverInputRef = useRef(null);
   const [editingMetadata, setEditingMetadata] = useState(false);
   const imageFor = p => p?.coverName ? images[p.coverName.toLowerCase()] : null;
@@ -4515,12 +4699,7 @@ function PropertyPanel({ properties, selected, selectedId, draft, setDraft, imag
 
               {editingMetadata ? (
                 <div style={{ minHeight:420, display:'flex' }}>
-                  <DetailRawMarkdownEditorCard
-                    meta={selected.filename}
-                    value={draft}
-                    onChange={e=>setDraft(e.target.value)}
-                    placeholder="Edit property metadata and notes..."
-                  />
+                  <PropertyMetadataEditor selected={selected} draft={draft} setDraft={setDraft} refs={refs} />
                 </div>
               ) : (
                 <>
