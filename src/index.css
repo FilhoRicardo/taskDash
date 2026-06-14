@@ -14,6 +14,8 @@ body {
     linear-gradient(180deg,#eef1ef,#e1e7e3);
   color: #1d2421;
   overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 ::placeholder { color: #9aa39d; }
 ::-webkit-scrollbar { width: 10px; height: 10px; }
@@ -63,14 +65,15 @@ input[type="time"]::-webkit-calendar-picker-indicator {
 
 .markdown-body {
   color: #33403a;
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.72;
   overflow-wrap: anywhere;
   word-break: normal;
-  font-variant-numeric: tabular-nums;
+  text-rendering: optimizeLegibility;
+  font-feature-settings: 'kern' 1, 'liga' 1, 'calt' 1;
 }
 .markdown-body.markdown-compact {
-  font-size: 12px;
+  font-size: 13px;
   line-height: 1.5;
 }
 .markdown-body.markdown-compact > * + * { margin-top: 5px; }

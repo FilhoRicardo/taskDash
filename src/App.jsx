@@ -573,7 +573,7 @@ function CommentCard({ log, index, onSave, onDelete }) {
       </div>
       {editing ? (
         <MentionTextarea value={draft} onChange={e=>setDraft(e.target.value)} rows={editRows}
-          style={{ display:'block', width:'100%', minWidth:0, maxWidth:'100%', minHeight:120, maxHeight:360, boxSizing:'border-box', padding:'11px 12px', borderRadius:8, resize:'vertical', background:'rgba(255,255,255,0.55)', border:'1px solid rgba(255,255,255,0.66)', color:'#222a25', fontSize:13, lineHeight:1.55, outline:'none', fontFamily:'inherit', whiteSpace:'pre-wrap', overflowWrap:'anywhere', overflowY:'auto', overflowX:'hidden' }}/>
+          style={{ display:'block', width:'100%', minWidth:0, maxWidth:'100%', minHeight:120, maxHeight:360, boxSizing:'border-box', padding:'11px 12px', borderRadius:8, resize:'vertical', background:'rgba(255,255,255,0.55)', border:'1px solid rgba(255,255,255,0.66)', color:'#222a25', fontSize:14, lineHeight:1.55, outline:'none', fontFamily:'inherit', whiteSpace:'pre-wrap', overflowWrap:'anywhere', overflowY:'auto', overflowX:'hidden' }}/>
       ) : (
         <MarkdownBody>{body}</MarkdownBody>
       )}
