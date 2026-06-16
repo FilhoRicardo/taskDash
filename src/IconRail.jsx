@@ -2,7 +2,7 @@
 //
 // Renders a vertical strip of rounded-squircle icon buttons that switch
 // the active view. Mirrors the existing TaskDash tab set:
-//   mission, tasks, hours, time, meetings, projects, properties, people
+//   mission, tasks, calendar, hours, time, meetings, projects, properties, people
 // (plus BD and Health icons at the bottom, sourced from the existing `healthBadges`
 // state in App.jsx so the dot/badge still surfaces vault issues.)
 //
@@ -13,6 +13,7 @@ import React from 'react';
 const TABS = [
   { id: 'mission',    label: 'Today',      icon: 'sun' },
   { id: 'tasks',      label: 'Tasks',      icon: 'check' },
+  { id: 'calendar',   label: 'Calendar',   icon: 'calendar' },
   { id: 'hours',      label: 'Hours',      icon: 'clock' },
   { id: 'time',       label: 'Time',       icon: 'pulse' },
   { id: 'meetings',   label: 'Meetings',   icon: 'mic' },
@@ -30,6 +31,7 @@ const Icon = ({ name, size = 18, stroke = 1.8 }) => {
   switch (name) {
     case 'sun':    return (<svg {...p}><circle cx="10" cy="10" r="3.2"/><path d="M10 2v1.5M10 16.5V18M2 10h1.5M16.5 10H18M4.2 4.2l1 1M14.8 14.8l1 1M4.2 15.8l1-1M14.8 5.2l1-1"/></svg>);
     case 'check':  return (<svg {...p}><path d="M3.5 10.5l4 4 9-9"/></svg>);
+    case 'calendar': return (<svg {...p}><rect x="3.2" y="4.5" width="13.6" height="12" rx="1.6"/><path d="M6.5 2.8v3.4M13.5 2.8v3.4M3.2 8h13.6M6.4 11h.1M10 11h.1M13.6 11h.1M6.4 14h.1M10 14h.1"/></svg>);
     case 'clock':  return (<svg {...p}><circle cx="10" cy="10" r="6.5"/><path d="M10 6.2v4.3l2.9 1.7"/></svg>);
     case 'pulse':  return (<svg {...p}><path d="M2.5 10h3l2-4 3 8 2-4 2 2h3"/></svg>);
     case 'mic':    return (<svg {...p}><rect x="7.5" y="2.5" width="5" height="9" rx="2.5"/><path d="M4.5 9.5a5.5 5.5 0 0 0 11 0M10 15v3M7 18h6"/></svg>);

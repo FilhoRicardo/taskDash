@@ -6,6 +6,7 @@ import MentionTextarea, { MentionProvider } from './MentionTextarea.jsx';
 import { wikilinksToMarkdown, isWikilinkHref, wikilinkTarget } from './utils/mentions.js';
 import { parseTask, parseProperty, parseProject, parseDailyNote, parseMeeting, parsePerson, parseOrganization, readMdFiles, readDirNames, readImageFiles } from './utils/parser.js';
 import { idbGet, idbSet, idbDel, lsGet, lsSet, lsDel } from './utils/storage.js';
+import { buildTaskCalendarOccurrences, calendarWeekDates, calendarWeekRangeLabel, groupTaskCalendarOccurrences } from './utils/taskCalendar.js';
 import { fmt, tod, isToday, isOver, longDate, appendNoteToMd, appendPropertyCommentToMd, updateCommentLog, deleteCommentLog, appendDailySectionEntry, appendDailyTimeClockEvent, buildDailyNoteMd, buildTrackerRow, appendTrackerRow, buildMeetingMd, buildNewTaskMd, buildNewPropertyMd, buildNewProjectMd, buildNewPersonMd, buildNewOrganizationMd, kebabSlug, finishRecurrentTaskInstance, markTaskDone, postponeTaskDates, postponeTaskDatesByMonths, replaceDailyTimeClockRows, setDailyWorkStatus, setPropertyCover, touchDateModified, updateTaskDates, updateTaskThreadSubject } from './utils/formatter.js';
 import { TARGET_WORK_MINUTES, TARGET_WORK_TOLERANCE, WORK_CHART_MAX_MINUTES, WEEKDAY_LABELS, WORK_EVENT_ORDER, WORK_STATUS_LABELS, dashboardStats, goalBand, minutesFromTime, workStats } from './utils/timeClock.js';
 
@@ -1223,6 +1224,7 @@ export default function App() {
   const [threadSubjectDraft, setThreadSubjectDraft] = useState('');
   const [filt,          setFilt]          = useState('all');
   const [taskSearch,    setTaskSearch]    = useState('');
+  const [calendarDate,  setCalendarDate]  = useState(tod());
   const [filterName,    setFilterName]    = useState('');
   const [toast,         setToast]         = useState(null);
   const [showAdHoc,     setShowAdHoc]     = useState(false);
@@ -2609,6 +2611,11 @@ export default function App() {
     .some(date => date >= start && date <= end);
   const nextWeekTasks = openTasks.filter(t => taskFallsBetween(t, tomorrow, addDays(tod(), 7)));
   const nextMonthTasks = openTasks.filter(t => taskFallsBetween(t, tomorrow, addDays(tod(), 30)));
+  const taskCalendarDates = calendarWeekDates(calendarDate);
+  const taskCalendarWeekLabel = calendarWeekRangeLabel(taskCalendarDates);
+  const taskCalendarOccurrences = buildTaskCalendarOccurrences(openTasks, taskCalendarDates, tod());
+  const taskCalendarByDate = groupTaskCalendarOccurrences(taskCalendarOccurrences, taskCalendarDates);
+  const taskCalendarOverdueCount = taskCalendarOccurrences.filter(occurrence => occurrence.isOverdue).length;
   const vaultTotals = {
     tasks: visibleTaskPool.length,
     tasksOpen: openTasks.length,
@@ -2629,12 +2636,14 @@ export default function App() {
   const healthErrors = diagnostics.issues.filter(i => i.level === 'error').length;
   const healthWarnings = diagnostics.issues.filter(i => i.level === 'warning').length;
   const healthBadges = healthErrors + healthWarnings;
-  const headerLabel = view === 'mission' ? 'MISSION CONTROL' : view === 'tasks' ? "TODAY'S TOTAL" : view === 'bd' ? 'BD TASKS' : view === 'hours' ? 'HOURS' : view === 'time' ? 'TIME DASHBOARD' : view === 'meetings' ? 'MEETINGS' : view === 'projects' ? 'PROJECT LIBRARY' : view === 'properties' ? 'PROPERTY LIBRARY' : view === 'people' ? 'PEOPLE' : view === 'organizations' ? 'ORGANIZATIONS' : 'VAULT HEALTH';
-  const headerMetric = view === 'mission' ? missionToday.length + missionOverdue.length + missionRecurrent.length : view === 'tasks' ? fmt(totalToday) : view === 'bd' ? openBdTasks.length : view === 'hours' ? formatHoursMinutes(selectedWorkStats.totalMinutes) : view === 'time' ? formatHoursMinutes(trailingWeekStats.summary.totalMinutes) : view === 'meetings' ? (meetingOpen ? fmt(getTime('__meeting__')) : meetings.length) : view === 'projects' ? projects.length : view === 'properties' ? properties.length : view === 'people' ? people.length : view === 'organizations' ? organizations.length : diagnostics.issues.length;
+  const headerLabel = view === 'mission' ? 'MISSION CONTROL' : view === 'tasks' ? "TODAY'S TOTAL" : view === 'calendar' ? 'TASK CALENDAR' : view === 'bd' ? 'BD TASKS' : view === 'hours' ? 'HOURS' : view === 'time' ? 'TIME DASHBOARD' : view === 'meetings' ? 'MEETINGS' : view === 'projects' ? 'PROJECT LIBRARY' : view === 'properties' ? 'PROPERTY LIBRARY' : view === 'people' ? 'PEOPLE' : view === 'organizations' ? 'ORGANIZATIONS' : 'VAULT HEALTH';
+  const headerMetric = view === 'mission' ? missionToday.length + missionOverdue.length + missionRecurrent.length : view === 'tasks' ? fmt(totalToday) : view === 'calendar' ? taskCalendarOccurrences.length : view === 'bd' ? openBdTasks.length : view === 'hours' ? formatHoursMinutes(selectedWorkStats.totalMinutes) : view === 'time' ? formatHoursMinutes(trailingWeekStats.summary.totalMinutes) : view === 'meetings' ? (meetingOpen ? fmt(getTime('__meeting__')) : meetings.length) : view === 'projects' ? projects.length : view === 'properties' ? properties.length : view === 'people' ? people.length : view === 'organizations' ? organizations.length : diagnostics.issues.length;
   const headerDetail = view === 'mission'
     ? `${missionToday.length} today · ${missionOverdue.length} overdue · ${missionRecurrent.length} recurrent · ${dirs.daily ? 'daily on' : 'daily off'}`
     : view === 'tasks'
       ? `${openTasks.length} open tasks · ${Object.values(refs).reduce((a,r)=>a+r.length,0)} refs`
+      : view === 'calendar'
+        ? `${taskCalendarWeekLabel} · ${taskCalendarOverdueCount} overdue`
       : view === 'bd'
         ? `${openBdTasks.length} open BD tasks · ${filteredBd.length} shown`
       : view === 'hours'
@@ -2876,6 +2885,49 @@ export default function App() {
               })}
             </div>
           </>
+        ) : view === 'calendar' ? (
+          <>
+            <div style={{ padding:'12px 10px', borderBottom:'1px solid rgba(255,255,255,0.60)' }}>
+              <div style={{ fontSize:9, color:'#5a615b', fontWeight:800, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:8 }}>Week</div>
+              <div style={{ display:'grid', gridTemplateColumns:'32px 1fr 32px', gap:6, marginBottom:8 }}>
+                <button onClick={()=>setCalendarDate(addDays(taskCalendarDates[0], -7))} aria-label="Previous week" style={{ height:32, borderRadius:9, border:'1px solid rgba(255,255,255,0.62)', background:'rgba(255,255,255,0.55)', color:'#5a615b', cursor:'pointer', fontWeight:900, fontFamily:'inherit' }}>‹</button>
+                <button onClick={()=>setCalendarDate(tod())} style={{ borderRadius:9, border:'none', background:BRAND_GRADIENT, color:'#fff', cursor:'pointer', fontSize:12, fontWeight:800, fontFamily:'inherit', boxShadow:BRAND_SHADOW }}>This week</button>
+                <button onClick={()=>setCalendarDate(addDays(taskCalendarDates[0], 7))} aria-label="Next week" style={{ height:32, borderRadius:9, border:'1px solid rgba(255,255,255,0.62)', background:'rgba(255,255,255,0.55)', color:'#5a615b', cursor:'pointer', fontWeight:900, fontFamily:'inherit' }}>›</button>
+              </div>
+              <input type="date" value={calendarDate} onChange={e=>e.target.value && setCalendarDate(e.target.value)} style={{ ...inputBase, padding:'8px 10px', fontSize:12 }}/>
+            </div>
+
+            <div style={{ padding:'10px', borderBottom:'1px solid rgba(255,255,255,0.60)' }}>
+              {[
+                { label:'Total', value:taskCalendarOccurrences.length, color:'#13733f', bg:BRAND_SURFACE, border:BRAND_BORDER },
+                { label:'Overdue', value:taskCalendarOverdueCount, color:'#c2533f', bg:'rgba(225,91,79,0.08)', border:'rgba(225,91,79,0.18)' },
+                { label:'On track', value:taskCalendarOccurrences.length - taskCalendarOverdueCount, color:'#13733f', bg:'rgba(20,120,72,0.10)', border:'rgba(20,120,72,0.20)' },
+              ].map(card => (
+                <div key={card.label} style={{ padding:'10px 11px', borderRadius:10, background:card.bg, border:`1px solid ${card.border}`, marginBottom:7 }}>
+                  <div style={{ fontSize:9, color:card.color, fontWeight:850, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:4 }}>{card.label}</div>
+                  <div style={{ fontSize:23, color:card.color, fontWeight:850, fontVariantNumeric:'tabular-nums', lineHeight:1 }}>{card.value}</div>
+                </div>
+              ))}
+            </div>
+
+            <div style={{ flex:1, overflowY:'auto', padding:'8px' }}>
+              <div style={{ padding:'4px 6px 8px', color:'#5a615b', fontSize:10, fontWeight:800, textTransform:'uppercase', letterSpacing:'0.1em' }}>{taskCalendarWeekLabel}</div>
+              {taskCalendarDates.map(dateStr => {
+                const date = dateFromStr(dateStr);
+                const active = dateStr === calendarDate;
+                const count = taskCalendarByDate[dateStr]?.length || 0;
+                return (
+                  <button key={dateStr} onClick={()=>setCalendarDate(dateStr)} style={{ width:'100%', textAlign:'left', padding:'9px 10px', marginBottom:4, borderRadius:10, cursor:'pointer', fontFamily:'inherit', background:active?BRAND_SURFACE:'rgba(255,255,255,0.50)', border:`1px solid ${active?BRAND_BORDER:'rgba(255,255,255,0.55)'}` }}>
+                    <div style={{ display:'flex', justifyContent:'space-between', gap:8, alignItems:'center' }}>
+                      <span style={{ fontSize:12, color:'#222a25', fontWeight:800 }}>{date.toLocaleDateString('en-US', { weekday:'short' })}</span>
+                      <span style={{ fontSize:11, color:count ? BRAND_TEXT : '#8a928d', fontWeight:850, fontVariantNumeric:'tabular-nums' }}>{count}</span>
+                    </div>
+                    <div style={{ fontSize:10, color:'#5a615b', marginTop:2 }}>{date.toLocaleDateString('en-US', { month:'short', day:'numeric' })}</div>
+                  </button>
+                );
+              })}
+            </div>
+          </>
         ) : view === 'meetings' ? (
           <>
             <div style={{ padding:'10px', borderBottom:'1px solid rgba(255,255,255,0.60)' }}>
@@ -3083,7 +3135,7 @@ export default function App() {
           </div>
         )}
 
-        {(view === 'tasks' || view === 'bd' || view === 'mission' || view === 'hours' || view === 'time' || view === 'meetings' || view === 'people' || view === 'health') && (
+        {(view === 'tasks' || view === 'calendar' || view === 'bd' || view === 'mission' || view === 'hours' || view === 'time' || view === 'meetings' || view === 'people' || view === 'health') && (
           <div style={{ padding:'6px 10px 9px', borderTop:'1px solid rgba(255,255,255,0.55)' }}>
             <button onClick={()=>setFolderSetupOpen(true)} style={{ width:'100%', padding:'5px 10px', background:'transparent', border:'none', color:'#5a615b', fontSize:10, cursor:'pointer', fontFamily:'inherit', textAlign:'center' }}>
               ⚙  Configure folders
@@ -3226,6 +3278,19 @@ export default function App() {
         )
       ) : view === 'health' ? (
         <HealthPanel diagnostics={diagnostics} dirs={dirs} backups={writeBackups} lastSync={lastSync} needsRefresh={needsRefresh} onForceSync={forceSyncAll} syncBusy={syncBusy} onConfigure={()=>setFolderSetupOpen(true)} onRestoreBackup={restoreBackup}/>
+      ) : view === 'calendar' && !dirs.tasks ? (
+        <TasksFolderRecoveryPanel issue={folderIssues.tasks} onConfigure={()=>setFolderSetupOpen(true)}/>
+      ) : view === 'calendar' ? (
+        <TaskCalendarPanel
+          dates={taskCalendarDates}
+          occurrencesByDate={taskCalendarByDate}
+          selectedDate={calendarDate}
+          weekLabel={taskCalendarWeekLabel}
+          total={taskCalendarOccurrences.length}
+          overdueCount={taskCalendarOverdueCount}
+          onSelectDate={setCalendarDate}
+          onSelectTask={(id)=>{ setSel(id); setView('tasks'); }}
+        />
       ) : (view === 'tasks' || view === 'bd') && !dirs.tasks ? (
         <TasksFolderRecoveryPanel issue={folderIssues.tasks} onConfigure={()=>setFolderSetupOpen(true)}/>
       ) : newPersonOpen ? (
@@ -3549,6 +3614,109 @@ function TasksFolderRecoveryPanel({ issue, onConfigure }) {
           {issue?.name ? `"${issue.name}" is not available at its saved location.` : 'The Tasks folder is not connected on this device.'} Pick the folder again and TaskDash will rescan it.
         </p>
         <button onClick={onConfigure} style={{ padding:'10px 18px', borderRadius:10, border:'none', cursor:'pointer', fontWeight:800, fontSize:13, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff' }}>Configure folders</button>
+      </div>
+    </div>
+  );
+}
+
+function TaskCalendarPanel({ dates, occurrencesByDate, selectedDate, weekLabel, total, overdueCount, onSelectDate, onSelectTask }) {
+  const today = tod();
+  const onTrackCount = total - overdueCount;
+
+  const taskMeta = task => [task.client, task.building, task.filename].filter(Boolean).slice(0, 2).join(' · ');
+
+  return (
+    <div style={{ flex:1, display:'flex', flexDirection:'column', minHeight:0, overflow:'hidden' }}>
+      <div style={{ padding:'20px 28px 16px', borderBottom:'1px solid rgba(255,255,255,0.60)', flexShrink:0, display:'flex', justifyContent:'space-between', gap:18, alignItems:'flex-start' }}>
+        <div style={{ minWidth:0 }}>
+          <div style={{ fontSize:10, color:BRAND_LABEL, fontWeight:850, letterSpacing:'0.14em', textTransform:'uppercase', marginBottom:7 }}>Task calendar</div>
+          <h2 style={{ margin:0, fontSize:23, lineHeight:1.1, color:'#1d2421', letterSpacing:0 }}>{weekLabel}</h2>
+        </div>
+        <div style={{ display:'flex', gap:8, flexWrap:'wrap', justifyContent:'flex-end' }}>
+          {[
+            { label:'Total', value:total, color:'#1d2421', bg:'rgba(255,255,255,0.55)', border:'rgba(255,255,255,0.64)' },
+            { label:'Overdue', value:overdueCount, color:'#c2533f', bg:'rgba(225,91,79,0.08)', border:'rgba(225,91,79,0.18)' },
+            { label:'On track', value:onTrackCount, color:'#13733f', bg:'rgba(20,120,72,0.10)', border:'rgba(20,120,72,0.20)' },
+          ].map(item => (
+            <div key={item.label} style={{ minWidth:82, padding:'8px 10px', borderRadius:10, background:item.bg, border:`1px solid ${item.border}` }}>
+              <div style={{ fontSize:9, color:item.color, fontWeight:850, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:3 }}>{item.label}</div>
+              <div style={{ fontSize:21, color:item.color, fontWeight:850, lineHeight:1, fontVariantNumeric:'tabular-nums' }}>{item.value}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div style={{ flex:1, minHeight:0, overflow:'auto', padding:'16px 18px 18px' }}>
+        <div style={{ minWidth:1050, height:'100%', display:'grid', gridTemplateColumns:'repeat(7,minmax(145px,1fr))', gap:10 }}>
+          {dates.map(dateStr => {
+            const date = dateFromStr(dateStr);
+            const dayOccurrences = occurrencesByDate[dateStr] || [];
+            const active = dateStr === selectedDate;
+            const isCurrentDay = dateStr === today;
+            return (
+              <section key={dateStr} className="glass-thin" style={{ minWidth:0, minHeight:0, borderRadius:14, padding:'12px', display:'flex', flexDirection:'column', border:active ? `1px solid ${BRAND_BORDER_STRONG}` : undefined }}>
+                <button onClick={()=>onSelectDate(dateStr)} style={{ width:'100%', textAlign:'left', border:'none', background:'transparent', cursor:'pointer', padding:0, fontFamily:'inherit', marginBottom:10 }}>
+                  <div style={{ display:'flex', justifyContent:'space-between', gap:8, alignItems:'center' }}>
+                    <div style={{ minWidth:0 }}>
+                      <div style={{ fontSize:11, color:isCurrentDay ? BRAND_TEXT : TEXT_SECONDARY, fontWeight:850, textTransform:'uppercase', letterSpacing:'0.08em' }}>
+                        {date.toLocaleDateString('en-US', { weekday:'short' })}
+                      </div>
+                      <div style={{ fontSize:18, color:'#1d2421', fontWeight:850, marginTop:3 }}>{date.toLocaleDateString('en-US', { month:'short', day:'numeric' })}</div>
+                    </div>
+                    <span style={{ minWidth:26, height:24, borderRadius:999, display:'grid', placeItems:'center', fontSize:11, fontWeight:850, color:dayOccurrences.length ? BRAND_TEXT : TEXT_MUTED, background:dayOccurrences.length ? BRAND_SURFACE : 'rgba(255,255,255,0.55)', border:`1px solid ${dayOccurrences.length ? BRAND_BORDER : 'rgba(255,255,255,0.62)'}`, fontVariantNumeric:'tabular-nums' }}>
+                      {dayOccurrences.length}
+                    </span>
+                  </div>
+                </button>
+
+                <div style={{ flex:1, minHeight:0, overflowY:'auto', display:'grid', gap:7, alignContent:'start', paddingRight:2 }}>
+                  {dayOccurrences.length ? dayOccurrences.map(occurrence => {
+                    const tone = occurrence.isOverdue
+                      ? { color:'#c2533f', bg:'rgba(225,91,79,0.10)', border:'rgba(225,91,79,0.24)' }
+                      : { color:'#13733f', bg:'rgba(20,120,72,0.10)', border:'rgba(20,120,72,0.22)' };
+                    const meta = taskMeta(occurrence.task);
+                    return (
+                      <button
+                        key={occurrence.id}
+                        onClick={()=>onSelectTask(occurrence.taskId)}
+                        style={{
+                          width:'100%',
+                          minHeight:88,
+                          textAlign:'left',
+                          borderRadius:10,
+                          border:`1px solid ${tone.border}`,
+                          borderLeft:`4px solid ${tone.color}`,
+                          background:tone.bg,
+                          color:'#1d2421',
+                          cursor:'pointer',
+                          padding:'10px 10px 9px',
+                          fontFamily:'inherit',
+                          overflow:'hidden',
+                        }}
+                      >
+                        <div style={{ display:'flex', justifyContent:'space-between', gap:8, alignItems:'flex-start' }}>
+                          <div style={{ minWidth:0, fontSize:12, fontWeight:850, lineHeight:1.28, overflowWrap:'anywhere' }}>{occurrence.task.title}</div>
+                          {occurrence.recurrent && <span title="Recurrent task" style={{ flexShrink:0, fontSize:9, fontWeight:900, color:'#5b57b0', background:'rgba(91,87,176,0.10)', border:'1px solid rgba(91,87,176,0.18)', borderRadius:999, padding:'2px 5px' }}>R</span>}
+                        </div>
+                        <div style={{ display:'flex', gap:4, flexWrap:'wrap', alignItems:'center', marginTop:8 }}>
+                          {occurrence.labels.map(label => (
+                            <span key={label} style={{ fontSize:9, color:tone.color, fontWeight:850, textTransform:'uppercase', letterSpacing:'0.04em', padding:'2px 6px', borderRadius:999, background:'rgba(255,255,255,0.55)', border:'1px solid rgba(255,255,255,0.62)' }}>{label}</span>
+                          ))}
+                          <PBadge p={occurrence.task.priority} />
+                        </div>
+                        {meta && <div style={{ marginTop:7, color:'rgba(90,97,91,0.72)', fontSize:10, lineHeight:1.35, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{meta}</div>}
+                      </button>
+                    );
+                  }) : (
+                    <div style={{ height:96, borderRadius:10, border:'1px dashed rgba(255,255,255,0.68)', display:'grid', placeItems:'center', color:'rgba(90,97,91,0.58)', fontSize:12, textAlign:'center', padding:12 }}>
+                      No dated tasks
+                    </div>
+                  )}
+                </div>
+              </section>
+            );
+          })}
+        </div>
       </div>
     </div>
   );
