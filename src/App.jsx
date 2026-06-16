@@ -3712,7 +3712,9 @@ function TaskCalendarPanel({ dates, occurrencesByDate, selectedDate, weekLabel, 
                 <div style={{ flex:1, minHeight:0, overflowY:'auto', display:'grid', gap:7, alignContent:'start', paddingRight:2 }}>
                   {dayOccurrences.length ? dayOccurrences.map(occurrence => {
                     const movable = canMoveOccurrence(occurrence);
-                    const tone = occurrence.isOverdue
+                    const tone = occurrence.recurrent
+                      ? { color:'#3f6fd0', bg:'rgba(91,141,239,0.11)', border:'rgba(91,141,239,0.28)' }
+                      : occurrence.isOverdue
                       ? { color:'#c2533f', bg:'rgba(225,91,79,0.10)', border:'rgba(225,91,79,0.24)' }
                       : { color:'#13733f', bg:'rgba(20,120,72,0.10)', border:'rgba(20,120,72,0.22)' };
                     const meta = taskMeta(occurrence.task);
@@ -3750,7 +3752,7 @@ function TaskCalendarPanel({ dates, occurrencesByDate, selectedDate, weekLabel, 
                       >
                         <div style={{ display:'flex', justifyContent:'space-between', gap:8, alignItems:'flex-start' }}>
                           <div style={{ minWidth:0, fontSize:12, fontWeight:850, lineHeight:1.28, overflowWrap:'anywhere' }}>{occurrence.task.title}</div>
-                          {occurrence.recurrent && <span title="Recurrent task" style={{ flexShrink:0, fontSize:9, fontWeight:900, color:'#5b57b0', background:'rgba(91,87,176,0.10)', border:'1px solid rgba(91,87,176,0.18)', borderRadius:999, padding:'2px 5px' }}>R</span>}
+                          {occurrence.recurrent && <span title="Recurrent task" style={{ flexShrink:0, fontSize:9, fontWeight:900, color:'#3f6fd0', background:'rgba(91,141,239,0.12)', border:'1px solid rgba(91,141,239,0.22)', borderRadius:999, padding:'2px 5px' }}>R</span>}
                         </div>
                         <div style={{ display:'flex', gap:4, flexWrap:'wrap', alignItems:'center', marginTop:8 }}>
                           {occurrence.labels.map(label => (
