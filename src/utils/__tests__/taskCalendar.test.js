@@ -71,4 +71,14 @@ describe('buildTaskCalendarOccurrences', () => {
     expect(grouped['2026-06-18']).toHaveLength(1);
     expect(grouped['2026-06-21']).toEqual([]);
   });
+
+  it('sorts each day by oldest open task first', () => {
+    const occurrences = buildTaskCalendarOccurrences([
+      { id:'new.md', title:'New', status:'none', priority:'high', due:'2026-06-16', dateCreated:'2026-06-12T09:00:00.000+01:00' },
+      { id:'old.md', title:'Old', status:'none', priority:'low', due:'2026-06-16', dateCreated:'2026-05-01T09:00:00.000+01:00' },
+      { id:'middle.md', title:'Middle', status:'none', priority:'normal', due:'2026-06-16', dateCreated:'2026-06-01T09:00:00.000+01:00' },
+    ], week, '2026-06-16');
+
+    expect(occurrences.map(occurrence => occurrence.taskId)).toEqual(['old.md', 'middle.md', 'new.md']);
+  });
 });

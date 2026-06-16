@@ -2122,6 +2122,17 @@ export default function App() {
     }
   };
 
+  const moveCalendarOccurrence = async (occurrence, dateStr) => {
+    if (!occurrence || occurrence.recurrent || occurrence.date === dateStr) return;
+    const labels = new Set(occurrence.labels || []);
+    const nextDates = {};
+    if (labels.has('Due')) nextDates.due = dateStr;
+    if (labels.has('Scheduled')) nextDates.scheduled = dateStr;
+    if (!Object.keys(nextDates).length) return;
+    await changeTaskDates(occurrence.taskId, nextDates);
+    setCalendarDate(dateStr);
+  };
+
   const addPropertyComment = async () => {
     if (!propertySel || !propertyComment.trim()) return;
     const handle = propertyHandles[propertySel];
@@ -2897,19 +2908,6 @@ export default function App() {
               <input type="date" value={calendarDate} onChange={e=>e.target.value && setCalendarDate(e.target.value)} style={{ ...inputBase, padding:'8px 10px', fontSize:12 }}/>
             </div>
 
-            <div style={{ padding:'10px', borderBottom:'1px solid rgba(255,255,255,0.60)' }}>
-              {[
-                { label:'Total', value:taskCalendarOccurrences.length, color:'#13733f', bg:BRAND_SURFACE, border:BRAND_BORDER },
-                { label:'Overdue', value:taskCalendarOverdueCount, color:'#c2533f', bg:'rgba(225,91,79,0.08)', border:'rgba(225,91,79,0.18)' },
-                { label:'On track', value:taskCalendarOccurrences.length - taskCalendarOverdueCount, color:'#13733f', bg:'rgba(20,120,72,0.10)', border:'rgba(20,120,72,0.20)' },
-              ].map(card => (
-                <div key={card.label} style={{ padding:'10px 11px', borderRadius:10, background:card.bg, border:`1px solid ${card.border}`, marginBottom:7 }}>
-                  <div style={{ fontSize:9, color:card.color, fontWeight:850, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:4 }}>{card.label}</div>
-                  <div style={{ fontSize:23, color:card.color, fontWeight:850, fontVariantNumeric:'tabular-nums', lineHeight:1 }}>{card.value}</div>
-                </div>
-              ))}
-            </div>
-
             <div style={{ flex:1, overflowY:'auto', padding:'8px' }}>
               <div style={{ padding:'4px 6px 8px', color:'#5a615b', fontSize:10, fontWeight:800, textTransform:'uppercase', letterSpacing:'0.1em' }}>{taskCalendarWeekLabel}</div>
               {taskCalendarDates.map(dateStr => {
@@ -3290,6 +3288,7 @@ export default function App() {
           overdueCount={taskCalendarOverdueCount}
           onSelectDate={setCalendarDate}
           onSelectTask={(id)=>{ setSel(id); setView('tasks'); }}
+          onMoveOccurrence={moveCalendarOccurrence}
         />
       ) : (view === 'tasks' || view === 'bd') && !dirs.tasks ? (
         <TasksFolderRecoveryPanel issue={folderIssues.tasks} onConfigure={()=>setFolderSetupOpen(true)}/>
@@ -3619,11 +3618,16 @@ function TasksFolderRecoveryPanel({ issue, onConfigure }) {
   );
 }
 
-function TaskCalendarPanel({ dates, occurrencesByDate, selectedDate, weekLabel, total, overdueCount, onSelectDate, onSelectTask }) {
+function TaskCalendarPanel({ dates, occurrencesByDate, selectedDate, weekLabel, total, overdueCount, onSelectDate, onSelectTask, onMoveOccurrence }) {
   const today = tod();
   const onTrackCount = total - overdueCount;
+  const [draggingOccurrence, setDraggingOccurrence] = useState(null);
+  const [dropDate, setDropDate] = useState(null);
 
   const taskMeta = task => [task.client, task.building, task.filename].filter(Boolean).slice(0, 2).join(' · ');
+
+  const canMoveOccurrence = occurrence => occurrence && !occurrence.recurrent;
+  const dropReady = dateStr => draggingOccurrence && draggingOccurrence.date !== dateStr;
 
   return (
     <div style={{ flex:1, display:'flex', flexDirection:'column', minHeight:0, overflow:'hidden' }}>
@@ -3653,8 +3657,44 @@ function TaskCalendarPanel({ dates, occurrencesByDate, selectedDate, weekLabel, 
             const dayOccurrences = occurrencesByDate[dateStr] || [];
             const active = dateStr === selectedDate;
             const isCurrentDay = dateStr === today;
+            const draggingOver = dropDate === dateStr && dropReady(dateStr);
             return (
-              <section key={dateStr} className="glass-thin" style={{ minWidth:0, minHeight:0, borderRadius:14, padding:'12px', display:'flex', flexDirection:'column', border:active ? `1px solid ${BRAND_BORDER_STRONG}` : undefined }}>
+              <section
+                key={dateStr}
+                className="glass-thin"
+                onDragOver={e => {
+                  if (!dropReady(dateStr)) return;
+                  e.preventDefault();
+                  e.dataTransfer.dropEffect = 'move';
+                  setDropDate(dateStr);
+                }}
+                onDragEnter={e => {
+                  if (!dropReady(dateStr)) return;
+                  e.preventDefault();
+                  setDropDate(dateStr);
+                }}
+                onDragLeave={e => {
+                  if (!e.currentTarget.contains(e.relatedTarget)) setDropDate(null);
+                }}
+                onDrop={async e => {
+                  if (!dropReady(dateStr)) return;
+                  e.preventDefault();
+                  const occurrence = draggingOccurrence;
+                  setDraggingOccurrence(null);
+                  setDropDate(null);
+                  await onMoveOccurrence?.(occurrence, dateStr);
+                }}
+                style={{
+                  minWidth:0,
+                  minHeight:0,
+                  borderRadius:14,
+                  padding:'12px',
+                  display:'flex',
+                  flexDirection:'column',
+                  border:draggingOver ? '1px solid rgba(20,120,72,0.58)' : active ? `1px solid ${BRAND_BORDER_STRONG}` : undefined,
+                  boxShadow:draggingOver ? 'inset 0 0 0 2px rgba(20,120,72,0.16)' : undefined,
+                }}
+              >
                 <button onClick={()=>onSelectDate(dateStr)} style={{ width:'100%', textAlign:'left', border:'none', background:'transparent', cursor:'pointer', padding:0, fontFamily:'inherit', marginBottom:10 }}>
                   <div style={{ display:'flex', justifyContent:'space-between', gap:8, alignItems:'center' }}>
                     <div style={{ minWidth:0 }}>
@@ -3671,6 +3711,7 @@ function TaskCalendarPanel({ dates, occurrencesByDate, selectedDate, weekLabel, 
 
                 <div style={{ flex:1, minHeight:0, overflowY:'auto', display:'grid', gap:7, alignContent:'start', paddingRight:2 }}>
                   {dayOccurrences.length ? dayOccurrences.map(occurrence => {
+                    const movable = canMoveOccurrence(occurrence);
                     const tone = occurrence.isOverdue
                       ? { color:'#c2533f', bg:'rgba(225,91,79,0.10)', border:'rgba(225,91,79,0.24)' }
                       : { color:'#13733f', bg:'rgba(20,120,72,0.10)', border:'rgba(20,120,72,0.22)' };
@@ -3679,6 +3720,18 @@ function TaskCalendarPanel({ dates, occurrencesByDate, selectedDate, weekLabel, 
                       <button
                         key={occurrence.id}
                         onClick={()=>onSelectTask(occurrence.taskId)}
+                        draggable={movable}
+                        onDragStart={e => {
+                          if (!movable) return;
+                          setDraggingOccurrence(occurrence);
+                          e.dataTransfer.effectAllowed = 'move';
+                          e.dataTransfer.setData('text/plain', occurrence.id);
+                        }}
+                        onDragEnd={() => {
+                          setDraggingOccurrence(null);
+                          setDropDate(null);
+                        }}
+                        title={movable ? 'Drag to another day to update due/scheduled date' : 'Recurring tasks cannot be moved from the calendar'}
                         style={{
                           width:'100%',
                           minHeight:88,
@@ -3688,10 +3741,11 @@ function TaskCalendarPanel({ dates, occurrencesByDate, selectedDate, weekLabel, 
                           borderLeft:`4px solid ${tone.color}`,
                           background:tone.bg,
                           color:'#1d2421',
-                          cursor:'pointer',
+                          cursor:movable ? 'grab' : 'pointer',
                           padding:'10px 10px 9px',
                           fontFamily:'inherit',
                           overflow:'hidden',
+                          opacity:draggingOccurrence?.id === occurrence.id ? 0.58 : 1,
                         }}
                       >
                         <div style={{ display:'flex', justifyContent:'space-between', gap:8, alignItems:'flex-start' }}>

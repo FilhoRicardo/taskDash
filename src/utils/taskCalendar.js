@@ -99,8 +99,8 @@ function isOccurrenceOverdue(task, dateStr, today) {
   return due ? due < today : dateStr < today;
 }
 
-function priorityRank(priority) {
-  return { high:0, normal:1, low:2, none:3 }[priority] ?? 4;
+function openDate(task) {
+  return cleanIsoDate(task?.dateCreated) || '9999-12-31';
 }
 
 export function calendarWeekDates(dateStr) {
@@ -158,9 +158,8 @@ export function buildTaskCalendarOccurrences(tasks = [], dates = [], today = toI
 
   return occurrences.sort((a, b) => {
     if (a.date !== b.date) return a.date.localeCompare(b.date);
-    if (a.isOverdue !== b.isOverdue) return a.isOverdue ? -1 : 1;
-    const rank = priorityRank(a.task.priority) - priorityRank(b.task.priority);
-    return rank || String(a.task.title || '').localeCompare(String(b.task.title || ''));
+    const age = openDate(a.task).localeCompare(openDate(b.task));
+    return age || String(a.task.title || '').localeCompare(String(b.task.title || ''));
   });
 }
 
