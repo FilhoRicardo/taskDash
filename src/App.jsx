@@ -4,7 +4,7 @@ import remarkGfm from 'remark-gfm';
 import IconRail from './IconRail.jsx';
 import MentionTextarea, { MentionProvider } from './MentionTextarea.jsx';
 import { wikilinksToMarkdown, isWikilinkHref, wikilinkTarget } from './utils/mentions.js';
-import { parseTask, parseProperty, parseProject, parseDailyNote, parseMeeting, parsePerson, parseOrganization, readMdFiles, readDirNames, readImageFiles } from './utils/parser.js';
+import { parseTask, parseProperty, parseProject, parseDailyNote, parseMeeting, parsePerson, parseOrganization, readMdFiles, readDirNames, readImageFiles, isProjectFileName } from './utils/parser.js';
 import { idbGet, idbSet, idbDel, lsGet, lsSet, lsDel } from './utils/storage.js';
 import { buildTaskCalendarOccurrences, calendarWeekDates, calendarWeekRangeLabel, groupTaskCalendarOccurrences } from './utils/taskCalendar.js';
 import { fmt, tod, isToday, isOver, longDate, appendNoteToMd, appendPropertyCommentToMd, updateCommentLog, deleteCommentLog, appendDailySectionEntry, appendDailyTimeClockEvent, buildDailyNoteMd, buildTrackerRow, appendTrackerRow, buildMeetingMd, buildNewTaskMd, buildNewPropertyMd, buildNewProjectMd, buildNewPersonMd, buildNewOrganizationMd, kebabSlug, finishRecurrentTaskInstance, markTaskDone, postponeTaskDates, postponeTaskDatesByMonths, replaceDailyTimeClockRows, setDailyWorkStatus, setPropertyCover, touchDateModified, updateTaskDates, updateTaskThreadSubject } from './utils/formatter.js';
@@ -18,7 +18,7 @@ const FOLDER_DEFS = [
   { key:'tasks',      label:'Tasks',      mode:'readwrite', required:true,  desc:'Where your task .md files live (e.g. TaskNotes/Tasks)' },
   { key:'done',       label:'Done / Archive', mode:'readwrite', required:false, desc:'Optional folder for completed or archived task .md files' },
   { key:'meetings',   label:'Meetings',   mode:'readwrite', required:false, desc:'Where meeting notes created by TaskDash should be saved' },
-  { key:'projects',   label:'Projects',   mode:'readwrite', required:false, desc:'For project autocomplete and project editing' },
+  { key:'projects',   label:'Projects',   mode:'readwrite', required:false, desc:'For project autocomplete and editing; reads files inside Cover_ folders only' },
   { key:'properties', label:'Properties', mode:'readwrite', required:false, desc:'For building autocomplete and property comments' },
   { key:'clients',    label:'Clients',    mode:'read',      required:false, desc:'For client autocomplete' },
   { key:'people',     label:'People',     mode:'readwrite', required:false, desc:'For "waiting for" autocomplete and adding new people' },
@@ -694,9 +694,21 @@ function buildDiagnostics({ tasks, projects, properties, refs, dirs, folderStats
   };
 }
 
-function projectFilename(title) {
-  const name = safeFilename(title).replace(/^project\s*-\s*/i, '');
-  return `Project - ${name || 'Untitled project'}.md`;
+function projectFolderName(title) {
+  const name = (title.trim() ? safeFilename(title) : 'Untitled project')
+    .replace(/^project\s*-\s*/i, '')
+    .replace(/^cover_/i, '')
+    .trim();
+  return name || 'Untitled project';
+}
+
+function projectCoverFilename(title) {
+  return `Cover_${projectFolderName(title)}.md`;
+}
+
+function projectCoverPath(title) {
+  const folder = projectFolderName(title);
+  return `${folder}/${projectCoverFilename(folder)}`;
 }
 
 function coverExtension(file) {
@@ -722,6 +734,20 @@ async function uniqueFileNameInDir(dir, preferredName) {
     try {
       await dir.getFileHandle(name);
       name = `${stem}-${suffix++}${ext}`;
+    } catch (e) {
+      if (e.name === 'NotFoundError') return name;
+      throw e;
+    }
+  }
+}
+
+async function uniqueDirectoryNameInDir(dir, preferredName) {
+  let name = preferredName;
+  let suffix = 2;
+  while (true) {
+    try {
+      await dir.getDirectoryHandle(name);
+      name = `${preferredName}-${suffix++}`;
     } catch (e) {
       if (e.name === 'NotFoundError') return name;
       throw e;
@@ -1437,7 +1463,7 @@ export default function App() {
 
   const loadProjects = useCallback(async (dir) => {
     try {
-      const raw = (await readMdFiles(dir, [], '', { includeUnderscore: true })).filter(f => /^project\b/i.test(f.name.replace(/\.md$/i, '').trim()));
+      const raw = (await readMdFiles(dir, [], '', { includeUnderscore: true, coverFolderOnly: true })).filter(f => isProjectFileName(f.name));
       const parsed = raw.map(f => parseProject(f.name, f.text))
         .sort((a,b) => a.title.localeCompare(b.title));
       setProjects(parsed);
@@ -2283,14 +2309,16 @@ export default function App() {
   const createProject = async (form) => {
     if (!dirs.projects || !form.title.trim()) return;
     try {
-      const filename = await uniqueFileNameInDir(dirs.projects, projectFilename(form.title));
+      const folderName = await uniqueDirectoryNameInDir(dirs.projects, projectFolderName(form.title));
+      const projectDir = await dirs.projects.getDirectoryHandle(folderName, { create:true });
+      const filename = await uniqueFileNameInDir(projectDir, projectCoverFilename(folderName));
       const content = buildNewProjectMd(form);
-      const fh = await dirs.projects.getFileHandle(filename, { create:true });
+      const fh = await projectDir.getFileHandle(filename, { create:true });
       await writeFile(fh, content);
       await loadProjects(dirs.projects);
       await loadRefs(dirs);
       setProjectSearch('');
-      setProjectSel(filename);
+      setProjectSel(`${folderName}/${filename}`);
       setNewProjectOpen(false);
       setToast(`Created project "${form.title.trim()}"`);
     } catch(e) {
@@ -4991,7 +5019,7 @@ function NewProjectPanel({ onCancel, onCreate, refs }) {
         <form onSubmit={submit} style={{ maxWidth:720 }}>
           <Field label="Project name">
             <input autoFocus value={form.title} onChange={e=>set('title', e.target.value)} placeholder="e.g. Union Module 4" style={{ ...inputBase, fontSize:16, fontWeight:600, padding:'10px 14px' }}/>
-            <div style={{ fontSize:10, color:'#5a615b', marginTop:4 }}>Filename will be <code style={{ color:'#5a615b' }}>{form.title.trim() ? projectFilename(form.title) : 'Project - <title>.md'}</code></div>
+            <div style={{ fontSize:10, color:'#5a615b', marginTop:4 }}>Project note will be <code style={{ color:'#5a615b' }}>{form.title.trim() ? projectCoverPath(form.title) : '<project-name>/Cover_<project-name>.md'}</code></div>
           </Field>
           <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:11 }}>
             <Field label="Status">

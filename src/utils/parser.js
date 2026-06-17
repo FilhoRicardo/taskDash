@@ -31,7 +31,11 @@ const ignoredName = (name, { includeUnderscore = false } = {}) => {
   if (!includeUnderscore && base.startsWith('_')) return true;
   return false;
 };
-const isProjectName = name => /^project\b/i.test(basename(name).trim());
+export const isProjectFileName = name => {
+  const base = basename(name).trim();
+  return /^project\b/i.test(base) || /^cover_.+/i.test(base);
+};
+const projectDisplayName = name => basename(name).replace(/^cover_/i, '').trim();
 const titleFromName = name => basename(name)
   .split('-')
   .filter(Boolean)
@@ -105,7 +109,7 @@ export function parseProject(name, txt) {
   return {
     id: name,
     filename: basename(name),
-    title: fm.title || h1 || titleFromName(name),
+    title: fm.title || h1 || titleFromName(projectDisplayName(name)),
     status: fm.status || fm.projectStatus || 'active',
     client: wl(fm.client),
     summary: fm.summary || '',
@@ -236,14 +240,20 @@ export function parseOrganization(name, txt) {
 }
 
 export async function readMdFiles(dir, acc = [], prefix = '', options = {}) {
+  const isTopLevel = prefix === '';
   for await (const [name, h] of dir.entries()) {
     try {
       if (ignoredName(name, options)) continue;
       const rel = prefix ? `${prefix}/${name}` : name;
-      if (h.kind==='file' && name.endsWith('.md') && name !== 'timetracker.md')
+      if (h.kind==='file' && name.endsWith('.md') && name !== 'timetracker.md') {
+        // coverFolderOnly: skip files at the project root — only files inside Cover_ folders count
+        if (options.coverFolderOnly && isTopLevel) continue;
         acc.push({ name: rel, handle:h, text: await (await h.getFile()).text() });
-      else if (h.kind==='directory' && !name.startsWith('.'))
+      } else if (h.kind==='directory' && !name.startsWith('.')) {
+        // coverFolderOnly: at top level only descend into Cover_ folders
+        if (options.coverFolderOnly && isTopLevel && !/^cover_/i.test(name)) continue;
         await readMdFiles(h, acc, rel, options);
+      }
     } catch(e) {
       console.warn(`Skipped unreadable markdown entry: ${name}`, e);
     }
@@ -256,7 +266,8 @@ export async function readDirNames(dir, options = {}, acc = []) {
   for await (const [name, h] of dir.entries()) {
     if (ignoredName(name)) continue;
     if (h.kind === 'file' && name.endsWith('.md')) {
-      if (!options.projectOnly || isProjectName(name)) acc.push(basename(name));
+      if (!options.projectOnly) acc.push(basename(name));
+      else if (isProjectFileName(name)) acc.push(projectDisplayName(name));
     }
     else if (h.kind === 'directory' && !name.startsWith('.'))
       await readDirNames(h, options, acc);
