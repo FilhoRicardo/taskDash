@@ -114,6 +114,7 @@ export function parseProject(name, txt) {
     client: wl(fm.client),
     summary: fm.summary || '',
     tags,
+    type: (fm.type || fm.Type || '').toLowerCase(),
     dateCreated: fm.dateCreated || null,
     dateModified: fm.dateModified || null,
     raw: txt,

@@ -2609,7 +2609,14 @@ export default function App() {
     if (!q) return true;
     return [p.title, p.filename, p.client, p.summary].filter(Boolean).some(v => v.toLowerCase().includes(q));
   });
-  const filteredProjects = projects.filter(p => {
+  const workProjects     = projects.filter(p => p.type !== 'personal');
+  const personalProjects = projects.filter(p => p.type === 'personal');
+  const filteredProjects = workProjects.filter(p => {
+    const q = projectSearch.trim().toLowerCase();
+    if (!q) return true;
+    return [p.title, p.filename, p.client, p.summary, p.status].filter(Boolean).some(v => v.toLowerCase().includes(q));
+  });
+  const filteredPersonalProjects = personalProjects.filter(p => {
     const q = projectSearch.trim().toLowerCase();
     if (!q) return true;
     return [p.title, p.filename, p.client, p.summary, p.status].filter(Boolean).some(v => v.toLowerCase().includes(q));
@@ -2675,8 +2682,8 @@ export default function App() {
   const healthErrors = diagnostics.issues.filter(i => i.level === 'error').length;
   const healthWarnings = diagnostics.issues.filter(i => i.level === 'warning').length;
   const healthBadges = healthErrors + healthWarnings;
-  const headerLabel = view === 'mission' ? 'MISSION CONTROL' : view === 'tasks' ? "TODAY'S TOTAL" : view === 'calendar' ? 'TASK CALENDAR' : view === 'bd' ? 'BD TASKS' : view === 'hours' ? 'HOURS' : view === 'time' ? 'TIME DASHBOARD' : view === 'meetings' ? 'MEETINGS' : view === 'projects' ? 'PROJECT LIBRARY' : view === 'properties' ? 'PROPERTY LIBRARY' : view === 'people' ? 'PEOPLE' : view === 'organizations' ? 'ORGANIZATIONS' : 'VAULT HEALTH';
-  const headerMetric = view === 'mission' ? missionToday.length + missionOverdue.length + missionRecurrent.length : view === 'tasks' ? fmt(totalToday) : view === 'calendar' ? taskCalendarOccurrences.length : view === 'bd' ? openBdTasks.length : view === 'hours' ? formatHoursMinutes(selectedWorkStats.totalMinutes) : view === 'time' ? formatHoursMinutes(trailingWeekStats.summary.totalMinutes) : view === 'meetings' ? (meetingOpen ? fmt(getTime('__meeting__')) : meetings.length) : view === 'projects' ? projects.length : view === 'properties' ? properties.length : view === 'people' ? people.length : view === 'organizations' ? organizations.length : diagnostics.issues.length;
+  const headerLabel = view === 'mission' ? 'MISSION CONTROL' : view === 'tasks' ? "TODAY'S TOTAL" : view === 'calendar' ? 'TASK CALENDAR' : view === 'bd' ? 'BD TASKS' : view === 'hours' ? 'HOURS' : view === 'time' ? 'TIME DASHBOARD' : view === 'meetings' ? 'MEETINGS' : view === 'projects' ? 'WORK PROJECTS' : view === 'projects-personal' ? 'PERSONAL PROJECTS' : view === 'properties' ? 'PROPERTY LIBRARY' : view === 'people' ? 'PEOPLE' : view === 'organizations' ? 'ORGANIZATIONS' : 'VAULT HEALTH';
+  const headerMetric = view === 'mission' ? missionToday.length + missionOverdue.length + missionRecurrent.length : view === 'tasks' ? fmt(totalToday) : view === 'calendar' ? taskCalendarOccurrences.length : view === 'bd' ? openBdTasks.length : view === 'hours' ? formatHoursMinutes(selectedWorkStats.totalMinutes) : view === 'time' ? formatHoursMinutes(trailingWeekStats.summary.totalMinutes) : view === 'meetings' ? (meetingOpen ? fmt(getTime('__meeting__')) : meetings.length) : view === 'projects' ? workProjects.length : view === 'projects-personal' ? personalProjects.length : view === 'properties' ? properties.length : view === 'people' ? people.length : view === 'organizations' ? organizations.length : diagnostics.issues.length;
   const headerDetail = view === 'mission'
     ? `${missionToday.length} today · ${missionOverdue.length} overdue · ${missionRecurrent.length} recurrent · ${dirs.daily ? 'daily on' : 'daily off'}`
     : view === 'tasks'
@@ -2692,7 +2699,9 @@ export default function App() {
         : view === 'meetings'
           ? `${dirs.meetings ? dirs.meetings.name : 'No folder'} · ${meetingOpen ? 'meeting note open' : `${meetings.length} saved`}`
           : view === 'projects'
-            ? `${dirs.projects ? dirs.projects.name : 'No folder'} · editable`
+            ? `${dirs.projects ? dirs.projects.name : 'No folder'} · ${workProjects.length} work`
+            : view === 'projects-personal'
+              ? `${dirs.projects ? dirs.projects.name : 'No folder'} · ${personalProjects.length} personal`
             : view === 'properties'
               ? `${dirs.properties ? dirs.properties.name : 'No folder'} · ${dirs.attachments ? 'covers on' : 'covers off'}`
               : view === 'people'
@@ -2980,7 +2989,7 @@ export default function App() {
               })}
             </div>
           </>
-        ) : view === 'projects' ? (
+        ) : view === 'projects' || view === 'projects-personal' ? (
           <>
             <div style={{ padding:'8px 10px 4px', display:'flex', gap:6, alignItems:'center' }}>
               <button onClick={()=>setNewProjectOpen(true)} disabled={!dirs.projects} style={{ flex:1, padding:'8px 10px', borderRadius:9, border:'none', cursor:dirs.projects?'pointer':'not-allowed', fontWeight:700, fontSize:12, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff', boxShadow:BRAND_SHADOW, opacity:dirs.projects?1:0.35 }}>
@@ -2992,7 +3001,7 @@ export default function App() {
             </div>
             <div style={{ flex:1, overflowY:'auto', padding:'6px 8px' }}>
               {!dirs.projects && <div style={{ color:'#5a615b', textAlign:'center', paddingTop:40, fontSize:12 }}>Pick your Projects folder in Configure folders</div>}
-              {filteredProjects.map(p => {
+              {(view === 'projects' ? filteredProjects : filteredPersonalProjects).map(p => {
                 const active = projectSel === p.id;
                 return (
                   <div key={p.id} onClick={()=>setProjectSel(p.id)} style={{ padding:'10px', marginBottom:4, borderRadius:10, cursor:'pointer', background:active?BRAND_SURFACE:'rgba(255,255,255,0.50)', border:`1px solid ${active?BRAND_BORDER:'rgba(255,255,255,0.55)'}` }}>
@@ -3221,7 +3230,7 @@ export default function App() {
         />
       ) : view === 'time' ? (
         <TimeDashboardPanel notes={timeNotes} trackerRows={trackerRows} tasks={tasks} hasDailyFolder={!!dirs.daily} onConfigure={()=>setFolderSetupOpen(true)}/>
-      ) : view === 'projects' ? (
+      ) : view === 'projects' || view === 'projects-personal' ? (
         newProjectOpen ? (
           <NewProjectPanel onCancel={()=>setNewProjectOpen(false)} onCreate={createProject} refs={refs}/>
         ) : (
