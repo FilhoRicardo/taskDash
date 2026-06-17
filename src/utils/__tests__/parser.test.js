@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseDailyNote, parseMeeting, parseOrganization, parseProperty, parseTask } from '../parser.js';
+import { isProjectFileName, parseDailyNote, parseMeeting, parseOrganization, parseProject, parseProperty, parseTask, readDirNames, readMdFiles } from '../parser.js';
 
 describe('parseTask', () => {
   it('reads TaskNotes frontmatter, checklist, dates, links, recurrence, and logs', () => {
@@ -97,6 +97,66 @@ Third line with the outcome
       date: '2026-06-04',
       text: '[09:02] First line of feedback\nSecond line with more detail\nThird line with the outcome',
     }]);
+  });
+});
+
+function mockFile(text) {
+  return {
+    kind: 'file',
+    getFile: async () => ({ text: async () => text }),
+  };
+}
+
+function mockDir(entries) {
+  return {
+    kind: 'directory',
+    async *entries() {
+      for (const entry of Object.entries(entries)) yield entry;
+    },
+  };
+}
+
+describe('project discovery', () => {
+  it('reads nested Cover project notes from a parent Projects folder', async () => {
+    const dir = mockDir({
+      'Project - Leasing.md': mockFile('---\ntitle: Leasing\n---\n'),
+      'Loose note.md': mockFile('Notes'),
+      'Union Module 4': mockDir({
+        'Cover_Union Module 4.md': mockFile('---\ntitle: Union Module 4\n---\n'),
+        'Meeting notes.md': mockFile('Notes'),
+      }),
+    });
+
+    const files = await readMdFiles(dir, [], '', { includeUnderscore: true });
+    const projects = files.filter(file => isProjectFileName(file.name));
+
+    expect(projects.map(file => file.name)).toEqual([
+      'Project - Leasing.md',
+      'Union Module 4/Cover_Union Module 4.md',
+    ]);
+  });
+
+  it('uses Cover filenames as project autocomplete names without the prefix', async () => {
+    const dir = mockDir({
+      'Project - Leasing.md': mockFile(''),  // root-level file — ignored
+      'Union Module 4': mockDir({
+        'Cover_Union Module 4.md': mockFile(''),
+        'Meeting notes.md': mockFile(''),    // non-Cover file — ignored
+      }),
+    });
+
+    await expect(readDirNames(dir, { projectOnly: true })).resolves.toEqual([
+      'Union Module 4',
+    ]);
+  });
+});
+
+describe('parseProject', () => {
+  it('falls back to a readable title for Cover project files', () => {
+    const project = parseProject('Union Module 4/Cover_Union Module 4.md', 'Notes.');
+
+    expect(project.title).toBe('Union Module 4');
+    expect(project.filename).toBe('Cover_Union Module 4');
   });
 });
 

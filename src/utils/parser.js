@@ -240,20 +240,14 @@ export function parseOrganization(name, txt) {
 }
 
 export async function readMdFiles(dir, acc = [], prefix = '', options = {}) {
-  const isTopLevel = prefix === '';
   for await (const [name, h] of dir.entries()) {
     try {
       if (ignoredName(name, options)) continue;
       const rel = prefix ? `${prefix}/${name}` : name;
-      if (h.kind==='file' && name.endsWith('.md') && name !== 'timetracker.md') {
-        // coverFolderOnly: skip files at the project root — only files inside Cover_ folders count
-        if (options.coverFolderOnly && isTopLevel) continue;
+      if (h.kind==='file' && name.endsWith('.md') && name !== 'timetracker.md')
         acc.push({ name: rel, handle:h, text: await (await h.getFile()).text() });
-      } else if (h.kind==='directory' && !name.startsWith('.')) {
-        // coverFolderOnly: at top level only descend into Cover_ folders
-        if (options.coverFolderOnly && isTopLevel && !/^cover_/i.test(name)) continue;
+      else if (h.kind==='directory' && !name.startsWith('.'))
         await readMdFiles(h, acc, rel, options);
-      }
     } catch(e) {
       console.warn(`Skipped unreadable markdown entry: ${name}`, e);
     }
@@ -261,14 +255,51 @@ export async function readMdFiles(dir, acc = [], prefix = '', options = {}) {
   return acc;
 }
 
+// For the Projects folder: iterate each immediate subfolder and read only the
+// single .md file whose name starts with "Cover" (case-insensitive). All other
+// files and nested subfolders are ignored.
+export async function readProjectCoverFiles(dir) {
+  const acc = [];
+  for await (const [folderName, folderHandle] of dir.entries()) {
+    try {
+      if (folderHandle.kind !== 'directory' || folderName.startsWith('.')) continue;
+      for await (const [fileName, fileHandle] of folderHandle.entries()) {
+        try {
+          if (fileHandle.kind !== 'file') continue;
+          if (!fileName.endsWith('.md')) continue;
+          if (!/^cover/i.test(fileName)) continue;
+          const text = await (await fileHandle.getFile()).text();
+          acc.push({ name: `${folderName}/${fileName}`, handle: fileHandle, text });
+          break; // only the first Cover file per subfolder
+        } catch(e) {
+          console.warn(`Skipped unreadable project cover file: ${fileName}`, e);
+        }
+      }
+    } catch(e) {
+      console.warn(`Skipped unreadable project subfolder: ${folderName}`, e);
+    }
+  }
+  return acc;
+}
+
 // Returns just filenames (without .md extension) for autocomplete sources.
 export async function readDirNames(dir, options = {}, acc = []) {
+  if (options.projectOnly) {
+    // Mirror readProjectCoverFiles: one Cover file per subfolder, used as the project name.
+    for await (const [folderName, folderHandle] of dir.entries()) {
+      if (folderHandle.kind !== 'directory' || folderName.startsWith('.')) continue;
+      for await (const [fileName, fileHandle] of folderHandle.entries()) {
+        if (fileHandle.kind !== 'file' || !fileName.endsWith('.md')) continue;
+        if (!/^cover/i.test(fileName)) continue;
+        acc.push(projectDisplayName(fileName));
+        break;
+      }
+    }
+    return acc;
+  }
   for await (const [name, h] of dir.entries()) {
     if (ignoredName(name)) continue;
-    if (h.kind === 'file' && name.endsWith('.md')) {
-      if (!options.projectOnly) acc.push(basename(name));
-      else if (isProjectFileName(name)) acc.push(projectDisplayName(name));
-    }
+    if (h.kind === 'file' && name.endsWith('.md')) acc.push(basename(name));
     else if (h.kind === 'directory' && !name.startsWith('.'))
       await readDirNames(h, options, acc);
   }

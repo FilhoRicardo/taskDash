@@ -4,7 +4,7 @@ import remarkGfm from 'remark-gfm';
 import IconRail from './IconRail.jsx';
 import MentionTextarea, { MentionProvider } from './MentionTextarea.jsx';
 import { wikilinksToMarkdown, isWikilinkHref, wikilinkTarget } from './utils/mentions.js';
-import { parseTask, parseProperty, parseProject, parseDailyNote, parseMeeting, parsePerson, parseOrganization, readMdFiles, readDirNames, readImageFiles, isProjectFileName } from './utils/parser.js';
+import { parseTask, parseProperty, parseProject, parseDailyNote, parseMeeting, parsePerson, parseOrganization, readMdFiles, readDirNames, readImageFiles, readProjectCoverFiles, isProjectFileName } from './utils/parser.js';
 import { idbGet, idbSet, idbDel, lsGet, lsSet, lsDel } from './utils/storage.js';
 import { buildTaskCalendarOccurrences, calendarWeekDates, calendarWeekRangeLabel, groupTaskCalendarOccurrences } from './utils/taskCalendar.js';
 import { fmt, tod, isToday, isOver, longDate, appendNoteToMd, appendPropertyCommentToMd, updateCommentLog, deleteCommentLog, appendDailySectionEntry, appendDailyTimeClockEvent, buildDailyNoteMd, buildTrackerRow, appendTrackerRow, buildMeetingMd, buildNewTaskMd, buildNewPropertyMd, buildNewProjectMd, buildNewPersonMd, buildNewOrganizationMd, kebabSlug, finishRecurrentTaskInstance, markTaskDone, postponeTaskDates, postponeTaskDatesByMonths, replaceDailyTimeClockRows, setDailyWorkStatus, setPropertyCover, touchDateModified, updateTaskDates, updateTaskThreadSubject } from './utils/formatter.js';
@@ -1463,7 +1463,7 @@ export default function App() {
 
   const loadProjects = useCallback(async (dir) => {
     try {
-      const raw = (await readMdFiles(dir, [], '', { includeUnderscore: true, coverFolderOnly: true })).filter(f => isProjectFileName(f.name));
+      const raw = await readProjectCoverFiles(dir);
       const parsed = raw.map(f => parseProject(f.name, f.text))
         .sort((a,b) => a.title.localeCompare(b.title));
       setProjects(parsed);
