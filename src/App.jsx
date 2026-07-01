@@ -88,8 +88,8 @@ async function rememberWriteBackup(handle, oldText) {
   }
 }
 
-async function writeFile(handle, content) {
-  if (typeof content === 'string') {
+export async function writeFile(handle, content, options = {}) {
+  if (options.backup !== false && typeof content === 'string') {
     try {
       const oldText = await (await handle.getFile()).text();
       if (oldText && oldText !== content) await rememberWriteBackup(handle, oldText);
@@ -97,7 +97,7 @@ async function writeFile(handle, content) {
       console.warn('pre-write backup skipped', e);
     }
   }
-  const w = await handle.createWritable();
+  const w = await handle.createWritable({ keepExistingData: false });
   await w.write(content); await w.close();
 }
 
@@ -1993,7 +1993,7 @@ export default function App() {
     const content  = buildNewTaskMd(form);
     try {
       const fh = await dirs.tasks.getFileHandle(filename, { create:true });
-      await writeFile(fh, content);
+      await writeFile(fh, content, { backup:false });
       await loadFiles(dirs.tasks, dirs.done);
       setNewTaskOpen(false);
       setSel(filename);
