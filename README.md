@@ -168,8 +168,8 @@ New task files are created in the configured Tasks folder. The form mirrors the 
 
 The Projects tab supports:
 
-- Reading project files whose names start with `Project`.
-- Creating files named `Project - <name>.md`.
+- Reading nested `Cover_<name>.md` files inside subfolders of a parent Projects folder.
+- Creating project folders with `Cover_<name>.md` inside.
 - Editing and saving project Markdown directly.
 - Updating `dateModified` when project frontmatter exists.
 - Client autocomplete from the Clients folder.
