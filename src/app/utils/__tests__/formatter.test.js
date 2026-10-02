@@ -243,6 +243,8 @@ skipped_instances:
     expect(updated).toMatch(/skipped_instances:\n  - 2026-10-05/);
     expect(updated).toMatch(/complete_instances:\n  - 2026-09-28/);
     expect(updated.match(/complete_instances:\n((?:  - .+\n?)+)/)?.[1]).toBe('  - 2026-09-28\n');
+  });
+
   it('advances a daily recurring task by calendar days across spring DST', () => {
     const raw = `---
 title: DST task
@@ -254,7 +256,42 @@ recurrence: DTSTART:20260328;FREQ=DAILY;INTERVAL=2
     const updated = finishRecurrentTaskInstance(raw, '2026-03-28');
 
     expect(updated).toContain('due: 2026-03-30');
-    
+  });
+  it('advances a last-Monday recurrence to its literal next occurrence', () => {
+    const updated = finishRecurrentTaskInstance(
+      '---\ntitle: Month end\nrecurrence: DTSTART:20260928;FREQ=MONTHLY;BYDAY=-1MO\ndue: 2026-09-28\n---\n',
+      '2026-09-28',
+    );
+
+    expect(updated).toContain('due: 2026-10-26');
+    expect(updated).toContain('  - 2026-09-28');
+  });
+
+  it('ends a finite recurrence without inventing another due date', () => {
+    const updated = finishRecurrentTaskInstance(
+      '---\ntitle: Finite\nrecurrence: DTSTART:20261001;FREQ=DAILY;COUNT=2\ndue: 2026-10-02\ncomplete_instances:\n  - 2026-10-01\n---\n',
+      '2026-10-02',
+    );
+
+    expect(updated).not.toMatch(/^due:/m);
+    expect(updated).toContain('  - 2026-10-01');
+    expect(updated).toContain('  - 2026-10-02');
+
+    const untilUpdated = finishRecurrentTaskInstance(
+      '---\ntitle: Until\nrecurrence: DTSTART:20261001;FREQ=DAILY;UNTIL=20261002\ndue: 2026-10-02\n---\n',
+      '2026-10-02',
+    );
+    expect(untilUpdated).not.toMatch(/^due:/m);
+    expect(untilUpdated).toContain('  - 2026-10-02');
+  });
+
+  it('advances a simple yearly rule by one year', () => {
+    const updated = finishRecurrentTaskInstance(
+      '---\ntitle: Annual\nrecurrence: DTSTART:20261001;FREQ=YEARLY\ndue: 2026-10-01\n---\n',
+      '2026-10-01',
+    );
+
+    expect(updated).toContain('due: 2027-10-01');
   });
 
   it('updates task metadata while preserving unknown fields and task content', () => {

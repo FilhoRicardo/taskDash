@@ -1,3 +1,5 @@
+import { recurrenceMatches } from './taskCalendar.js';
+
 export const fmt = ms => {
   const s=Math.floor(ms/1000),h=Math.floor(s/3600),m=Math.floor((s%3600)/60),sc=s%60;
   return h>0 ? `${h}h ${String(m).padStart(2,'0')}m` : `${String(m).padStart(2,'0')}m ${String(sc).padStart(2,'0')}s`;
@@ -775,39 +777,14 @@ function parseRecurrenceRule(rule = '') {
 
 function nextRecurrenceDate(rule, afterDate, excluded = []) {
   const parts = parseRecurrenceRule(rule);
-  const freq = (parts.FREQ || 'WEEKLY').toUpperCase();
-  const interval = Number(parts.INTERVAL || 1);
   const dtstart = compactDateToIso(parts.DTSTART) || afterDate;
   const excludedSet = new Set(excluded);
-  const weekDays = { SU:0, MO:1, TU:2, WE:3, TH:4, FR:5, SA:6 };
-  const byDay = (parts.BYDAY || '')
-    .split(',')
-    .map(d => weekDays[d.trim().slice(-2).toUpperCase()])
-    .filter(d => Number.isInteger(d));
-  const startDate = parseLocalDate(dtstart);
-  const startDay = startDate.getDay();
-
-  for (let i = 1; i <= 3700; i++) {
+  const task = { recurrence: rule, due: dtstart, scheduled: dtstart };
+  for (let i = 1; i <= 36525; i++) {
     const candidate = addDays(afterDate, i);
-    if (candidate < dtstart || excludedSet.has(candidate)) continue;
-    const candDate = parseLocalDate(candidate);
-    const diffDays = daysBetween(dtstart, candidate);
-
-    if (freq === 'DAILY' && diffDays % interval === 0) return candidate;
-
-    if (freq === 'WEEKLY') {
-      const allowedDays = byDay.length ? byDay : [startDay];
-      const weekIndex = Math.floor(diffDays / 7);
-      if (allowedDays.includes(candDate.getDay()) && weekIndex % interval === 0) return candidate;
-    }
-
-    if (freq === 'MONTHLY') {
-      const monthDiff = (candDate.getFullYear() - startDate.getFullYear()) * 12 + candDate.getMonth() - startDate.getMonth();
-      if (candDate.getDate() === startDate.getDate() && monthDiff % interval === 0) return candidate;
-    }
+    if (!excludedSet.has(candidate) && recurrenceMatches(task, candidate)) return candidate;
   }
-
-  return addDays(afterDate, 7);
+  return null;
 }
 
 function frontmatterUpsert(fm, key, value) {
@@ -857,7 +834,7 @@ export function finishRecurrentTaskInstance(raw, currentDue, currentScheduled) {
   const nextDate = recurrence ? nextRecurrenceDate(recurrence, instanceDate, [...completedNext, ...skipped]) : addDays(instanceDate, 7);
 
   fm = upsertFrontmatterArray(fm, 'complete_instances', completedNext);
-  fm = frontmatterUpsert(fm, 'due', nextDate);
+  fm = nextDate ? frontmatterUpsert(fm, 'due', nextDate) : frontmatterRemove(fm, 'due');
   fm = frontmatterRemove(fm, 'scheduled');
   fm = frontmatterUpsert(fm, 'dateModified', isoLocal());
 

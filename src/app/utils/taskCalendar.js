@@ -25,12 +25,6 @@ function daysBetween(startDate, endDate) {
   return (endDay - startDay) / 86400000;
 }
 
-function monthDiff(startDate, endDate) {
-  const start = dateFromStr(startDate);
-  const end = dateFromStr(endDate);
-  return (end.getFullYear() - start.getFullYear()) * 12 + end.getMonth() - start.getMonth();
-}
-
 function compactDateToIso(value) {
   const match = String(value || '').match(/^(\d{4})(\d{2})(\d{2})$/);
   return match ? `${match[1]}-${match[2]}-${match[3]}` : '';
@@ -61,38 +55,72 @@ function labelsForDate(task, dateStr, recurrent = false) {
   return [...new Set(labels)];
 }
 
-function recurrenceMatches(task, dateStr) {
+export function recurrenceMatches(task, dateStr) {
   const parts = parseRecurrenceRule(task.recurrence);
   const activeStart = taskStartDate(task);
   const patternStart = compactDateToIso(parts.DTSTART) || activeStart;
   if (!activeStart || !patternStart || dateStr < activeStart || dateStr < patternStart) return false;
-
+  const freq = (parts.FREQ || 'WEEKLY').toUpperCase();
+  const interval = Number(parts.INTERVAL || 1);
+  if (!['DAILY', 'WEEKLY', 'MONTHLY', 'YEARLY'].includes(freq) || !Number.isInteger(interval) || interval < 1 || interval > 100) return false;
+  if (Object.keys(parts).some(key => !['DTSTART', 'FREQ', 'INTERVAL', 'BYDAY', 'UNTIL', 'COUNT'].includes(key))) return false;
+  const until = compactDateToIso(parts.UNTIL) || parts.UNTIL || '';
+  const count = parts.COUNT === undefined ? Infinity : Number(parts.COUNT);
+  if ((count !== Infinity && (!Number.isInteger(count) || count < 1)) || (until && dateStr > until)) return false;
   const diff = daysBetween(patternStart, dateStr);
   if (diff < 0) return false;
-
-  const freq = (parts.FREQ || 'WEEKLY').toUpperCase();
-  const interval = Math.max(1, Number(parts.INTERVAL || 1) || 1);
   const candidate = dateFromStr(dateStr);
   const start = dateFromStr(patternStart);
-  const weekDays = { SU:0, MO:1, TU:2, WE:3, TH:4, FR:5, SA:6 };
-  const byDay = String(parts.BYDAY || '')
-    .split(',')
-    .map(day => weekDays[day.trim().slice(-2).toUpperCase()])
-    .filter(Number.isInteger);
-
-  if (freq === 'DAILY') return diff % interval === 0;
-
+  const byDay = String(parts.BYDAY || '').split(',').filter(Boolean);
+  const weekdays = { SU:0, MO:1, TU:2, WE:3, TH:4, FR:5, SA:6 };
+  const matchesDay = (value, dayStr) => {
+    const match = value.match(/^([+-]?\d{1,2})?(SU|MO|TU|WE|TH|FR|SA)$/);
+    if (!match) return false;
+    const weekday = weekdays[match[2]];
+    const ordinal = match[1] ? Number(match[1]) : null;
+    const selected = dateFromStr(dayStr);
+    if (!ordinal) return !match[1] && selected.getDay() === weekday;
+    if (ordinal < -5 || ordinal > 5 || ordinal === 0) return false;
+    const day = selected.getDate();
+    if (ordinal > 0) return Math.floor((day - 1) / 7) + 1 === ordinal && selected.getDay() === weekday;
+    const lastDay = new Date(selected.getFullYear(), selected.getMonth() + 1, 0).getDate();
+    return Math.ceil((lastDay - day + 1) / 7) === -ordinal && selected.getDay() === weekday;
+  };
+  let matches = false;
+  const monthDelta = (candidate.getFullYear() - start.getFullYear()) * 12 + candidate.getMonth() - start.getMonth();
+  if (freq === 'DAILY') matches = !byDay.length && diff % interval === 0;
   if (freq === 'WEEKLY') {
-    const allowedDays = byDay.length ? byDay : [start.getDay()];
     const weekIndex = Math.floor(diff / 7);
-    return allowedDays.includes(candidate.getDay()) && weekIndex % interval === 0;
+    matches = weekIndex % interval === 0 && (byDay.length ? byDay.every(value => !/^([+-]?\d{1,2})/.test(value)) && byDay.some(value => matchesDay(value, dateStr)) : candidate.getDay() === start.getDay());
   }
-
   if (freq === 'MONTHLY') {
-    return candidate.getDate() === start.getDate() && monthDiff(patternStart, dateStr) % interval === 0;
+    matches = monthDelta >= 0 && monthDelta % interval === 0 && (byDay.length ? byDay.every(value => /^([+-]?\d{1,2})/.test(value)) && byDay.some(value => matchesDay(value, dateStr)) : candidate.getDate() === start.getDate());
   }
-
-  return diff % 7 === 0;
+  if (freq === 'YEARLY') matches = !byDay.length && monthDelta >= 0 && monthDelta % (12 * interval) === 0 && candidate.getDate() === start.getDate();
+  if (!matches || count === Infinity) return matches;
+  let occurrences = 0;
+  if (freq === 'DAILY') occurrences = Math.floor(diff / interval) + 1;
+  if (freq === 'WEEKLY') {
+    const allowed = byDay.length ? byDay.map(value => weekdays[value]) : [start.getDay()];
+    for (let week = 0; week <= Math.floor(diff / 7); week += interval) {
+      for (const weekday of allowed) {
+        const offset = week * 7 + (weekday - start.getDay() + 7) % 7;
+        if (offset <= diff) occurrences++;
+      }
+    }
+  }
+  if (freq === 'MONTHLY') {
+    for (let months = 0; months <= monthDelta; months += interval) {
+      const monthStart = new Date(start.getFullYear(), start.getMonth() + months, 1);
+      const lastDay = new Date(monthStart.getFullYear(), monthStart.getMonth() + 1, 0).getDate();
+      for (let day = 1; day <= lastDay; day++) {
+        const selected = `${monthStart.getFullYear()}-${String(monthStart.getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+        if (selected <= dateStr && (byDay.length ? byDay.some(value => matchesDay(value, selected)) : day === start.getDate())) occurrences++;
+      }
+    }
+  }
+  if (freq === 'YEARLY') occurrences = Math.floor((candidate.getFullYear() - start.getFullYear()) / interval) + 1;
+  return occurrences <= count;
 }
 
 function isOccurrenceOverdue(task, dateStr, today) {

@@ -140,4 +140,38 @@ describe('buildTaskCalendarOccurrences', () => {
 
     expect(occurrences.map(occurrence => occurrence.taskId)).toEqual(['old.md', 'middle.md', 'new.md']);
   });
+
+  it('uses the last Monday for a monthly ordinal weekday recurrence', () => {
+    const dates = ['2026-10-26', '2026-10-28'];
+    const occurrences = buildTaskCalendarOccurrences([{
+      id: 'month-end.md', title: 'Month end', status: 'none', priority: 'normal',
+      due: '2026-09-28', recurrent: true,
+      recurrence: 'DTSTART:20260928;FREQ=MONTHLY;BYDAY=-1MO',
+    }], dates, '2026-10-01');
+
+    expect(occurrences.map(item => item.date)).toEqual(['2026-10-26']);
+  });
+
+  it('uses the second Monday for monthly ordinal weekdays', () => {
+    const occurrences = buildTaskCalendarOccurrences([{
+      id: 'second-monday.md', title: 'Second Monday', status: 'none', priority: 'normal',
+      due: '2026-10-12', recurrent: true,
+      recurrence: 'DTSTART:20261012;FREQ=MONTHLY;BYDAY=2MO',
+    }], ['2026-10-12', '2026-10-26'], '2026-10-01');
+
+    expect(occurrences.map(item => item.date)).toEqual(['2026-10-12']);
+  });
+
+  it('honors UNTIL and COUNT and steps yearly rules by year', () => {
+    const dates = ['2026-10-02', '2026-10-03', '2027-10-01', '2027-10-03'];
+    const tasks = [
+      { id: 'until.md', title: 'Until', status: 'none', recurrent: true, due: '2026-10-01', recurrence: 'DTSTART:20261001;FREQ=DAILY;UNTIL=20261002' },
+      { id: 'count.md', title: 'Count', status: 'none', recurrent: true, due: '2026-10-01', recurrence: 'DTSTART:20261001;FREQ=DAILY;COUNT=2' },
+      { id: 'yearly.md', title: 'Yearly', status: 'none', recurrent: true, due: '2026-10-01', recurrence: 'DTSTART:20261001;FREQ=YEARLY' },
+    ];
+
+    expect(buildTaskCalendarOccurrences(tasks, dates, '2026-10-01').map(item => `${item.taskId}:${item.date}`)).toEqual([
+      'count.md:2026-10-02', 'until.md:2026-10-02', 'yearly.md:2027-10-01',
+    ]);
+  });
 });
