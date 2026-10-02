@@ -577,6 +577,14 @@ describe('TaskDash plugin end-to-end', () => {
     expect(view.contentEl.querySelector('.td-metadata-dialog')).toBeNull();
 
     const contexts = inspector.querySelector('input[placeholder="work, phone"]');
+    const timeEstimate = inspector.querySelector('input[type="number"][min="0"]');
+    const contextsLabel = [...inspector.querySelectorAll('label')].find(label => label.textContent.trim() === 'Contexts (comma-separated)');
+    const timeEstimateLabel = [...inspector.querySelectorAll('label')].find(label => label.textContent.trim() === 'Time estimate (minutes)');
+    const waitingForLabel = [...inspector.querySelectorAll('label')].find(label => label.textContent.trim().startsWith('Waiting for'));
+    const waitingFor = waitingForLabel.control;
+    expect(contexts.labels).toContain(contextsLabel);
+    expect(timeEstimate.labels).toContain(timeEstimateLabel);
+    expect(waitingFor.labels).toContain(waitingForLabel);
     const valueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
     valueSetter.call(contexts, 'work, phone');
     contexts.dispatchEvent(new Event('input', { bubbles:true }));

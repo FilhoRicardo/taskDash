@@ -1,4 +1,4 @@
-import { Fragment, useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { Fragment, useState, useEffect, useRef, useCallback, useMemo, useId } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import IconRail from './IconRail.jsx';
@@ -671,6 +671,7 @@ function taskMetadataDraft(task) {
 }
 
 function TaskMetadataEditor({ task, draft, setDraft, refs, compact = false }) {
+  const fieldId = useId();
   const set = (key, value) => setDraft(current => ({ ...current, [key]:value }));
   const priorityOptions = [
     { value:'none', label:'None' },
@@ -693,11 +694,11 @@ function TaskMetadataEditor({ task, draft, setDraft, refs, compact = false }) {
         <Field label="Status">
           <SelectInput value={draft.status} onChange={value=>set('status', value)} options={statusOptions}/>
         </Field>
-        <Field label="Contexts (comma-separated)">
-          <input value={draft.contexts} onChange={e=>set('contexts', e.target.value)} placeholder="work, phone" style={inputBase}/>
+        <Field label="Contexts (comma-separated)" id={`${fieldId}-contexts`}>
+          <input id={`${fieldId}-contexts`} value={draft.contexts} onChange={e=>set('contexts', e.target.value)} placeholder="work, phone" style={inputBase}/>
         </Field>
-        <Field label="Time estimate (minutes)">
-          <input type="number" min="0" value={draft.timeEstimate} onChange={e=>set('timeEstimate', e.target.value)} placeholder="0" style={inputBase}/>
+        <Field label="Time estimate (minutes)" id={`${fieldId}-time-estimate`}>
+          <input id={`${fieldId}-time-estimate`} type="number" min="0" value={draft.timeEstimate} onChange={e=>set('timeEstimate', e.target.value)} placeholder="0" style={inputBase}/>
         </Field>
         <Field label={`Client${refs.clients.length?` · ${refs.clients.length} available`:''}`}>
           <ComboInput value={draft.client} onChange={value=>set('client', value)} options={refs.clients} placeholder="Pick or type..."/>
@@ -710,8 +711,8 @@ function TaskMetadataEditor({ task, draft, setDraft, refs, compact = false }) {
         <ChipMulti value={draft.projects} onChange={value=>set('projects', value)} options={refs.projects} placeholder="Type project name + Enter..."/>
       </Field>
       <div className="td-metadata-grid" style={{ display:'grid', gridTemplateColumns:'repeat(2,minmax(0,1fr))', gap:'0 11px' }}>
-        <Field label={`Waiting for${refs.people.length?` · ${refs.people.length} available`:''}`}>
-          <ComboInput value={draft.waitingfor} onChange={value=>set('waitingfor', value)} options={refs.people} placeholder="Pick or type..."/>
+        <Field label={`Waiting for${refs.people.length?` · ${refs.people.length} available`:''}`} id={`${fieldId}-waiting-for`}>
+          <ComboInput id={`${fieldId}-waiting-for`} value={draft.waitingfor} onChange={value=>set('waitingfor', value)} options={refs.people} placeholder="Pick or type..."/>
         </Field>
         <Field label="Extra tags (comma-separated)">
           <input value={draft.tags} onChange={e=>set('tags', e.target.value)} placeholder="admin, urgent" style={inputBase}/>
@@ -1120,10 +1121,10 @@ const inputBase = {
 };
 const labelBase = { fontSize:11, color:TEXT_MUTED, fontWeight:700, letterSpacing:'0.10em', textTransform:'uppercase', display:'block', marginBottom:6, fontFamily:"'JetBrains Mono', monospace" };
 
-function Field({ label, children, compact = false }) {
+function Field({ label, children, compact = false, id }) {
   return (
     <div style={{ marginBottom:compact ? 0 : 11 }}>
-      <label style={labelBase}>{label}</label>
+      <label htmlFor={id} style={labelBase}>{label}</label>
       {children}
     </div>
   );
@@ -1455,7 +1456,7 @@ function parseTrackerRows(raw = '') {
     .filter(Boolean);
 }
 
-function ComboInput({ value, onChange, options = [], placeholder }) {
+function ComboInput({ value, onChange, options = [], placeholder, id }) {
   const [input, setInput] = useState(value || '');
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
@@ -1467,7 +1468,7 @@ function ComboInput({ value, onChange, options = [], placeholder }) {
 
   return (
     <div style={{ position:'relative' }} onBlur={event=>{ if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false); }}>
-      <input value={input} role="combobox" aria-expanded={open} aria-controls={listId} aria-activedescendant={open && filtered.length ? `${listId}-option-${activeIndex}` : undefined} aria-autocomplete="list" onFocus={()=>setOpen(true)} onChange={e=>{ setInput(e.target.value); onChange(e.target.value); setActiveIndex(0); setOpen(true); }} onKeyDown={event=>{
+      <input id={id} value={input} role="combobox" aria-expanded={open} aria-controls={listId} aria-activedescendant={open && filtered.length ? `${listId}-option-${activeIndex}` : undefined} aria-autocomplete="list" onFocus={()=>setOpen(true)} onChange={e=>{ setInput(e.target.value); onChange(e.target.value); setActiveIndex(0); setOpen(true); }} onKeyDown={event=>{
         if (!filtered.length) return;
         if (event.key === 'ArrowDown') { event.preventDefault(); setOpen(true); setActiveIndex(index => Math.min(index + 1, filtered.length - 1)); }
         else if (event.key === 'ArrowUp') { event.preventDefault(); setOpen(true); setActiveIndex(index => Math.max(index - 1, 0)); }
