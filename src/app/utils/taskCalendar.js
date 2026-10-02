@@ -1,5 +1,3 @@
-const DAY_MS = 86400000;
-
 function toIsoDate(date = new Date()) {
   const pad = n => String(n).padStart(2, '0');
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
@@ -20,7 +18,11 @@ function addDays(dateStr, amount) {
 }
 
 function daysBetween(startDate, endDate) {
-  return Math.floor((dateFromStr(endDate) - dateFromStr(startDate)) / DAY_MS);
+  const start = dateFromStr(startDate);
+  const end = dateFromStr(endDate);
+  const startDay = Date.UTC(start.getFullYear(), start.getMonth(), start.getDate());
+  const endDay = Date.UTC(end.getFullYear(), end.getMonth(), end.getDate());
+  return (endDay - startDay) / 86400000;
 }
 
 function monthDiff(startDate, endDate) {

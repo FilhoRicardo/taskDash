@@ -73,6 +73,48 @@ describe('buildTaskCalendarOccurrences', () => {
     ], calendarWeekDates('2026-10-12'), '2026-10-12');
 
     expect(occurrences.map(occurrence => occurrence.date)).toContain('2026-10-12');
+  it('counts daily recurrence by calendar day across spring DST', () => {
+    const dates = calendarWeekDates('2026-03-30');
+    const occurrences = buildTaskCalendarOccurrences([
+      {
+        id:'dst-daily.md',
+        title:'DST daily',
+        status:'none',
+        priority:'normal',
+        due:'2026-03-28',
+        recurrent:true,
+        recurrence:'DTSTART:20260328;FREQ=DAILY;INTERVAL=2',
+      },
+    ], dates, '2026-03-30');
+
+    expect(occurrences.map(occurrence => occurrence.date)).toEqual(['2026-03-30', '2026-04-01', '2026-04-03', '2026-04-05']);
+  });
+
+  it('counts daily and weekly recurrence by calendar day across fall and spring DST', () => {
+    const fallDaily = buildTaskCalendarOccurrences([
+      {
+        id:'fall-daily.md', title:'Fall daily', status:'none', priority:'normal', due:'2026-10-24', recurrent:true,
+        recurrence:'DTSTART:20261024;FREQ=DAILY;INTERVAL=2',
+      },
+    ], calendarWeekDates('2026-10-26'), '2026-10-26');
+    const springWeekly = buildTaskCalendarOccurrences([
+      {
+        id:'spring-weekly.md', title:'Spring weekly', status:'none', priority:'normal', due:'2026-03-21', recurrent:true,
+        recurrence:'DTSTART:20260321;FREQ=WEEKLY;INTERVAL=2',
+      },
+    ], calendarWeekDates('2026-03-30'), '2026-03-30');
+    const fallWeekly = buildTaskCalendarOccurrences([
+      {
+        id:'fall-weekly.md', title:'Fall weekly', status:'none', priority:'normal', due:'2026-10-24', recurrent:true,
+        recurrence:'DTSTART:20261024;FREQ=WEEKLY;INTERVAL=2',
+      },
+    ], calendarWeekDates('2026-11-02'), '2026-11-02');
+
+    expect(fallDaily.map(occurrence => occurrence.date)).toContain('2026-10-26');
+    expect(fallDaily.map(occurrence => occurrence.date)).not.toContain('2026-10-27');
+    expect(springWeekly.map(occurrence => occurrence.date)).toContain('2026-04-04');
+    expect(fallWeekly.map(occurrence => occurrence.date)).toContain('2026-11-07');
+    
   });
 
   it('groups occurrences by date for the week view', () => {

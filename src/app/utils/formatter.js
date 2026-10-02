@@ -750,7 +750,11 @@ function parseLocalDate(dateStr) {
 }
 
 function daysBetween(a, b) {
-  return Math.floor((parseLocalDate(b) - parseLocalDate(a)) / 86400000);
+  const start = parseLocalDate(a);
+  const end = parseLocalDate(b);
+  const startDay = Date.UTC(start.getFullYear(), start.getMonth(), start.getDate());
+  const endDay = Date.UTC(end.getFullYear(), end.getMonth(), end.getDate());
+  return (endDay - startDay) / 86400000;
 }
 
 function compactDateToIso(value) {

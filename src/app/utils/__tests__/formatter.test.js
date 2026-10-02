@@ -243,6 +243,18 @@ skipped_instances:
     expect(updated).toMatch(/skipped_instances:\n  - 2026-10-05/);
     expect(updated).toMatch(/complete_instances:\n  - 2026-09-28/);
     expect(updated.match(/complete_instances:\n((?:  - .+\n?)+)/)?.[1]).toBe('  - 2026-09-28\n');
+  it('advances a daily recurring task by calendar days across spring DST', () => {
+    const raw = `---
+title: DST task
+due: 2026-03-28
+recurrence: DTSTART:20260328;FREQ=DAILY;INTERVAL=2
+---
+`;
+
+    const updated = finishRecurrentTaskInstance(raw, '2026-03-28');
+
+    expect(updated).toContain('due: 2026-03-30');
+    
   });
 
   it('updates task metadata while preserving unknown fields and task content', () => {
