@@ -225,6 +225,26 @@ custom: keep me
 });
 
 describe('task date shortcut helpers', () => {
+  it('skips excluded recurrence dates and records only the completed instance', () => {
+    const raw = `---
+title: Weekly task
+due: 2026-09-28
+recurrence: FREQ=WEEKLY;BYDAY=MO;DTSTART=20260928
+skipped_instances:
+  - 2026-10-05
+---
+
+# Weekly task
+`;
+
+    const updated = finishRecurrentTaskInstance(raw, '2026-09-28');
+
+    expect(updated).toContain('due: 2026-10-12');
+    expect(updated).toMatch(/skipped_instances:\n  - 2026-10-05/);
+    expect(updated).toMatch(/complete_instances:\n  - 2026-09-28/);
+    expect(updated.match(/complete_instances:\n((?:  - .+\n?)+)/)?.[1]).toBe('  - 2026-09-28\n');
+  });
+
   it('updates task metadata while preserving unknown fields and task content', () => {
     const raw = `---
 title: Existing task

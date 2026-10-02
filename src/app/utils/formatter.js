@@ -769,12 +769,12 @@ function parseRecurrenceRule(rule = '') {
   return out;
 }
 
-function nextRecurrenceDate(rule, afterDate, completed = []) {
+function nextRecurrenceDate(rule, afterDate, excluded = []) {
   const parts = parseRecurrenceRule(rule);
   const freq = (parts.FREQ || 'WEEKLY').toUpperCase();
   const interval = Number(parts.INTERVAL || 1);
   const dtstart = compactDateToIso(parts.DTSTART) || afterDate;
-  const completedSet = new Set(completed);
+  const excludedSet = new Set(excluded);
   const weekDays = { SU:0, MO:1, TU:2, WE:3, TH:4, FR:5, SA:6 };
   const byDay = (parts.BYDAY || '')
     .split(',')
@@ -785,7 +785,7 @@ function nextRecurrenceDate(rule, afterDate, completed = []) {
 
   for (let i = 1; i <= 3700; i++) {
     const candidate = addDays(afterDate, i);
-    if (candidate < dtstart || completedSet.has(candidate)) continue;
+    if (candidate < dtstart || excludedSet.has(candidate)) continue;
     const candDate = parseLocalDate(candidate);
     const diffDays = daysBetween(dtstart, candidate);
 
@@ -848,8 +848,9 @@ export function finishRecurrentTaskInstance(raw, currentDue, currentScheduled) {
   const recurrence = fm.match(/^recurrence:[ \t]*(.*)$/m)?.[1]?.trim() || '';
   const instanceDate = currentDue || currentScheduled || tod();
   const completed = frontmatterArray(fm, 'complete_instances');
+  const skipped = frontmatterArray(fm, 'skipped_instances');
   const completedNext = completed.includes(instanceDate) ? completed : [...completed, instanceDate];
-  const nextDate = recurrence ? nextRecurrenceDate(recurrence, instanceDate, completedNext) : addDays(instanceDate, 7);
+  const nextDate = recurrence ? nextRecurrenceDate(recurrence, instanceDate, [...completedNext, ...skipped]) : addDays(instanceDate, 7);
 
   fm = upsertFrontmatterArray(fm, 'complete_instances', completedNext);
   fm = frontmatterUpsert(fm, 'due', nextDate);

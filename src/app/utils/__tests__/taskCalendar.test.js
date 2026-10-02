@@ -58,6 +58,23 @@ describe('buildTaskCalendarOccurrences', () => {
     expect(occurrences.every(occurrence => occurrence.recurrent)).toBe(true);
   });
 
+  it('includes the next due date after a skipped recurrence in the calendar', () => {
+    const occurrences = buildTaskCalendarOccurrences([
+      {
+        id:'weekly.md',
+        title:'Weekly task',
+        status:'none',
+        priority:'normal',
+        due:'2026-10-12',
+        recurrent:true,
+        recurrence:'FREQ=WEEKLY;BYDAY=MO;DTSTART=20260928',
+        skippedInstances:['2026-10-05'],
+      },
+    ], calendarWeekDates('2026-10-12'), '2026-10-12');
+
+    expect(occurrences.map(occurrence => occurrence.date)).toContain('2026-10-12');
+  });
+
   it('groups occurrences by date for the week view', () => {
     const grouped = groupTaskCalendarOccurrences(
       buildTaskCalendarOccurrences([
