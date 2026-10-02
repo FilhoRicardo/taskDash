@@ -73,6 +73,7 @@ describe('buildTaskCalendarOccurrences', () => {
     ], calendarWeekDates('2026-10-12'), '2026-10-12');
 
     expect(occurrences.map(occurrence => occurrence.date)).toContain('2026-10-12');
+  });
   it('counts daily recurrence by calendar day across spring DST', () => {
     const dates = calendarWeekDates('2026-03-30');
     const occurrences = buildTaskCalendarOccurrences([
@@ -114,7 +115,44 @@ describe('buildTaskCalendarOccurrences', () => {
     expect(fallDaily.map(occurrence => occurrence.date)).not.toContain('2026-10-27');
     expect(springWeekly.map(occurrence => occurrence.date)).toContain('2026-04-04');
     expect(fallWeekly.map(occurrence => occurrence.date)).toContain('2026-11-07');
-    
+  it('calculates overdue status from each recurring occurrence date', () => {
+    const occurrences = buildTaskCalendarOccurrences([
+      {
+        id:'weekly.md',
+        title:'Weekly review',
+        status:'none',
+        priority:'normal',
+        due:'2026-09-28',
+        recurrent:true,
+        recurrence:'FREQ=WEEKLY;BYDAY=MO',
+      },
+      {
+        id:'daily.md',
+        title:'Daily review',
+        status:'none',
+        priority:'normal',
+        due:'2026-09-30',
+        recurrent:true,
+        recurrence:'FREQ=DAILY',
+      },
+      {
+        id:'ordinary.md',
+        title:'Ordinary task',
+        status:'none',
+        priority:'normal',
+        due:'2026-09-28',
+      },
+    ], ['2026-09-28', '2026-10-01', '2026-10-02', '2026-10-03', '2026-10-05'], '2026-10-02');
+
+    expect(occurrences.map(({ taskId, date, isOverdue }) => [taskId, date, isOverdue])).toEqual([
+      ['ordinary.md', '2026-09-28', true],
+      ['weekly.md', '2026-09-28', true],
+      ['daily.md', '2026-10-01', true],
+      ['daily.md', '2026-10-02', false],
+      ['daily.md', '2026-10-03', false],
+      ['daily.md', '2026-10-05', false],
+      ['weekly.md', '2026-10-05', false],
+    ]);
   });
 
   it('groups occurrences by date for the week view', () => {

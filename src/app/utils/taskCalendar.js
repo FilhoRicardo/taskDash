@@ -125,6 +125,7 @@ export function recurrenceMatches(task, dateStr) {
 
 function isOccurrenceOverdue(task, dateStr, today) {
   if (!today) return false;
+  if (task.recurrent) return dateStr < today;
   const due = cleanIsoDate(task.due);
   return due ? due < today : dateStr < today;
 }
