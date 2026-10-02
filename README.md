@@ -19,3 +19,6 @@ Copy the contents of this folder into an Obsidian vault at:
 
 Then enable **TaskDash 2.2 Preview** in Obsidian’s community plugins settings.
 
+# Development
+
+Use Node.js 22. The build toolchain requires Node.js 22.12 or newer (or 20.19 or newer).
