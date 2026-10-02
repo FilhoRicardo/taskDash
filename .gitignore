@@ -1,0 +1,10 @@
+.DS_Store
+
+# Local/editor state
+.obsidian/
+
+# Build and archive output
+dist/
+build/
+*.zip
+

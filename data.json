@@ -1,0 +1,15 @@
+{
+  "folders": {
+    "tasks": "ObsidianTasks/Tasks",
+    "done": "ObsidianTasks/Archive",
+    "meetings": "4 - Resources/meetings",
+    "projects": "2 - Projects",
+    "properties": "4 - Resources/properties",
+    "clients": "4 - Resources/organizations",
+    "people": "4 - Resources/people",
+    "organizations": "4 - Resources/organizations",
+    "attachments": "4 - Resources/attachments",
+    "daily": "1 - Rough notes"
+  },
+  "enableStatusBarTimer": true
+}
