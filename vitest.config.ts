@@ -2,7 +2,6 @@ import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
-  esbuild: { jsx: 'automatic' },
   resolve: {
     alias: {
       // The 'obsidian' npm package is types-only; tests use a runtime stub.
