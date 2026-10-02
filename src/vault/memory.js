@@ -10,6 +10,7 @@ class VaultOpError extends Error {
 }
 
 const notFound = name => new VaultOpError(`Entry not found: ${name}`, 'NotFoundError');
+const alreadyExists = name => new VaultOpError(`Entry already exists: ${name}`, 'AlreadyExistsError');
 
 class MemoryFileData {
   constructor(name, data, lastModified, type) {
@@ -82,6 +83,12 @@ export class MemoryDirectoryHandle {
       this._files.set(name, { data: '', lastModified: Date.now(), type: '' });
       this._adapter?._notify();
     }
+    return new MemoryFileHandle(this, name);
+  }
+  async createFileHandle(name) {
+    if (this._files.has(name) || this._dirs.has(name)) throw alreadyExists(name);
+    this._files.set(name, { data: '', lastModified: Date.now(), type: '' });
+    this._adapter?._notify();
     return new MemoryFileHandle(this, name);
   }
   async getDirectoryHandle(name, options = {}) {

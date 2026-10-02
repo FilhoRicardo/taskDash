@@ -2458,18 +2458,27 @@ export default function App({ vaultAdapter, onOpenSettings }) {
     const baseName = safeFilename(form.title);
     let filename = `${baseName}.md`;
     let suffix = 2;
-    while (taskHandles[filename]) filename = `${baseName} ${suffix++}.md`;
+    while (taskHandles[filename] || filename.toLowerCase() === 'timetracker.md') filename = `${baseName} ${suffix++}.md`;
     const content  = buildNewTaskMd(form);
-    try {
-      const fh = await dirs.tasks.getFileHandle(filename, { create:true });
-      await writeFile(fh, content, { backup:false });
-      await loadFiles(dirs.tasks, dirs.done);
-      setNewTaskOpen(false);
-      setSel(filename);
-      setToast(`Created "${form.title.trim()}"`);
-    } catch(e) {
-      console.error('create task failed', e);
-      alert('Failed to create task: ' + e.message);
+    while (true) {
+      try {
+        const fh = await dirs.tasks.createFileHandle(filename);
+        await writeFile(fh, content, { backup:false });
+        await loadFiles(dirs.tasks, dirs.done);
+        setNewTaskOpen(false);
+        setSel(filename);
+        setToast(`Created "${form.title.trim()}"`);
+        return;
+      } catch(e) {
+        if (e?.name === 'AlreadyExistsError') {
+          filename = `${baseName} ${suffix++}.md`;
+          while (taskHandles[filename] || filename.toLowerCase() === 'timetracker.md') filename = `${baseName} ${suffix++}.md`;
+          continue;
+        }
+        console.error('create task failed', e);
+        alert('Failed to create task: ' + e.message);
+        return;
+      }
     }
   };
 

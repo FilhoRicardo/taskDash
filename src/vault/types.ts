@@ -36,6 +36,8 @@ export interface VaultDirectoryHandle {
   readonly path?: string;
   entries(): AsyncIterableIterator<[string, VaultFileHandle | VaultDirectoryHandle]>;
   getFileHandle(name: string, options?: { create?: boolean }): Promise<VaultFileHandle>;
+  /** Atomically claim a new file; reject if the name already exists. */
+  createFileHandle(name: string): Promise<VaultFileHandle>;
   getDirectoryHandle(name: string, options?: { create?: boolean }): Promise<VaultDirectoryHandle>;
   removeEntry(name: string, options?: { recursive?: boolean }): Promise<void>;
   queryPermission(options?: unknown): Promise<'granted' | 'denied' | 'prompt'>;

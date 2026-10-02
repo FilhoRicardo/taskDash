@@ -148,12 +148,32 @@ describe('ObsidianVaultAdapter', () => {
   });
 
   it('creates missing files on getFileHandle({create:true}) and throws NotFoundError otherwise', async () => {
+    fake.files.set('Tasks/existing.md', { content: 'preserve existing', mtime: 1 });
     const adapter = makeAdapter(fake);
     const dir = adapter.directoryHandle('Tasks');
     await expect(dir.getFileHandle('missing.md')).rejects.toMatchObject({ name: 'NotFoundError' });
     const handle = await dir.getFileHandle('missing.md', { create: true });
     expect(handle.kind).toBe('file');
     expect(fake.files.has('Tasks/missing.md')).toBe(true);
+    const existing = await dir.getFileHandle('existing.md', { create: true });
+    expect(await (await existing.getFile()).text()).toBe('preserve existing');
+  });
+
+  it('claims new filenames without opening existing files and rejects a claim race', async () => {
+    fake.files.set('Tasks/existing.md', { content: 'keep me', mtime: 1 });
+    const adapter = makeAdapter(fake);
+    const dir = adapter.directoryHandle('Tasks');
+    await expect(dir.createFileHandle('existing.md')).rejects.toMatchObject({ name: 'AlreadyExistsError' });
+    expect(fake.files.get('Tasks/existing.md').content).toBe('keep me');
+
+    const create = fake.app.vault.create;
+    fake.app.vault.create = async (path, content) => {
+      fake.files.set(path, { content: 'external claimant', mtime: 2 });
+      throw new Error('File already exists');
+    };
+    await expect(dir.createFileHandle('raced.md')).rejects.toMatchObject({ name: 'AlreadyExistsError' });
+    expect(fake.files.get('Tasks/raced.md').content).toBe('external claimant');
+    fake.app.vault.create = create;
   });
 
   it('serves getFile() from cache until mtime changes', async () => {

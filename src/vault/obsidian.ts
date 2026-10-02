@@ -20,6 +20,7 @@ class VaultOpError extends Error {
 }
 
 const notFound = (path: string) => new VaultOpError(`Entry not found: ${path}`, 'NotFoundError');
+const alreadyExists = (path: string) => new VaultOpError(`Entry already exists: ${path}`, 'AlreadyExistsError');
 const typeMismatch = (path: string) => new VaultOpError(`Entry has a different kind: ${path}`, 'TypeMismatchError');
 const staleWrite = (path: string) => new VaultOpError(`The note changed before TaskDash could save it: ${path}`, 'StaleWriteError');
 
@@ -166,6 +167,18 @@ export class ObsidianVaultAdapter implements VaultAdapter {
         if (!options?.create) throw notFound(childPath);
         adapter.resolveFolder(path); // parent must exist
         await adapter.obsidian.vault.create(childPath, '');
+        return adapter.fileHandle(childPath);
+      },
+      async createFileHandle(childName: string) {
+        const childPath = joinPath(path, childName);
+        adapter.resolveFolder(path);
+        if (adapter.obsidian.vault.getAbstractFileByPath(childPath)) throw alreadyExists(childPath);
+        try {
+          await adapter.obsidian.vault.create(childPath, '');
+        } catch (error) {
+          if (adapter.obsidian.vault.getAbstractFileByPath(childPath)) throw alreadyExists(childPath);
+          throw error;
+        }
         return adapter.fileHandle(childPath);
       },
       async getDirectoryHandle(childName: string, options?: { create?: boolean }) {
