@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isProjectFileName, parseDailyNote, parseMeeting, parseOrganization, parseProject, parseProperty, parseTask, readDirNames, readMdFiles } from '../parser.js';
+import { isProjectFileName, parseDailyNote, parseFrontmatter, parseMeeting, parseOrganization, parseProject, parseProperty, parseTask, readDirNames, readMdFiles } from '../parser.js';
 
 describe('parseTask', () => {
   it('reads CRLF TaskNotes frontmatter the same as LF frontmatter', () => {
@@ -8,6 +8,19 @@ describe('parseTask', () => {
 
     const parsed = parseTask('Example.md', crlf);
     expect({ ...parsed, raw: parsed.raw.replace(/\r\n/g, '\n') }).toEqual(parseTask('Example.md', lf));
+  it('decodes quoted scalars and list entries', () => {
+    const parsed = parseFrontmatter(`---
+double: "Say \\"hello\\" at C:\\\\temp"
+single: 'It''s fine'
+items:
+  - "C:\\\\temp"
+  - 'It''s fine'
+---`);
+
+    expect(parsed.double).toBe('Say "hello" at C:\\temp');
+    expect(parsed.single).toBe("It's fine");
+    expect(parsed.items).toEqual(['C:\\temp', "It's fine"]);
+    
   });
 
   it('reads TaskNotes frontmatter, checklist, dates, links, recurrence, and logs', () => {

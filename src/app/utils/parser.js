@@ -1,18 +1,26 @@
+function decodeQuoted(value) {
+  if (value[0] === '"' && value.at(-1) === '"') {
+    try { return JSON.parse(value); } catch { return value.slice(1, -1); }
+  }
+  if (value[0] === "'" && value.at(-1) === "'") return value.slice(1, -1).replace(/''/g, "'");
+  return value;
+}
+
 export function parseFrontmatter(txt) {
   const m = txt.match(/^---\r?\n([\s\S]*?)\r?\n---/);
   if (!m) return {};
   const res = {}; let key = null;
   for (const line of m[1].split(/\r?\n/)) {
     if (/^\s*-\s+/.test(line)) {
-      const v = line.replace(/^\s*-\s+/, '').trim().replace(/^["']|["']$/g, '');
+      const v = decodeQuoted(line.replace(/^\s*-\s+/, '').trim());
       if (key && Array.isArray(res[key])) res[key].push(v);
     } else {
       const kv = line.match(/^(\w+):\s*(.*)/);
       if (!kv) continue;
       key = kv[1]; const raw = kv[2].trim();
       if (!raw) res[key] = [];
-      else if (raw[0] === '[') res[key] = raw.slice(1,-1).split(',').map(s => s.trim().replace(/^["']|["']$/g, ''));
-      else res[key] = raw.replace(/^["']|["']$/g, '');
+      else if (raw[0] === '[') res[key] = raw.slice(1,-1).split(',').map(s => decodeQuoted(s.trim()));
+      else res[key] = decodeQuoted(raw);
     }
   }
   return res;

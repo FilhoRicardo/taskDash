@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { finishRecurrentTaskInstance, markTaskDone, setPropertyCover, touchDateModified, updateTaskDates, updateTaskMetadata, updateTaskThreadSubject, appendNoteToMd } from '../formatter.js';
+import { markTaskDone, updateTaskDates, appendNoteToMd, updateTaskThreadSubject } from '../formatter.js';
+import { parseTask } from '../parser.js';
+ 
 
 // Markdown safety: mutations must be surgical. Unknown frontmatter fields and
 // user-written content survive a parse → edit → write round-trip untouched.
@@ -104,5 +107,17 @@ describe('markdown round-trip safety', () => {
     expect(updated.startsWith(RAW.slice(0, RAW.indexOf('### ')))).toBe(true);
     expect(updated).toContain('new log entry');
     expect(updated).toContain('Log: kicked off');
+  });
+
+  it('round-trips a thread subject containing quotes and Windows paths', () => {
+    const subject = 'Say "hello" at C:\\temp';
+    const original = `---\ntitle: Example\n---\n# Example\n`;
+    const updated = updateTaskThreadSubject(original, subject);
+
+    expect(parseTask('Example.md', updated).threadSubject).toBe(subject);
+
+    const rewritten = updateTaskThreadSubject(updated, parseTask('Example.md', updated).threadSubject);
+    expect(parseTask('Example.md', rewritten).threadSubject).toBe(subject);
+    expect(rewritten).toContain('# Example');
   });
 });
