@@ -72,10 +72,27 @@ export class PluginSettingTab {
 }
 
 export class Setting {
-  setName() { return this; }
+  constructor(containerEl) {
+    this.containerEl = containerEl;
+  }
+  setName(name) { this.name = name; return this; }
   setDesc() { return this; }
   setHeading() { return this; }
-  addText() { return this; }
+  addText(build) {
+    const setting = this;
+    const text = {
+      inputEl: document.createElement('input'),
+      setPlaceholder() { return text; },
+      setValue(value) { text.inputEl.value = value; return text; },
+      onChange(callback) {
+        setting.containerEl.__settingCallbacks ??= new Map();
+        setting.containerEl.__settingCallbacks.set(setting.name, callback);
+        return text;
+      },
+    };
+    build(text);
+    return this;
+  }
   addToggle() { return this; }
 }
 

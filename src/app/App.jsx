@@ -2158,10 +2158,6 @@ export default function App({ vaultAdapter, onOpenSettings }) {
 
   const forceSyncAll = async () => {
     if (syncBusy) return;
-    if (!Object.keys(dirs).length) {
-      alert('Configure folders first.');
-      return;
-    }
     setSyncBusy(true);
     setNeedsRefresh(false);
     setFilt('all');
@@ -2170,7 +2166,15 @@ export default function App({ vaultAdapter, onOpenSettings }) {
     setPropertySearch('');
     setPeopleSearch('');
     try {
-      await loadAll(dirs);
+      const liveDirs = await vaultAdapter.getDirectories();
+      const removedKeys = Object.keys(dirs).filter(key => !liveDirs[key]);
+      if (removedKeys.length) clearUnavailableFolderData(removedKeys);
+      setDirs(liveDirs);
+      if (!Object.keys(liveDirs).length) {
+        alert('Configure folders first.');
+        return;
+      }
+      await loadAll(liveDirs);
       setWriteBackups((await idbGet(WRITE_BACKUPS_KEY)) || []);
       setToast('Force sync complete');
     } catch(e) {
