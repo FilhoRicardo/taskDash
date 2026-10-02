@@ -658,4 +658,72 @@ describe('TaskDash plugin end-to-end', () => {
 
     await view.onClose();
   });
+
+  it('keeps an unsaved task draft selected while starting Quick Track timers', async () => {
+    const app = makeFakeApp();
+    app.__folders.add('Tasks');
+    app.__files.set('Tasks/ship-it.md', { content:TASK_MD, mtime:1 });
+    app.__files.set('Tasks/review.md', { content:SECOND_TASK_MD, mtime:2 });
+    app.__pluginData = { folders:{ tasks:'Tasks' }, enableStatusBarTimer:true };
+
+    const plugin = new TaskDashPlugin(app, { id:'taskdash-2-2', version:'2.2.0' });
+    await plugin.onload();
+    const view = app.__viewFactories[TASKDASH_VIEW_TYPE]({});
+    view.app = app;
+    await view.onOpen();
+
+    expect(await waitFor(() => view.contentEl.querySelectorAll('.td-task-list-row').length === 2)).toBe(true);
+    [...view.contentEl.querySelectorAll('.td-task-list-row')]
+      .find(row => row.textContent.includes('Ship the integration test'))
+      .dispatchEvent(new MouseEvent('click', { bubbles:true, cancelable:true }));
+
+    expect(await waitFor(() => view.contentEl.querySelector('.td-task-inspector input[placeholder="work, phone"]'))).toBe(true);
+    const contexts = view.contentEl.querySelector('.td-task-inspector input[placeholder="work, phone"]');
+    const valueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
+    valueSetter.call(contexts, 'unsaved audit');
+    contexts.dispatchEvent(new Event('input', { bubbles:true }));
+
+    [...view.contentEl.querySelectorAll('button')]
+      .find(button => button.textContent === 'Start')
+      .dispatchEvent(new MouseEvent('click', { bubbles:true, cancelable:true }));
+    expect(await waitFor(() => [...view.contentEl.querySelectorAll('button')]
+      .some(button => button.textContent === 'Stop'), 1000)).toBe(true);
+    expect(view.contentEl.querySelector('.td-task-inspector input[placeholder="work, phone"]').value).toBe('unsaved audit');
+    [...view.contentEl.querySelectorAll('button')]
+      .find(button => button.textContent === 'Stop')
+      .dispatchEvent(new MouseEvent('click', { bubbles:true, cancelable:true }));
+    expect(await waitFor(() => [...view.contentEl.querySelectorAll('button')]
+      .some(button => button.textContent === 'Start'), 1000)).toBe(true);
+
+    [...view.contentEl.querySelectorAll('button')]
+      .find(button => button.textContent.includes('Quick Track'))
+      .dispatchEvent(new MouseEvent('click', { bubbles:true, cancelable:true }));
+    expect(await waitFor(() => view.contentEl.textContent.includes('Email'))).toBe(true);
+    const email = [...view.contentEl.querySelectorAll('button')]
+      .find(button => button.textContent === 'Start' && button.parentElement.textContent.includes('Email'));
+    expect(email).toBeTruthy();
+    email.dispatchEvent(new MouseEvent('click', { bubbles:true, cancelable:true }));
+
+    expect(await waitFor(() => view.contentEl.textContent.includes('Email') && view.contentEl.textContent.includes('LIVE'), 1000)).toBe(true);
+    expect(view.contentEl.querySelector('.td-task-inspector input[placeholder="work, phone"]')?.value).toBe('unsaved audit');
+
+    [...view.contentEl.querySelectorAll('button')]
+      .find(button => button.textContent === 'Stop' && button.parentElement.parentElement.textContent.includes('Email'))
+      .dispatchEvent(new MouseEvent('click', { bubbles:true, cancelable:true }));
+    expect(await waitFor(() => !view.contentEl.textContent.includes('LIVE'), 1000)).toBe(true);
+    [...view.contentEl.querySelectorAll('button')]
+      .find(button => button.textContent.includes('+ Ad-hoc task'))
+      .dispatchEvent(new MouseEvent('click', { bubbles:true, cancelable:true }));
+    expect(await waitFor(() => view.contentEl.querySelector('input[placeholder="e.g. Proposal draft…"]'))).toBe(true);
+    const adHocInput = view.contentEl.querySelector('input[placeholder="e.g. Proposal draft…"]');
+    valueSetter.call(adHocInput, 'Audit follow-up');
+    adHocInput.dispatchEvent(new Event('input', { bubbles:true }));
+    adHocInput.parentElement.querySelector('button')
+      .dispatchEvent(new MouseEvent('click', { bubbles:true, cancelable:true }));
+
+    expect(await waitFor(() => view.contentEl.textContent.includes('Audit follow-up') && view.contentEl.textContent.includes('LIVE'), 1000)).toBe(true);
+    expect(view.contentEl.querySelector('.td-task-inspector input[placeholder="work, phone"]').value).toBe('unsaved audit');
+
+    await view.onClose();
+  }, 15000);
 });

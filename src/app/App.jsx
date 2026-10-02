@@ -2363,8 +2363,10 @@ export default function App({ vaultAdapter, onOpenSettings }) {
   const start = useCallback(async (id) => {
     if (timer && !(await stop())) return;
     const at = { taskId:id, start:Date.now() };
-    setTimer(at); setSel(id); lsSet('activeTimer', at);
-  }, [timer, stop]);
+    setTimer(at);
+    if (tasks.some(task => task.id === id)) setSel(id);
+    lsSet('activeTimer', at);
+  }, [timer, stop, tasks]);
 
   const startMeeting = useCallback(async () => {
     if (!dirs.meetings) {
