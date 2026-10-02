@@ -1,5 +1,8 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { TARGET_WORK_MINUTES, dashboardStats, workStats } from '../timeClock.js';
+import { parseDailyNote } from '../parser.js';
+
+afterEach(() => vi.useRealTimers());
 
 describe('workStats', () => {
   it('subtracts completed breaks from a daily time clock', () => {
@@ -16,8 +19,47 @@ describe('workStats', () => {
     expect(stats.breakMinutes).toBe(30);
   });
 
+  it('sums separate clocked-in sessions without counting the gap', () => {
+    const stats = workStats({
+      timeClock: [
+        { time:'09:00', event:'Clock in' },
+        { time:'12:00', event:'Clock out' },
+        { time:'13:00', event:'Clock in' },
+        { time:'17:00', event:'Clock out' },
+      ],
+    });
+
+    expect(stats.totalMinutes).toBe(420);
+  });
+
+  it('counts an incomplete trailing session through the current time', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 4, 18, 14, 0));
+
+    const stats = workStats({
+      timeClock: [
+        { time:'09:00', event:'Clock in' },
+        { time:'12:00', event:'Clock out' },
+        { time:'13:00', event:'Clock in' },
+      ],
+    });
+
+    expect(stats.totalMinutes).toBe(240);
+    expect(stats.complete).toBe(false);
+  });
+
   it('credits non-workday statuses at the daily target', () => {
     expect(workStats({ workStatus:'holiday' }).totalMinutes).toBe(TARGET_WORK_MINUTES);
+  });
+
+  it('calculates separate sessions from a parsed daily note', () => {
+    const note = parseDailyNote('2026-05-18.md', [
+      '---', 'date: 2026-05-18', '---', '# Monday', '', '## Time Clock', '',
+      '| Time | Event |', '| --- | --- |', '| 09:00 | Clock in |',
+      '| 12:00 | Clock out |', '| 13:00 | Clock in |', '| 17:00 | Clock out |',
+    ].join('\n'));
+
+    expect(workStats(note).totalMinutes).toBe(420);
   });
 });
 

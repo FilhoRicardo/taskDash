@@ -41,28 +41,44 @@ export function workStats(note) {
   const status = note?.workStatus || 'workday';
   const clockIn = rows.find(row => row.event === 'Clock in')?.minutes;
   const clockOut = [...rows].reverse().find(row => row.event === 'Clock out')?.minutes;
+  let sessionStart = null;
+  let sessionBreakMinutes = 0;
   let breakStart = null;
   let breakMinutes = 0;
+  let totalMinutes = 0;
 
   for (const row of rows) {
-    if (row.event === 'Break start') breakStart = row.minutes;
+    if (row.event === 'Clock in' && sessionStart === null) {
+      sessionStart = row.minutes;
+      sessionBreakMinutes = 0;
+    }
+    if (row.event === 'Break start' && sessionStart !== null) breakStart = row.minutes;
     if (row.event === 'Break finish' && breakStart !== null && row.minutes > breakStart) {
-      breakMinutes += row.minutes - breakStart;
+      const duration = row.minutes - breakStart;
+      breakMinutes += duration;
+      sessionBreakMinutes += duration;
       breakStart = null;
+    }
+    if (row.event === 'Clock out' && sessionStart !== null && row.minutes > sessionStart) {
+      totalMinutes += row.minutes - sessionStart - sessionBreakMinutes;
+      sessionStart = null;
     }
   }
 
   const creditedDay = status !== 'workday';
-  const totalMinutes = creditedDay ? TARGET_WORK_MINUTES : clockIn !== undefined && clockOut !== undefined && clockOut > clockIn
-    ? Math.max(0, clockOut - clockIn - breakMinutes)
-    : 0;
+  if (sessionStart !== null) {
+    const now = new Date();
+    const currentMinutes = now.getHours() * 60 + now.getMinutes();
+    if (currentMinutes > sessionStart) totalMinutes += currentMinutes - sessionStart - sessionBreakMinutes;
+  }
+  totalMinutes = creditedDay ? TARGET_WORK_MINUTES : Math.max(0, totalMinutes);
 
   return {
     totalMinutes,
     breakMinutes,
     status,
     label: WORK_STATUS_LABELS[status] || WORK_STATUS_LABELS.workday,
-    complete: creditedDay || (clockIn !== undefined && clockOut !== undefined),
+    complete: creditedDay || (sessionStart === null && clockIn !== undefined && clockOut !== undefined),
     creditedDay,
   };
 }
