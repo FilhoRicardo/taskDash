@@ -760,7 +760,8 @@ function compactDateToIso(value) {
 
 function parseRecurrenceRule(rule = '') {
   const out = {};
-  rule.split(';').forEach(part => {
+  const normalizedRule = String(rule).trim().replace(/^['"]|['"]$/g, '').replace(/^RRULE:/i, '');
+  normalizedRule.split(';').forEach(part => {
     const sep = part.includes(':') ? ':' : '=';
     const [key, ...rest] = part.split(sep);
     if (key) out[key.trim().toUpperCase()] = rest.join(sep).trim();

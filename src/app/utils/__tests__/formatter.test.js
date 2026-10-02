@@ -11,6 +11,7 @@ import {
   replaceDailyTimeClockRows,
   setPropertyCover,
   touchDateModified,
+  finishRecurrentTaskInstance,
   updateCommentLog,
   updateTaskMetadata,
   updateTaskThreadSubject,
@@ -93,6 +94,30 @@ filters:
     expect(updated).toContain('| 17:30 | Clock out |');
     expect(updated).toContain('## Notes\n\n- Existing note');
   });
+});
+
+describe('recurrent task completion', () => {
+  it.each([
+    ['FREQ=DAILY'],
+    ['RRULE:FREQ=DAILY'],
+    ['"FREQ=DAILY"'],
+  ])('advances a daily recurrence written as %s by one day', recurrence => {
+    const raw = `---\ntitle: Daily task\ndue: 2026-10-01\nrecurrence: ${recurrence}\n---\n`;
+
+    const updated = finishRecurrentTaskInstance(raw, '2026-10-01');
+
+    expect(updated).toContain('due: 2026-10-02');
+  });
+
+  it.each(['DTSTART:20261001', 'DTSTART=20261001'])(
+    'keeps DTSTART values using %s syntax working', dtstart => {
+      const raw = `---\ntitle: Daily task\ndue: 2026-10-01\nrecurrence: FREQ=DAILY;${dtstart}\n---\n`;
+
+      const updated = finishRecurrentTaskInstance(raw, '2026-10-01');
+
+      expect(updated).toContain('due: 2026-10-02');
+    },
+  );
 });
 
 describe('comment log mutation helpers', () => {
