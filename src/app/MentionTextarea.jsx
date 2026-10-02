@@ -130,7 +130,7 @@ export default function MentionTextarea({ textareaRef, onChange, onKeyDown, onBl
         onChange={(e) => { onChange?.(e); requestAnimationFrame(() => syncMenu(taRef.current)); }}
         onKeyDown={handleKeyDown}
         onClick={() => syncMenu(taRef.current)}
-        onBlur={(e) => { setTimeout(closeMenu, 120); onBlur?.(e); }}
+        onBlur={(e) => { setTimeout(() => { if (!document.querySelector('.taskdash-mention-menu')?.contains(document.activeElement)) closeMenu(); }, 120); onBlur?.(e); }}
       />
       {menu && matches.length > 0 && createPortal(
         <div className="taskdash-mention-menu" style={{ top: menu.top, left: Math.max(8, menu.left), width: MENU_WIDTH, maxHeight: MENU_MAX_HEIGHT }}>
@@ -142,7 +142,8 @@ export default function MentionTextarea({ textareaRef, onChange, onKeyDown, onBl
                 key={`${option.type}:${option.label}`}
                 type="button"
                 className={`taskdash-mention-item${index === active ? ' active' : ''}`}
-                onMouseDown={(e) => { e.preventDefault(); pick(option); }}
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => pick(option)}
                 onMouseEnter={() => setActive(index)}
               >
                 <span className="taskdash-mention-item-label">{option.label}</span>

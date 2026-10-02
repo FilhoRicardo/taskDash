@@ -1466,8 +1466,8 @@ function ComboInput({ value, onChange, options = [], placeholder }) {
   useEffect(() => { setInput(value || ''); }, [value]);
 
   return (
-    <div style={{ position:'relative' }}>
-      <input value={input} role="combobox" aria-expanded={open} aria-controls={listId} aria-autocomplete="list" onFocus={()=>setOpen(true)} onChange={e=>{ setInput(e.target.value); onChange(e.target.value); setActiveIndex(0); setOpen(true); }} onKeyDown={event=>{
+    <div style={{ position:'relative' }} onBlur={event=>{ if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false); }}>
+      <input value={input} role="combobox" aria-expanded={open} aria-controls={listId} aria-activedescendant={open && filtered.length ? `${listId}-option-${activeIndex}` : undefined} aria-autocomplete="list" onFocus={()=>setOpen(true)} onChange={e=>{ setInput(e.target.value); onChange(e.target.value); setActiveIndex(0); setOpen(true); }} onKeyDown={event=>{
         if (!filtered.length) return;
         if (event.key === 'ArrowDown') { event.preventDefault(); setOpen(true); setActiveIndex(index => Math.min(index + 1, filtered.length - 1)); }
         else if (event.key === 'ArrowUp') { event.preventDefault(); setOpen(true); setActiveIndex(index => Math.max(index - 1, 0)); }
@@ -1478,7 +1478,7 @@ function ComboInput({ value, onChange, options = [], placeholder }) {
       {open && filtered.length > 0 && (
         <div id={listId} role="listbox" style={{ position:'absolute', top:'calc(100% + 4px)', left:0, right:0, zIndex:80, maxHeight:280, overflowY:'auto', padding:4, borderRadius:9, background:'#f7faf8', border:'1px solid rgba(255,255,255,0.68)', boxShadow:'0 12px 30px rgba(20,40,30,0.14)' }}>
           {filtered.map((option,index) => (
-            <button key={option} type="button" role="option" aria-selected={index === activeIndex} onMouseDown={e=>{ e.preventDefault(); setInput(option); onChange(option); setOpen(false); }}
+            <button key={option} id={`${listId}-option-${index}`} type="button" role="option" aria-selected={index === activeIndex} onMouseDown={e=>e.preventDefault()} onClick={()=>{ setInput(option); onChange(option); setOpen(false); }}
               style={{ width:'100%', textAlign:'left', padding:'7px 9px', borderRadius:7, border:'none', background:index === activeIndex ? BRAND_SURFACE : 'transparent', color:'#222a25', cursor:'pointer', fontSize:12, fontFamily:'inherit' }}>
               {option}
             </button>
@@ -1498,8 +1498,8 @@ function SelectInput({ value, onChange, options = [] }) {
   const choose = option => { onChange(option.value); setOpen(false); };
 
   return (
-    <div style={{ position:'relative' }}>
-      <button type="button" role="combobox" aria-haspopup="listbox" aria-expanded={open} aria-controls={listId} onClick={()=>{ setActiveIndex(selectedIndex); setOpen(prev => !prev); }} onKeyDown={event=>{
+    <div style={{ position:'relative' }} onBlur={event=>{ if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false); }}>
+      <button type="button" role="combobox" aria-haspopup="listbox" aria-expanded={open} aria-controls={listId} aria-activedescendant={open ? `${listId}-option-${activeIndex}` : undefined} onClick={()=>{ setActiveIndex(selectedIndex); setOpen(prev => !prev); }} onKeyDown={event=>{
         if (!options.length) return;
         if (event.key === 'ArrowDown') { event.preventDefault(); setOpen(true); setActiveIndex(index => Math.min(index + 1, options.length - 1)); }
         else if (event.key === 'ArrowUp') { event.preventDefault(); setOpen(true); setActiveIndex(index => Math.max(index - 1, 0)); }
@@ -1517,7 +1517,7 @@ function SelectInput({ value, onChange, options = [] }) {
           {options.map((option,index) => {
             const active = option.value === value;
             return (
-              <button key={option.value} type="button" role="option" aria-selected={active} onMouseEnter={()=>setActiveIndex(index)} onMouseDown={e=>{ e.preventDefault(); choose(option); }}
+              <button key={option.value} id={`${listId}-option-${index}`} type="button" role="option" aria-selected={active} onMouseEnter={()=>setActiveIndex(index)} onMouseDown={e=>e.preventDefault()} onClick={()=>choose(option)}
                 style={{ width:'100%', textAlign:'left', padding:'8px 9px', borderRadius:7, border:'none', background:index === activeIndex ? BRAND_SURFACE : 'transparent', color:active ? BRAND_TEXT : '#222a25', cursor:'pointer', fontSize:12, fontWeight:active ? 800 : 600, fontFamily:'inherit' }}>
                 {option.label}
               </button>
@@ -1549,7 +1549,7 @@ function ChipMulti({ value, onChange, options, placeholder }) {
     setOpen(false);
   };
   return (
-    <div style={{ position:'relative' }}>
+    <div style={{ position:'relative' }} onBlur={event=>{ if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false); }}>
     <div style={{ ...inputBase, display:'flex', flexWrap:'wrap', gap:5, padding:'5px 6px' }}>
       {value.map(p => (
         <span key={p} style={{ fontSize:11, fontWeight:600, padding:'3px 8px', borderRadius:14, background:BRAND_SURFACE_STRONG, color:BRAND_TEXT, display:'inline-flex', alignItems:'center', gap:5 }}>
@@ -1557,7 +1557,7 @@ function ChipMulti({ value, onChange, options, placeholder }) {
           <button type="button" onClick={() => onChange(value.filter(x => x !== p))} style={{ background:'none', border:'none', color:BRAND_TEXT, cursor:'pointer', fontSize:14, lineHeight:1, padding:0 }}>×</button>
         </span>
       ))}
-      <input value={input} role="combobox" aria-expanded={open} aria-controls={listId} aria-autocomplete="list" onFocus={()=>setOpen(true)} onChange={e=>{ setInput(e.target.value); setActiveIndex(0); setOpen(true); }}
+      <input value={input} role="combobox" aria-expanded={open} aria-controls={listId} aria-activedescendant={open && filtered.length ? `${listId}-option-${activeIndex}` : undefined} aria-autocomplete="list" onFocus={()=>setOpen(true)} onChange={e=>{ setInput(e.target.value); setActiveIndex(0); setOpen(true); }}
         onKeyDown={e=>{
           if (e.key === 'ArrowDown' && filtered.length) { e.preventDefault(); setOpen(true); setActiveIndex(index => Math.min(index + 1, filtered.length - 1)); }
           else if (e.key === 'ArrowUp' && filtered.length) { e.preventDefault(); setOpen(true); setActiveIndex(index => Math.max(index - 1, 0)); }
@@ -1565,14 +1565,14 @@ function ChipMulti({ value, onChange, options, placeholder }) {
           else if (e.key === 'Escape' && open && filtered.length) { e.preventDefault(); e.stopPropagation(); setOpen(false); }
           else if (e.key === 'Backspace'&&!input&&value.length){onChange(value.slice(0,-1));}
         }}
-        onBlur={()=>setTimeout(()=>{ setOpen(false); add(); }, 120)}
+        onBlur={e=>{ if (!e.currentTarget.parentElement.parentElement.contains(e.relatedTarget)) setTimeout(()=>{ setOpen(false); add(); }, 120); }}
         placeholder={placeholder||'Type and press Enter'}
         style={{ flex:1, minWidth:120, background:'transparent', border:'none', color:'#222a25', fontSize:13, outline:'none', fontFamily:'inherit', padding:'4px' }}/>
     </div>
     {open && filtered.length > 0 && (
       <div id={listId} role="listbox" style={{ position:'absolute', top:'calc(100% + 4px)', left:0, right:0, zIndex:80, maxHeight:280, overflowY:'auto', padding:4, borderRadius:9, background:'#f7faf8', border:'1px solid rgba(255,255,255,0.68)', boxShadow:'0 12px 30px rgba(20,40,30,0.14)' }}>
         {filtered.map((option,index) => (
-          <button key={option} type="button" role="option" aria-selected={index === activeIndex} onMouseEnter={()=>setActiveIndex(index)} onMouseDown={e=>{ e.preventDefault(); addOption(option); }}
+          <button key={option} id={`${listId}-option-${index}`} type="button" role="option" aria-selected={index === activeIndex} onMouseEnter={()=>setActiveIndex(index)} onMouseDown={e=>e.preventDefault()} onClick={()=>addOption(option)}
             style={{ width:'100%', textAlign:'left', padding:'7px 9px', borderRadius:7, border:'none', background:index === activeIndex ? BRAND_SURFACE : 'transparent', color:'#222a25', cursor:'pointer', fontSize:12, fontFamily:'inherit' }}>
             {option}
           </button>
