@@ -280,12 +280,16 @@ function setFrontmatterValue(raw, key, value) {
   return frontmatter.write(nextFm);
 }
 
-function timeClockSection(rows = []) {
+function timeClockTable(rows = []) {
   const body = rows
     .filter(row => row?.time && row?.event)
     .map(row => `| ${row.time} | ${row.event} |`)
     .join('\n');
-  return `## Time Clock\n\n| Time | Event |\n| --- | --- |\n${body ? `${body}\n` : ''}\n---\n\n`;
+  return `| Time | Event |\n| --- | --- |\n${body ? `${body}\n` : ''}`;
+}
+
+function timeClockSection(rows = []) {
+  return `## Time Clock\n\n${timeClockTable(rows)}\n---\n\n`;
 }
 
 export function setDailyWorkStatus(raw, status) {
@@ -307,12 +311,22 @@ export function replaceDailyTimeClockRows(raw, rows = []) {
     return `${raw.trimEnd()}\n\n${section}`;
   }
 
-  const start = match.index + match[1].length;
   const bodyStart = match.index + match[0].length;
   const rest = raw.slice(bodyStart);
   const next = rest.search(/\n##\s+/);
   const end = next === -1 ? raw.length : bodyStart + next;
-  return raw.slice(0, start) + section + raw.slice(end).replace(/^\n+/, '');
+  const body = raw.slice(bodyStart, end);
+  const tableRx = /^[ \t]*\|.*\|[ \t]*(?:\n|$)(?:^[ \t]*\|.*\|[ \t]*(?:\n|$))*/m;
+  const tableMatch = tableRx.exec(body);
+  const table = timeClockTable(rows);
+
+  if (tableMatch) {
+    const tableStart = bodyStart + tableMatch.index;
+    const tableEnd = tableStart + tableMatch[0].length;
+    return raw.slice(0, tableStart) + table + raw.slice(tableEnd);
+  }
+
+  return raw.slice(0, bodyStart) + `\n\n${table}` + raw.slice(bodyStart);
 }
 
 export function appendDailyTimeClockEvent(raw, event, date = new Date()) {

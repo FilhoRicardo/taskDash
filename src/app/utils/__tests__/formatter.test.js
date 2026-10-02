@@ -94,6 +94,27 @@ filters:
     expect(updated).toContain('| 17:30 | Clock out |');
     expect(updated).toContain('## Notes\n\n- Existing note');
   });
+
+  it('replaces only the time clock table and preserves surrounding section content byte-for-byte', () => {
+    const before = '## Time Clock\n\nIntro stays\n\n';
+    const after = '\n### Explanation\n\nKeep this paragraph inside Time Clock\n\n---\n\n## Notes\n\n- Existing note\n';
+    const raw = `${before}| Time | Event |\n| --- | --- |\n| 09:00 | Clock in |${after}`;
+
+    const updated = replaceDailyTimeClockRows(raw, [
+      { time: '09:15', event: 'Clock in' },
+      { time: '17:30', event: 'Clock out' },
+    ]);
+
+    expect(updated).toBe(`${before}| Time | Event |\n| --- | --- |\n| 09:15 | Clock in |\n| 17:30 | Clock out |${after}`);
+  });
+
+  it('repairs a malformed time clock table without replacing prose or subsections', () => {
+    const raw = `# Day\n\n## Time Clock\n\nKeep this explanation.\n\n| broken clock data |\n\n### Explanation\n\nKeep this paragraph too.\n\n## Notes\n\n- Existing note\n`;
+
+    const updated = replaceDailyTimeClockRows(raw, [{ time: '09:15', event: 'Clock in' }]);
+
+    expect(updated).toBe(`# Day\n\n## Time Clock\n\nKeep this explanation.\n\n| Time | Event |\n| --- | --- |\n| 09:15 | Clock in |\n\n### Explanation\n\nKeep this paragraph too.\n\n## Notes\n\n- Existing note\n`);
+  });
 });
 
 describe('recurrent task completion', () => {

@@ -150,6 +150,10 @@ waitingfor:
 # Follow up with Jane
 `;
 
+const today = new Date();
+const TODAY_DATE = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+const DAILY_NOTE_MD = `# Daily note\n\n## Time Clock\n\n| Time | Event |\n| --- | --- |\n| 08:30 | Clock in |\n| 17:00 | Clock out |\n\n### Explanation\n\nKeep this paragraph inside Time Clock.\n\n---\n\n## Notes\n\n- Existing note\n`;
+
 async function waitFor(predicate, timeoutMs = 5000) {
   const startedAt = Date.now();
   while (Date.now() - startedAt < timeoutMs) {
@@ -217,6 +221,48 @@ describe('TaskDash plugin end-to-end', () => {
     // Clean unmount.
     await view.onClose();
     expect(view.contentEl.textContent).toBe('');
+  });
+
+  it('saves Hours edits through the fake vault without losing daily note prose', async () => {
+    const app = makeFakeApp();
+    app.__folders.add('Tasks');
+    app.__folders.add('Daily');
+    app.__files.set(`Daily/${TODAY_DATE}.md`, { content:DAILY_NOTE_MD, mtime:1 });
+    app.__pluginData = {
+      folders: { tasks:'Tasks', daily:'Daily' },
+      enableStatusBarTimer: true,
+    };
+
+    const plugin = new TaskDashPlugin(app, { id:'taskdash-2-2', version:'2.2.0' });
+    await plugin.onload();
+    const view = app.__viewFactories[TASKDASH_VIEW_TYPE]({});
+    view.app = app;
+    await view.onOpen();
+    expect(await waitFor(() => view.contentEl.querySelector('.shell'))).toBe(true);
+
+    view.contentEl.querySelector('button[aria-label="Hours"]')
+      .dispatchEvent(new MouseEvent('click', { bubbles:true, cancelable:true }));
+    expect(await waitFor(() => [...view.contentEl.querySelectorAll('button')]
+      .some(button => button.textContent === 'Save hours'))).toBe(true);
+
+    const clockOut = [...view.contentEl.querySelectorAll('input[type="time"]')]
+      .find(input => input.value === '17:00');
+    const timeSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
+    timeSetter.call(clockOut, '17:15');
+    clockOut.dispatchEvent(new Event('input', { bubbles:true }));
+    clockOut.dispatchEvent(new Event('change', { bubbles:true }));
+
+    [...view.contentEl.querySelectorAll('button')]
+      .find(button => button.textContent === 'Save hours')
+      .dispatchEvent(new MouseEvent('click', { bubbles:true, cancelable:true }));
+
+    const readBack = await waitFor(() => app.__files.get(`Daily/${TODAY_DATE}.md`).content.includes('| 17:15 | Clock out |'));
+    expect(readBack).toBe(true);
+    const savedNote = app.__files.get(`Daily/${TODAY_DATE}.md`).content;
+    expect(savedNote).toContain('### Explanation\n\nKeep this paragraph inside Time Clock.');
+    expect(savedNote).toContain('## Notes\n\n- Existing note');
+
+    await view.onClose();
   });
 
   it('keeps Brain Dump out of work and exposes Review and Waiting as separate native queues', async () => {
