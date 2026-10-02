@@ -603,12 +603,36 @@ describe('TaskDash plugin end-to-end', () => {
       .some(button => button.textContent === 'Properties'))).toBe(true);
     expect(view.contentEl.querySelector('.td-task-inspector')).toBeNull();
 
-    [...view.contentEl.querySelectorAll('button')]
-      .find(button => button.textContent === 'Properties')
-      .dispatchEvent(new MouseEvent('click', { bubbles:true, cancelable:true }));
+    const propertiesButton = [...view.contentEl.querySelectorAll('button')]
+      .find(button => button.textContent === 'Properties');
+    propertiesButton.focus();
+    propertiesButton.dispatchEvent(new MouseEvent('click', { bubbles:true, cancelable:true }));
 
     expect(await waitFor(() => !!view.contentEl.querySelector('.td-metadata-dialog'))).toBe(true);
     expect(view.contentEl.querySelector('.td-metadata-dialog').textContent).toContain('Ship the integration test');
+    expect(view.contentEl.querySelector('.td-metadata-dialog').contains(document.activeElement)).toBe(true);
+    const metadataDialog = view.contentEl.querySelector('.td-metadata-dialog');
+    const metadataControls = metadataDialog.querySelectorAll('button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled])');
+    const tabForward = new KeyboardEvent('keydown', { key:'Tab', bubbles:true, cancelable:true });
+    metadataControls[metadataControls.length - 1].focus();
+    metadataDialog.dispatchEvent(tabForward);
+    expect(tabForward.defaultPrevented).toBe(true);
+    expect(document.activeElement).toBe(metadataControls[0]);
+    propertiesButton.focus();
+    expect(metadataDialog.contains(document.activeElement)).toBe(true);
+    expect([...metadataDialog.parentElement.parentElement.children]
+      .filter(element => element !== metadataDialog.parentElement)
+      .every(element => element.hasAttribute('inert'))).toBe(true);
+
+    view.contentEl.querySelector('.td-metadata-dialog .td-dialog-cancel').click();
+    await waitFor(() => !view.contentEl.querySelector('.td-metadata-dialog'));
+    expect(document.activeElement).toBe(propertiesButton);
+
+    propertiesButton.click();
+    expect(await waitFor(() => !!view.contentEl.querySelector('.td-metadata-dialog'))).toBe(true);
+    view.contentEl.querySelector('.td-metadata-dialog-save').click();
+    await waitFor(() => !view.contentEl.querySelector('.td-metadata-dialog'));
+    expect(document.activeElement).toBe(propertiesButton);
 
     await view.onClose();
   });
@@ -713,9 +737,10 @@ describe('TaskDash plugin end-to-end', () => {
 
     const rowsReady = await waitFor(() => [...view.contentEl.querySelectorAll('.td-task-list-row')].length === 2);
     expect(rowsReady).toBe(true);
-    [...view.contentEl.querySelectorAll('.td-task-list-row')]
-      .find(row => row.textContent.includes('Ship the integration test'))
-      .dispatchEvent(new MouseEvent('click', { bubbles:true, cancelable:true }));
+    const firstRow = [...view.contentEl.querySelectorAll('.td-task-list-row')]
+      .find(row => row.textContent.includes('Ship the integration test'));
+    firstRow.focus();
+    firstRow.dispatchEvent(new MouseEvent('click', { bubbles:true, cancelable:true }));
 
     const inspectorReady = await waitFor(() => view.contentEl.querySelector('.td-task-inspector'));
     expect(inspectorReady).toBe(true);
@@ -730,6 +755,7 @@ describe('TaskDash plugin end-to-end', () => {
 
     const dialogReady = await waitFor(() => view.contentEl.querySelector('.td-unsaved-dialog'));
     expect(dialogReady).toBe(true);
+    expect(view.contentEl.querySelector('.td-unsaved-dialog').contains(document.activeElement)).toBe(true);
     expect(view.contentEl.querySelector('.td-task-inspector-file').textContent).toContain('ship-it');
     expect(view.contentEl.querySelector('.td-unsaved-dialog').textContent).toContain('Unsaved property changes');
 
@@ -739,7 +765,19 @@ describe('TaskDash plugin end-to-end', () => {
 
     const switched = await waitFor(() => view.contentEl.querySelector('.td-task-inspector-file')?.textContent.includes('review'));
     expect(switched).toBe(true);
+    expect(document.activeElement).toBe(firstRow);
     expect(app.__files.get('Tasks/ship-it.md').content).not.toContain('unsaved-audit');
+
+    expect(await waitFor(() => !!view.contentEl.querySelector('button[title="Mark done & archived"]'))).toBe(true);
+    const closeTaskButton = view.contentEl.querySelector('button[title="Mark done & archived"]');
+    closeTaskButton.focus();
+    closeTaskButton.click();
+    expect(await waitFor(() => !!view.contentEl.querySelector('[role="dialog"]'))).toBe(true);
+    const confirmDialog = view.contentEl.querySelector('[role="dialog"]');
+    expect(confirmDialog.contains(document.activeElement)).toBe(true);
+    confirmDialog.querySelector('.td-dialog-cancel').click();
+    await waitFor(() => !view.contentEl.querySelector('[role="dialog"]'));
+    expect(document.activeElement).toBe(closeTaskButton);
 
     await view.onClose();
   });

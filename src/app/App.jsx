@@ -150,7 +150,65 @@ function Toast({ msg, onClose }) {
   );
 }
 
+function useDialogFocus(active, dialogRef) {
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (!active || !dialog) return undefined;
+
+    const opener = document.activeElement;
+    const backdrop = dialog.parentElement;
+    const background = [...(backdrop?.parentElement?.children || [])]
+      .filter(element => element !== backdrop)
+      .map(element => [element, element.hasAttribute('inert')]);
+    background.forEach(([element]) => element.setAttribute('inert', ''));
+
+    const focusable = () => [...dialog.querySelectorAll(
+      'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+    )].filter(element => !element.hasAttribute('inert'));
+    const focusFirst = () => (focusable()[0] || dialog).focus();
+    focusFirst();
+
+    const onFocusIn = event => {
+      if (!dialog.contains(event.target)) focusFirst();
+    };
+    const onKeyDown = event => {
+      if (event.key !== 'Tab') return;
+      const items = focusable();
+      if (!items.length) {
+        event.preventDefault();
+        dialog.focus();
+        return;
+      }
+      const first = items[0];
+      const last = items[items.length - 1];
+      if (!dialog.contains(document.activeElement)) {
+        event.preventDefault();
+        focusFirst();
+      } else if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    document.addEventListener('focusin', onFocusIn);
+    document.addEventListener('keydown', onKeyDown);
+
+    return () => {
+      document.removeEventListener('focusin', onFocusIn);
+      document.removeEventListener('keydown', onKeyDown);
+      background.forEach(([element, wasInert]) => {
+        if (!wasInert) element.removeAttribute('inert');
+      });
+      if (opener?.isConnected) opener.focus();
+    };
+  }, [active, dialogRef]);
+}
+
 function ConfirmDialog({ dialog, onCancel }) {
+  const dialogRef = useRef(null);
+  useDialogFocus(!!dialog, dialogRef);
   useEffect(() => {
     if (!dialog) return undefined;
     const onKeyDown = event => { if (event.key === 'Escape') { event.preventDefault(); onCancel(); } };
@@ -160,7 +218,7 @@ function ConfirmDialog({ dialog, onCancel }) {
   if (!dialog) return null;
   return (
     <div className="td-dialog-backdrop" role="presentation" onMouseDown={event=>{ if (event.target === event.currentTarget) onCancel(); }}>
-      <section className="td-dialog" role="dialog" aria-modal="true" aria-labelledby="td-dialog-title">
+      <section ref={dialogRef} className="td-dialog" role="dialog" aria-modal="true" aria-labelledby="td-dialog-title" tabIndex={-1}>
         <div className="td-dialog-eyebrow">Confirm action</div>
         <h2 id="td-dialog-title">{dialog.title}</h2>
         <p>{dialog.message}</p>
@@ -175,6 +233,8 @@ function ConfirmDialog({ dialog, onCancel }) {
 
 function UnsavedChangesDialog({ open, onStay, onDiscard, onSave }) {
   const stayRef = useRef(null);
+  const dialogRef = useRef(null);
+  useDialogFocus(open, dialogRef);
   useEffect(() => {
     if (!open) return undefined;
     stayRef.current?.focus();
@@ -185,7 +245,7 @@ function UnsavedChangesDialog({ open, onStay, onDiscard, onSave }) {
   if (!open) return null;
   return (
     <div className="td-dialog-backdrop" role="presentation">
-      <section className="td-dialog td-unsaved-dialog" role="dialog" aria-modal="true" aria-labelledby="td-unsaved-title">
+      <section ref={dialogRef} className="td-dialog td-unsaved-dialog" role="dialog" aria-modal="true" aria-labelledby="td-unsaved-title" tabIndex={-1}>
         <div className="td-dialog-eyebrow">Unsaved changes</div>
         <h2 id="td-unsaved-title">Unsaved property changes</h2>
         <p>Save or discard the inspector changes before leaving this task.</p>
@@ -201,6 +261,8 @@ function UnsavedChangesDialog({ open, onStay, onDiscard, onSave }) {
 
 function MetadataDialog({ title, meta, onCancel, onSave, children }) {
   const [saving, setSaving] = useState(false);
+  const dialogRef = useRef(null);
+  useDialogFocus(true, dialogRef);
 
   useEffect(() => {
     const onKeyDown = event => { if (event.key === 'Escape' && !event.defaultPrevented) { event.preventDefault(); onCancel(); } };
@@ -220,7 +282,7 @@ function MetadataDialog({ title, meta, onCancel, onSave, children }) {
 
   return (
     <div className="td-dialog-backdrop td-metadata-dialog-backdrop" role="presentation" onMouseDown={event=>{ if (event.target === event.currentTarget) onCancel(); }}>
-      <section className="td-dialog td-metadata-dialog" role="dialog" aria-modal="true" aria-labelledby="td-metadata-dialog-title" onKeyDown={event=>{ if (event.key === 'Escape' && !event.defaultPrevented) { event.preventDefault(); onCancel(); } }}>
+      <section ref={dialogRef} className="td-dialog td-metadata-dialog" role="dialog" aria-modal="true" aria-labelledby="td-metadata-dialog-title" tabIndex={-1} onKeyDown={event=>{ if (event.key === 'Escape' && !event.defaultPrevented) { event.preventDefault(); onCancel(); } }}>
         <div className="td-metadata-dialog-header">
           <div>
             <div className="td-dialog-eyebrow">Edit metadata</div>
