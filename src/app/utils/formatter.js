@@ -793,7 +793,8 @@ function nextRecurrenceDate(rule, afterDate, excluded = []) {
   const parts = parseRecurrenceRule(rule);
   const dtstart = compactDateToIso(parts.DTSTART) || afterDate;
   const excludedSet = new Set(excluded);
-  const task = { recurrence: rule, due: dtstart, scheduled: dtstart };
+  const normalizedRule = String(rule).trim().replace(/^['"]|['"]$/g, '');
+  const task = { recurrence: normalizedRule, due: dtstart, scheduled: dtstart };
   for (let i = 1; i <= 36525; i++) {
     const candidate = addDays(afterDate, i);
     if (!excludedSet.has(candidate) && recurrenceMatches(task, candidate)) return candidate;

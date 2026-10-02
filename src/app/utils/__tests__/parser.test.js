@@ -8,6 +8,7 @@ describe('parseTask', () => {
 
     const parsed = parseTask('Example.md', crlf);
     expect({ ...parsed, raw: parsed.raw.replace(/\r\n/g, '\n') }).toEqual(parseTask('Example.md', lf));
+  });
   it('decodes quoted scalars and list entries', () => {
     const parsed = parseFrontmatter(`---
 double: "Say \\"hello\\" at C:\\\\temp"

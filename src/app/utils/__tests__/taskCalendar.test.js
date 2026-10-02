@@ -115,6 +115,7 @@ describe('buildTaskCalendarOccurrences', () => {
     expect(fallDaily.map(occurrence => occurrence.date)).not.toContain('2026-10-27');
     expect(springWeekly.map(occurrence => occurrence.date)).toContain('2026-04-04');
     expect(fallWeekly.map(occurrence => occurrence.date)).toContain('2026-11-07');
+  });
   it('calculates overdue status from each recurring occurrence date', () => {
     const occurrences = buildTaskCalendarOccurrences([
       {

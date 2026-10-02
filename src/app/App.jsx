@@ -1,4 +1,4 @@
-import { Fragment, useState, useEffect, useRef, useCallback, useMemo, useId } from 'react';
+import React, { Fragment, useState, useEffect, useRef, useCallback, useMemo, useId } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import IconRail from './IconRail.jsx';
@@ -102,9 +102,15 @@ export async function writeFile(handle, content, options = {}) {
   await w.write(content); await w.close();
 }
 
-export async function stopTimerSession({ timer, tasks = [], trackerHandle, adHocLabel, meetingLabel, setTrackerRows = () => {}, setTimer = () => {}, clearActiveTimer = () => {} }) {
+export async function stopTimerSession({ timer, tasks = [], trackerHandle, adHocLabel, meetingLabel, setTrackerRows = () => {}, setTimer = () => {}, clearActiveTimer = () => {}, setToast = () => {} }) {
   if (!timer) return false;
-  const dur = Date.now() - timer.start;
+  const stopEnd = timer.stopEnd || Date.now();
+  const pending = timer.stopEnd ? timer : { ...timer, stopEnd };
+  if (!timer.stopEnd) {
+    setTimer(pending);
+    lsSet('activeTimer', pending);
+  }
+  const dur = stopEnd - pending.start;
   if (trackerHandle) {
     try {
       const existing = await (await trackerHandle.getFile()).text();
@@ -117,8 +123,12 @@ export async function stopTimerSession({ timer, tasks = [], trackerHandle, adHoc
       setTrackerRows(parseTrackerRows(nextTracker));
     } catch(e) {
       console.error('timetracker write failed', e);
-      if (e?.name === 'StaleWriteError') return false;
+      setToast('Time logging failed. Your timer is saved; press Stop to retry.');
+      return false;
     }
+  } else {
+    setToast('Time logging failed. Your timer is saved; press Stop to retry.');
+    return false;
   }
   setTimer(null);
   clearActiveTimer();
@@ -2402,6 +2412,7 @@ export default function App({ vaultAdapter, onOpenSettings }) {
       setTrackerRows,
       setTimer,
       clearActiveTimer: () => lsDel('activeTimer'),
+      setToast,
     });
   }, [timer, tasks, trackerHandle]);
 

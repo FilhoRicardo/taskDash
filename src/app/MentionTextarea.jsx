@@ -3,7 +3,7 @@
 // person / project / client / property. Options come from MentionProvider so
 // every note input in the app shares the same vault-backed list.
 
-import { createContext, useContext, useEffect, useRef, useState } from 'react';
+import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { mentionQueryAt, insertMention, filterMentionOptions } from './utils/mentions.js';
 
