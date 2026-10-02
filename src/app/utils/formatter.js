@@ -816,17 +816,24 @@ function frontmatterRemove(fm, key) {
 }
 
 function frontmatterArray(fm, key) {
-  const block = fm.match(new RegExp(`^${key}:\\s*\\n((?:[ \\t]+- [^\\n]+\\n?)+)`, 'm'));
-  if (!block) return [];
-  return block[1].split('\n')
-    .map(line => line.trim().replace(/^- /, '').trim())
+  const field = fm.match(new RegExp(`^${key}:[ \\t]*(.*)(?:\\n((?:(?:[ \\t]*)- [^\\n]+\\n?)+))?`, 'm'));
+  if (!field) return [];
+  const inline = field[1].trim();
+  if (inline.startsWith('[') && inline.endsWith(']')) {
+    return inline.slice(1, -1).split(',').map(value => value.trim().replace(/^['"]|['"]$/g, '')).filter(Boolean);
+  }
+  if (inline) return [];
+  return (field[2] || '').split('\n')
+    .map(line => line.trim().replace(/^- /, '').trim().replace(/^['"]|['"]$/g, ''))
     .filter(Boolean);
 }
 
 function upsertFrontmatterArray(fm, key, values) {
   const clean = [...new Set(values.filter(Boolean))].sort();
-  const block = `${key}:\n${clean.map(v => `  - ${v}`).join('\n')}\n`;
-  const rx = new RegExp(`^${key}:\\s*\\n((?:[ \\t]+- [^\\n]+\\n?)+)`, 'm');
+  const existingField = fm.match(new RegExp(`^${key}:[^\\n]*(?:\\n(?:(?:[ \\t]*)- [^\\n]+))*`, 'm'))?.[0] || '';
+  const quoteValues = /(?:\[[^\]]*['"]|(?:^|\n)[ \t]*- ['"])/.test(existingField);
+  const block = `${key}:\n${clean.map(v => `  - ${quoteValues ? `"${v}"` : v}`).join('\n')}\n`;
+  const rx = new RegExp(`^${key}:[ \\t]*(?:\\[[^\\n]*\\])?[ \\t]*\\n?(?:(?:[ \\t]*)- [^\\n]+\\n?)*`, 'm');
   if (rx.test(fm)) return fm.replace(rx, block);
   const recurrenceRx = /^recurrence:[ \t]*.*$/m;
   if (key === 'complete_instances' && recurrenceRx.test(fm)) return fm.replace(recurrenceRx, match => `${match}\n${block}`);

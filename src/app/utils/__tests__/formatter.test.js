@@ -5,6 +5,7 @@ import {
   buildNewOrganizationMd,
   buildNewProjectMd,
   buildNewPropertyMd,
+  finishRecurrentTaskInstance,
   kebabSlug,
   postponeTaskDatesByMonths,
   replaceDailyTimeClockRows,
@@ -14,6 +15,31 @@ import {
   updateTaskMetadata,
   updateTaskThreadSubject,
 } from '../formatter.js';
+import { parseFrontmatter } from '../parser.js';
+
+describe('finishRecurrentTaskInstance', () => {
+  it.each([
+    ['inline', 'complete_instances: [2026-09-21]'],
+    ['quoted inline', 'complete_instances: ["2026-09-21"]'],
+    ['unindented block', 'complete_instances:\n- 2026-09-21'],
+    ['indented block', 'complete_instances:\n  - 2026-09-21'],
+  ])('writes one completion list from an %s field', (_format, completionField) => {
+    const raw = `---\ntitle: Weekly task\ndue: 2026-09-28\nrecurrence: FREQ=WEEKLY\n${completionField}\ncustom: keep\n---\n\n# Weekly task\nBody stays.\n`;
+
+    const updated = finishRecurrentTaskInstance(raw, '2026-09-28');
+    const frontmatter = updated.match(/^---\n([\s\S]*?)\n---/)[1];
+
+    expect(frontmatter.match(/^complete_instances:/gm)).toHaveLength(1);
+    if (_format === 'quoted inline') expect(frontmatter).toContain('  - "2026-09-21"');
+    expect(parseFrontmatter(updated).complete_instances).toEqual(['2026-09-21', '2026-09-28']);
+    expect(parseFrontmatter(updated).due).toBe('2026-10-05');
+    expect(updated).toContain('custom: keep');
+    expect(updated).toContain('# Weekly task\nBody stays.');
+    const repeated = finishRecurrentTaskInstance(updated, '2026-09-28');
+    expect(parseFrontmatter(repeated).complete_instances).toEqual(['2026-09-21', '2026-09-28']);
+    expect(repeated.match(/^complete_instances:/gm)).toHaveLength(1);
+  });
+});
 
 describe('daily note mutation helpers', () => {
   it('appends a section entry without damaging Obsidian Bases blocks', () => {
