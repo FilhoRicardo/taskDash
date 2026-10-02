@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { writeFile } from '../App.jsx';
+import { stopTimerSession, writeFile } from '../App.jsx';
 
 describe('writeFile', () => {
   it('can write a newly created file without reading stale disk state first', async () => {
@@ -30,5 +30,46 @@ describe('writeFile', () => {
 
     expect(writes).toEqual(['---\ntitle: New task\n---\n']);
     expect(closed).toBe(true);
+  });
+});
+
+describe('stopTimerSession', () => {
+  it('keeps an external tracker row and the timer session when the tracker changes before commit', async () => {
+    let content = 'tracker header\n';
+    let reads = 0;
+    let activeTimer = { taskId: '__adhoc__', start: Date.now() - 60_000 };
+    const handle = {
+      name: 'timetracker.md',
+      getFile: async () => {
+        reads += 1;
+        if (reads === 2) content += 'EXTERNAL-CONCURRENT-ROW\n';
+        return { text: async () => content };
+      },
+      createWritable: async ({ expectedContent }) => {
+        let nextContent;
+        return {
+        write: async next => { nextContent = next; },
+        close: async () => {
+          if (expectedContent !== content) {
+            const error = new Error('The note changed before TaskDash could save it');
+            error.name = 'StaleWriteError';
+            throw error;
+          }
+          content = nextContent;
+        },
+      };
+      },
+    };
+
+    const stopped = await stopTimerSession({
+      timer: activeTimer,
+      trackerHandle: handle,
+      setTimer: next => { activeTimer = next; },
+      clearActiveTimer: () => { activeTimer = null; },
+    });
+
+    expect(stopped).toBe(false);
+    expect(content).toContain('EXTERNAL-CONCURRENT-ROW');
+    expect(activeTimer).not.toBeNull();
   });
 });

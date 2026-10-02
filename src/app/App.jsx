@@ -102,6 +102,29 @@ export async function writeFile(handle, content, options = {}) {
   await w.write(content); await w.close();
 }
 
+export async function stopTimerSession({ timer, tasks = [], trackerHandle, adHocLabel, meetingLabel, setTrackerRows = () => {}, setTimer = () => {}, clearActiveTimer = () => {} }) {
+  if (!timer) return false;
+  const dur = Date.now() - timer.start;
+  if (trackerHandle) {
+    try {
+      const existing = await (await trackerHandle.getFile()).text();
+      const isLinked = !['__email__','__meeting__','__adhoc__'].includes(timer.taskId);
+      const label = isLinked
+        ? tasks.find(t=>t.id===timer.taskId)?.filename || timer.taskId.replace('.md','')
+        : timer.taskId==='__adhoc__' ? adHocLabel : timer.taskId==='__email__' ? 'Email' : meetingLabel || 'Meeting';
+      const nextTracker = appendTrackerRow(existing, buildTrackerRow(tod(), label, isLinked, dur));
+      await writeFile(trackerHandle, nextTracker, { expectedContent: existing });
+      setTrackerRows(parseTrackerRows(nextTracker));
+    } catch(e) {
+      console.error('timetracker write failed', e);
+      if (e?.name === 'StaleWriteError') return false;
+    }
+  }
+  setTimer(null);
+  clearActiveTimer();
+  return true;
+}
+
 async function readHandleText(handle) {
   return await (await handle.getFile()).text();
 }
@@ -2302,22 +2325,16 @@ export default function App({ vaultAdapter, onOpenSettings }) {
   }, [timer, tick]);
 
   const stop = useCallback(async () => {
-    if (!timer) return;
-    const dur = Date.now()-timer.start;
-    if (trackerHandle) {
-      try {
-        const existing = await (await trackerHandle.getFile()).text();
-        const isLinked = !['__email__','__meeting__','__adhoc__'].includes(timer.taskId);
-        const label = isLinked
-          ? tasks.find(t=>t.id===timer.taskId)?.filename || timer.taskId.replace('.md','')
-          : timer.taskId==='__adhoc__' ? adHocRef.current
-          : timer.taskId==='__email__' ? 'Email' : meetingTitleRef.current||'Meeting';
-        const nextTracker = appendTrackerRow(existing, buildTrackerRow(tod(), label, isLinked, dur));
-        await writeFile(trackerHandle, nextTracker);
-        setTrackerRows(parseTrackerRows(nextTracker));
-      } catch(e) { console.error('timetracker write failed', e); }
-    }
-    setTimer(null); lsDel('activeTimer');
+    return stopTimerSession({
+      timer,
+      tasks,
+      trackerHandle,
+      adHocLabel: adHocRef.current,
+      meetingLabel: meetingTitleRef.current,
+      setTrackerRows,
+      setTimer,
+      clearActiveTimer: () => lsDel('activeTimer'),
+    });
   }, [timer, tasks, trackerHandle]);
 
   const saveMeetingFile = useCallback(async () => {
