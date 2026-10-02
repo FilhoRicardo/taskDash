@@ -1649,7 +1649,7 @@ export default function App({ vaultAdapter, onOpenSettings }) {
       const ah = lsGet('adHocName');
       if (ah) { setAdHocName(ah); adHocRef.current = ah; }
       const at = lsGet('activeTimer');
-      if (at && Date.now()-at.start < 86400000) setTimer(at);
+      if (at && (at.stopEnd || Date.now()-at.start < 86400000)) setTimer(at);
       else if (at) lsDel('activeTimer');
       try {
         setSavedFilters(lsGet(SAVED_FILTERS_KEY) || []);
@@ -2321,7 +2321,7 @@ export default function App({ vaultAdapter, onOpenSettings }) {
 
   // ── Timer logic ──
   const getTime = useCallback((id) => {
-    return timer?.taskId===id ? Date.now()-timer.start : 0;
+    return timer?.taskId===id ? (timer.stopEnd || Date.now())-timer.start : 0;
   }, [timer, tick]);
 
   const stop = useCallback(async () => {
@@ -2357,7 +2357,7 @@ export default function App({ vaultAdapter, onOpenSettings }) {
   }, [dirs.meetings, meetingLinks, loadMeetings]);
 
   const start = useCallback(async (id) => {
-    if (timer) await stop();
+    if (timer && !(await stop())) return;
     const at = { taskId:id, start:Date.now() };
     setTimer(at); setSel(id); lsSet('activeTimer', at);
   }, [timer, stop]);
@@ -2369,10 +2369,10 @@ export default function App({ vaultAdapter, onOpenSettings }) {
       setToast('Pick a Meetings folder before starting a meeting note.');
       return;
     }
+    if (timer && timer.taskId!=='__meeting__' && !(await stop())) return;
     meetingTitleRef.current = ''; meetingNotesRef.current = '';
     meetingStartRef.current = Date.now();
     setMeetingTitle(''); setMeetingNotes(''); setMeetingLinks({ clients:[], properties:[], tasks:[], people:[] });
-    if (timer && timer.taskId!=='__meeting__') await stop();
     const at = { taskId:'__meeting__', start:Date.now() };
     setTimer(at); lsSet('activeTimer', at);
     setMeetingOpen(true);
@@ -2380,18 +2380,20 @@ export default function App({ vaultAdapter, onOpenSettings }) {
   }, [dirs.meetings, timer, stop]);
 
   const stopMeeting = useCallback(async () => {
+    if (timer?.taskId === '__meeting__' && !(await stop())) return;
     await saveMeetingFile();
-    if (timer?.taskId === '__meeting__') await stop();
     setMeetingOpen(false);
   }, [saveMeetingFile, stop, timer]);
 
   const startAdHoc = async () => {
     if (!adHocInput.trim()) return;
+    if (timer && !(await stop())) return;
     const name = adHocInput.trim();
     setAdHocName(name); adHocRef.current = name;
     lsSet('adHocName', name);
     setAdHocInput(''); setShowAdHoc(false);
-    await start('__adhoc__');
+    const at = { taskId:'__adhoc__', start:Date.now() };
+    setTimer(at); lsSet('activeTimer', at);
   };
 
   const addTaskNote = async (taskId, body) => {
@@ -2515,7 +2517,7 @@ export default function App({ vaultAdapter, onOpenSettings }) {
       onConfirm:async()=>{
         setConfirmDialog(null);
         try {
-          if (timer?.taskId === taskId) await stop();
+          if (timer?.taskId === taskId && !(await stop())) return;
           const latest = await readHandleText(handle);
           const updated = markTaskDone(latest);
           if (dirs.done && !taskId.startsWith('__done__/')) {
@@ -2552,7 +2554,7 @@ export default function App({ vaultAdapter, onOpenSettings }) {
     const handle = taskHandles[taskId];
     if (!task || !handle) return;
     try {
-      if (timer?.taskId === taskId) await stop();
+      if (timer?.taskId === taskId && !(await stop())) return;
       const latestTask = parseTask(taskId, await readHandleText(handle));
       const instanceDate = latestTask.due || latestTask.scheduled || tod();
       const updated = finishRecurrentTaskInstance(latestTask.raw, latestTask.due, latestTask.scheduled);

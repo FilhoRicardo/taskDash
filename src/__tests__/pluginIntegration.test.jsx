@@ -6,7 +6,7 @@
 // Asserts the dashboard actually renders vault data and honors the startup
 // rule (zero vault reads before the view opens).
 
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import TaskDashPlugin from '../main.ts';
 import { TASKDASH_VIEW_TYPE } from '../view.tsx';
 
@@ -14,6 +14,7 @@ import { TASKDASH_VIEW_TYPE } from '../view.tsx';
 function makeFakeApp() {
   const files = new Map();
   const folders = new Set();
+  const failures = { read:0, process:[] };
   const base = p => p.split('/').pop();
   const parentOf = p => (p.includes('/') ? p.slice(0, p.lastIndexOf('/')) : '');
   let reads = 0;
@@ -44,6 +45,7 @@ function makeFakeApp() {
       return null;
     },
     async create(path, content) {
+      if (app.__failTrackerOpen && path.endsWith('/timetracker.md')) throw new Error('tracker unavailable');
       files.set(path, { content, mtime: Date.now() });
       return fileObj(path);
     },
@@ -52,9 +54,16 @@ function makeFakeApp() {
     },
     async readBinary(tfile) {
       reads += 1;
+      if (failures.read) {
+        failures.read -= 1;
+        throw new Error('injected read failure');
+      }
       return new TextEncoder().encode(String(files.get(tfile.path).content)).buffer;
     },
     async process(tfile, fn) {
+      if (failures.process.length) {
+        throw new Error(failures.process.shift());
+      }
       const entry = files.get(tfile.path);
       const next = fn(String(entry.content));
       files.set(tfile.path, { content: next, mtime: entry.mtime + 1 });
@@ -86,6 +95,10 @@ function makeFakeApp() {
     __ribbon: [],
     __files: files,
     __folders: folders,
+    __failNextRead: () => { failures.read += 1; },
+    __failNextProcess: message => { failures.process.push(message); },
+    __bumpFileMtime: path => { files.get(path).mtime += 1; },
+    __failTrackerOpen: false,
     readCount: () => reads,
     __openedFiles: openedFiles,
   };
@@ -155,8 +168,8 @@ const TODAY_DATE = `${today.getFullYear()}-${String(today.getMonth() + 1).padSta
 const DAILY_NOTE_MD = `# Daily note\n\n## Time Clock\n\n| Time | Event |\n| --- | --- |\n| 08:30 | Clock in |\n| 17:00 | Clock out |\n\n### Explanation\n\nKeep this paragraph inside Time Clock.\n\n---\n\n## Notes\n\n- Existing note\n`;
 
 async function waitFor(predicate, timeoutMs = 5000) {
-  const startedAt = Date.now();
-  while (Date.now() - startedAt < timeoutMs) {
+  const startedAt = performance.now();
+  while (performance.now() - startedAt < timeoutMs) {
     if (predicate()) return true;
     await new Promise(r => setTimeout(r, 25));
   }
@@ -165,12 +178,107 @@ async function waitFor(predicate, timeoutMs = 5000) {
 
 describe('TaskDash plugin end-to-end', () => {
   beforeEach(() => {
+    vi.restoreAllMocks();
     document.body.innerHTML = '';
+    localStorage.clear();
     globalThis.ResizeObserver = class {
       constructor(callback) { this.callback = callback; }
       observe() { this.callback([{ contentRect:{ width:1800 } }]); }
       disconnect() {}
     };
+  });
+
+  it('keeps a failed timer stop pending across reload and retries the frozen session once', async () => {
+    const app = makeFakeApp();
+    app.__folders.add('Tasks');
+    app.__files.set('Tasks/ship-it.md', { content:TASK_MD, mtime:1 });
+    app.__pluginData = { folders:{ tasks:'Tasks' }, enableStatusBarTimer:true };
+
+    const plugin = new TaskDashPlugin(app, { id:'taskdash-2-2', version:'2.2.0' });
+    await plugin.onload();
+    const view = app.__viewFactories[TASKDASH_VIEW_TYPE]({});
+    view.app = app;
+    await view.onOpen();
+    expect(await waitFor(() => !!view.contentEl.querySelector('.td-task-detail-body'))).toBe(true);
+
+    const timerButton = () => [...view.contentEl.querySelector('.td-task-detail-body').parentElement
+      .querySelectorAll('button')].find(button => ['Start','Stop'].includes(button.textContent));
+    timerButton().dispatchEvent(new MouseEvent('click', { bubbles:true, cancelable:true }));
+    expect(await waitFor(() => timerButton()?.textContent === 'Stop')).toBe(true);
+    const startedAt = JSON.parse(Object.values(localStorage).find(value => value.includes('"taskId"'))).start;
+
+    const started = startedAt + 5 * 60 * 1000;
+    const dateNow = vi.spyOn(Date, 'now').mockReturnValue(started);
+    app.__bumpFileMtime('Tasks/timetracker.md');
+    app.__failNextRead();
+    timerButton().dispatchEvent(new MouseEvent('click', { bubbles:true, cancelable:true }));
+    expect(await waitFor(() => view.contentEl.textContent.includes('Time logging failed'))).toBe(true);
+    const pending = JSON.parse(Object.values(localStorage).find(value => value.includes('"taskId"')));
+    expect(pending.stopEnd).toBe(started);
+    expect(timerButton().textContent).toBe('Stop');
+
+    await view.onClose();
+    const recoveredView = app.__viewFactories[TASKDASH_VIEW_TYPE]({});
+    recoveredView.app = app;
+    await recoveredView.onOpen();
+    expect(await waitFor(() => !!recoveredView.contentEl.querySelector('.td-task-detail-body'))).toBe(true);
+    const retryButton = () => [...recoveredView.contentEl.querySelector('.td-task-detail-body').parentElement
+      .querySelectorAll('button')].find(button => ['Start','Stop'].includes(button.textContent));
+    expect(await waitFor(() => retryButton()?.textContent === 'Stop')).toBe(true);
+    app.__failNextProcess('injected write failure');
+    retryButton().dispatchEvent(new MouseEvent('click', { bubbles:true, cancelable:true }));
+    await new Promise(resolve => setTimeout(resolve, 50));
+    expect(retryButton().textContent).toBe('Stop');
+    expect(JSON.parse(Object.values(localStorage).find(value => value.includes('"taskId"'))).stopEnd).toBe(started);
+
+    app.__failNextProcess('injected stale-write conflict');
+    retryButton().dispatchEvent(new MouseEvent('click', { bubbles:true, cancelable:true }));
+    await new Promise(resolve => setTimeout(resolve, 50));
+    expect(retryButton().textContent).toBe('Stop');
+    expect(JSON.parse(Object.values(localStorage).find(value => value.includes('"taskId"'))).stopEnd).toBe(started);
+
+    dateNow.mockReturnValue(started + 30000);
+    retryButton().dispatchEvent(new MouseEvent('click', { bubbles:true, cancelable:true }));
+
+    expect(await waitFor(() => retryButton()?.textContent === 'Start')).toBe(true);
+    const tracker = app.__files.get('Tasks/timetracker.md').content;
+    expect(tracker.match(/\| .*ship-it.* \| 5 \|/g)).toHaveLength(1);
+    expect(localStorage.length).toBe(0);
+    await recoveredView.onClose();
+  }, 20000);
+
+  it('retains a timer when no tracker handle is available', async () => {
+    const app = makeFakeApp();
+    app.__folders.add('Tasks');
+    app.__files.set('Tasks/ship-it.md', { content:TASK_MD, mtime:1 });
+    app.__files.set('Tasks/review.md', { content:SECOND_TASK_MD, mtime:2 });
+    app.__pluginData = { folders:{ tasks:'Tasks' }, enableStatusBarTimer:true };
+    app.__failTrackerOpen = true;
+
+    const plugin = new TaskDashPlugin(app, { id:'taskdash-2-2', version:'2.2.0' });
+    await plugin.onload();
+    const view = app.__viewFactories[TASKDASH_VIEW_TYPE]({});
+    view.app = app;
+    await view.onOpen();
+    expect(await waitFor(() => !!view.contentEl.querySelector('.td-task-detail-body'))).toBe(true);
+    const timerButton = () => [...view.contentEl.querySelector('.td-task-detail-body').parentElement
+      .querySelectorAll('button')].find(button => ['Start','Stop'].includes(button.textContent));
+    timerButton().dispatchEvent(new MouseEvent('click', { bubbles:true, cancelable:true }));
+    expect(await waitFor(() => timerButton()?.textContent === 'Stop')).toBe(true);
+    timerButton().dispatchEvent(new MouseEvent('click', { bubbles:true, cancelable:true }));
+    expect(await waitFor(() => view.contentEl.textContent.includes('Time logging failed'))).toBe(true);
+    expect(timerButton().textContent).toBe('Stop');
+    expect(Object.values(localStorage).some(value => value.includes('"taskId"'))).toBe(true);
+
+    [...view.contentEl.querySelectorAll('.td-task-list-row')]
+      .find(row => row.textContent.includes('Review the release'))
+      .dispatchEvent(new MouseEvent('click', { bubbles:true, cancelable:true }));
+    expect(await waitFor(() => view.contentEl.querySelector('.td-task-inspector-file')?.textContent.includes('review'))).toBe(true);
+    timerButton().dispatchEvent(new MouseEvent('click', { bubbles:true, cancelable:true }));
+    await new Promise(resolve => setTimeout(resolve, 50));
+    expect(JSON.parse(Object.values(localStorage).find(value => value.includes('"taskId"'))).taskId).toBe('ship-it.md');
+
+    await view.onClose();
   });
 
   it('boots, registers surfaces without touching the vault, and renders vault data when the view opens', async () => {
