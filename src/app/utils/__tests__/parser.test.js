@@ -1,0 +1,307 @@
+import { describe, expect, it } from 'vitest';
+import { isProjectFileName, parseDailyNote, parseMeeting, parseOrganization, parseProject, parseProperty, parseTask, readDirNames, readMdFiles } from '../parser.js';
+
+describe('parseTask', () => {
+  it('reads TaskNotes frontmatter, checklist, dates, links, recurrence, and logs', () => {
+    const raw = `---
+title: Review lease renewal
+status: in-progress
+priority: high
+due: 2026-05-18
+scheduled: 2026-05-17
+dateCreated: 2026-05-01T09:00:00.000+01:00
+contexts:
+  - work
+projects:
+  - "[[Project - Leasing]]"
+waitingfor: "[[Jane Smith]]"
+client: "[[Acme]]"
+building: "[[20 Kildare Street]]"
+timeEstimate: 45
+tags:
+  - task
+  - recurrent
+complete_instances:
+  - 2026-05-11
+---
+- [ ] Confirm rent review
+- [x] Draft email
+
+### [[2026-05-18]]
+Log: [09:15] Started review
+
+---
+`;
+
+    const task = parseTask('Review lease renewal.md', raw);
+
+    expect(task.title).toBe('Review lease renewal');
+    expect(task.priority).toBe('high');
+    expect(task.status).toBe('in-progress');
+    expect(task.due).toBe('2026-05-18');
+    expect(task.scheduled).toBe('2026-05-17');
+    expect(task.contexts).toEqual(['work']);
+    expect(task.projects).toEqual(['Project - Leasing']);
+    expect(task.waitingfor).toBe('Jane Smith');
+    expect(task.client).toBe('Acme');
+    expect(task.building).toBe('20 Kildare Street');
+    expect(task.timeEstimate).toBe('45');
+    expect(task.recurrent).toBe(true);
+    expect(task.completeInstances).toEqual(['2026-05-11']);
+    expect(task.checklistDone).toBe(1);
+    expect(task.checklistTotal).toBe(2);
+    expect(task.logs).toEqual([{ date: '2026-05-18', text: '[09:15] Started review' }]);
+  });
+
+  it('falls back safely when frontmatter is malformed or absent', () => {
+    const task = parseTask('Loose note.md', '# Loose note\n\nNo frontmatter here');
+
+    expect(task.title).toBe('Loose note');
+    expect(task.priority).toBe('normal');
+    expect(task.status).toBe('none');
+    expect(task.tags).toEqual([]);
+  });
+
+  it('treats files loaded from Done / Archive as archived without frontmatter', () => {
+    const task = parseTask('__done__/Loose note.md', '# Loose note\n\nNo frontmatter here');
+
+    expect(task.archived).toBe(true);
+  });
+
+  it('reads unindented frontmatter lists', () => {
+    const raw = `---
+title: Home - Back garden - Buy spider killer
+contexts:
+- Personal
+- Home
+tags:
+- task
+- LifeOS
+---
+`;
+
+    const task = parseTask('Home - Back garden - Buy spider killer.md', raw);
+
+    expect(task.contexts).toEqual(['Personal', 'Home']);
+    expect(task.tags).toEqual(['task', 'LifeOS']);
+  });
+
+  it('keeps multiline task logs together', () => {
+    const raw = `---
+title: Feedback - SwiftSquare meter issues
+---
+
+### [[2026-06-04]]
+Log: [09:02] First line of feedback
+Second line with more detail
+Third line with the outcome
+
+---
+`;
+
+    const task = parseTask('Feedback - SwiftSquare meter issues.md', raw);
+
+    expect(task.logs).toEqual([{
+      date: '2026-06-04',
+      text: '[09:02] First line of feedback\nSecond line with more detail\nThird line with the outcome',
+    }]);
+  });
+});
+
+function mockFile(text) {
+  return {
+    kind: 'file',
+    getFile: async () => ({ text: async () => text }),
+  };
+}
+
+function mockDir(entries) {
+  return {
+    kind: 'directory',
+    async *entries() {
+      for (const entry of Object.entries(entries)) yield entry;
+    },
+  };
+}
+
+describe('project discovery', () => {
+  it('reads nested Cover project notes from a parent Projects folder', async () => {
+    const dir = mockDir({
+      'Project - Leasing.md': mockFile('---\ntitle: Leasing\n---\n'),
+      'Loose note.md': mockFile('Notes'),
+      'Union Module 4': mockDir({
+        'Cover_Union Module 4.md': mockFile('---\ntitle: Union Module 4\n---\n'),
+        'Meeting notes.md': mockFile('Notes'),
+      }),
+    });
+
+    const files = await readMdFiles(dir, [], '', { includeUnderscore: true });
+    const projects = files.filter(file => isProjectFileName(file.name));
+
+    expect(projects.map(file => file.name)).toEqual([
+      'Project - Leasing.md',
+      'Union Module 4/Cover_Union Module 4.md',
+    ]);
+  });
+
+  it('uses Cover filenames as project autocomplete names without the prefix', async () => {
+    const dir = mockDir({
+      'Project - Leasing.md': mockFile(''),  // root-level file — ignored
+      'Union Module 4': mockDir({
+        'Cover_Union Module 4.md': mockFile(''),
+        'Meeting notes.md': mockFile(''),    // non-Cover file — ignored
+      }),
+    });
+
+    await expect(readDirNames(dir, { projectOnly: true })).resolves.toEqual([
+      'Union Module 4',
+    ]);
+  });
+});
+
+describe('parseProject', () => {
+  it('falls back to a readable title for Cover project files', () => {
+    const project = parseProject('Union Module 4/Cover_Union Module 4.md', 'Notes.');
+
+    expect(project.title).toBe('Union Module 4');
+    expect(project.filename).toBe('Cover_Union Module 4');
+  });
+});
+
+describe('parseDailyNote', () => {
+  it('extracts time clock rows and editable daily sections while preserving Bases elsewhere', () => {
+    const raw = `---
+date: 2026-05-18
+workStatus: workday
+tags:
+  - daily-note
+---
+
+# Monday, May 18, 2026
+
+## Due Today
+
+\`\`\`base
+filters:
+  and:
+    - due == "2026-05-18"
+\`\`\`
+
+## Time Clock
+
+| Time | Event |
+| --- | --- |
+| 09:00 | Clock in |
+| 12:30 | Break start |
+
+---
+
+## Notes
+
+- Follow up with legal
+
+## Reflections
+
+- Good focus
+
+## Brain dump - issues
+
+- Waiting on survey
+`;
+
+    const note = parseDailyNote('2026-05-18.md', raw);
+
+    expect(note.timeClock).toEqual([
+      { time: '09:00', event: 'Clock in' },
+      { time: '12:30', event: 'Break start' },
+    ]);
+    expect(note.notes).toEqual(['Follow up with legal']);
+    expect(note.reflections).toEqual(['Good focus']);
+    expect(note.brainDump).toEqual(['Waiting on survey']);
+  });
+});
+
+describe('parseMeeting', () => {
+  it('extracts saved meeting metadata for navigation', () => {
+    const raw = `---
+due: 2026-05-21
+dateCreated: 2026-05-21T07:30:00.000Z
+title: Utility review
+tags:
+  - meeting
+---
+
+# Utility review
+
+## Notes
+
+Reviewed next steps.
+`;
+
+    const meeting = parseMeeting('Meeting - 2026-05-21 - Utility review.md', raw);
+
+    expect(meeting.title).toBe('Utility review');
+    expect(meeting.date).toBe('2026-05-21');
+    expect(meeting.dateCreated).toBe('2026-05-21T07:30:00.000Z');
+    expect(meeting.raw).toBe(raw);
+  });
+});
+
+describe('parseProperty', () => {
+  it('normalizes cover names and chronological property comments', () => {
+    const raw = `---
+building: "20 Kildare Street"
+client: "[[Acme]]"
+cover: "5 - Attachments/kildare cover.jpg"
+---
+
+# 20 Kildare Street
+
+## Property Comments
+
+### [[2026-05-18]]
+Log: [10:20] Checked cover image
+
+---
+`;
+
+    const property = parseProperty('20-kildare-street.md', raw);
+
+    expect(property.title).toBe('20 Kildare Street');
+    expect(property.client).toBe('Acme');
+    expect(property.coverName).toBe('kildare cover.jpg');
+    expect(property.comments).toEqual([{ date: '2026-05-18', text: '[10:20] Checked cover image' }]);
+  });
+});
+
+describe('parseOrganization', () => {
+  it('reads organization frontmatter fields', () => {
+    const raw = `---
+dateCreated: 2026-06-01
+dateModified: 2026-06-09
+tags: [organizations]
+type: organization
+organization: "Acme Corp"
+industry: "Property management"
+website: "https://acme.example"
+email: "info@acme.example"
+---
+# Acme Corp
+
+## Notes
+`;
+    const org = parseOrganization('acme-corp.md', raw);
+    expect(org.title).toBe('Acme Corp');
+    expect(org.filename).toBe('acme-corp');
+    expect(org.industry).toBe('Property management');
+    expect(org.website).toBe('https://acme.example');
+    expect(org.email).toBe('info@acme.example');
+    expect(org.tags).toEqual(['organizations']);
+    expect(org.dateCreated).toBe('2026-06-01');
+  });
+
+  it('falls back to a title-cased filename when no frontmatter exists', () => {
+    const org = parseOrganization('blue-river-holdings.md', 'Just notes.');
+    expect(org.title).toBe('Blue River Holdings');
+  });
+});

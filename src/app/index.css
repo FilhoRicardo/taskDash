@@ -1,0 +1,403 @@
+/* Global selectors are scoped under .taskdash-root so nothing leaks into the
+   rest of Obsidian. Class-based rules (.markdown-body, .mention-menu, …) keep
+   their names; .mention-menu must stay unscoped because it portals to body.
+   Remote font imports removed for the plugin build — local fallbacks apply. */
+
+.taskdash-root, .taskdash-root *, .taskdash-root *::before, .taskdash-root *::after { box-sizing: border-box; margin: 0; padding: 0; }
+.taskdash-root {
+  width: 100%;
+  height: 100%;
+}
+.taskdash-root {
+  font-family: var(--font-interface, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif);
+  background: var(--background-primary, #fff);
+  color: var(--text-normal, #1d2421);
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+.taskdash-root ::placeholder { color: var(--text-faint, #9aa39d); }
+.taskdash-root ::-webkit-scrollbar { width: 10px; height: 10px; }
+.taskdash-root ::-webkit-scrollbar-track { background: transparent; }
+.taskdash-root ::-webkit-scrollbar-thumb {
+  background: rgba(40,60,50,0.16);
+  border-radius: 10px;
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+.taskdash-root ::-webkit-scrollbar-thumb:hover { background: rgba(40,60,50,0.24); background-clip: content-box; }
+.taskdash-root button,
+.taskdash-root input,
+.taskdash-root textarea,
+.taskdash-root select {
+  font-family: inherit;
+}
+.taskdash-root input,
+.taskdash-root textarea,
+.taskdash-root select {
+  color-scheme: light;
+}
+.taskdash-root select {
+  background-color: rgba(255,255,255,0.72);
+  color: #222a25;
+}
+.taskdash-root select option,
+.taskdash-root select optgroup {
+  background-color: #f7faf8;
+  color: #222a25;
+}
+.taskdash-root select option:checked {
+  background-color: #13733f;
+  color: #fff;
+}
+.taskdash-root select:disabled,
+.taskdash-root input:disabled,
+.taskdash-root textarea:disabled {
+  color: #9aa19c;
+  -webkit-text-fill-color: #9aa19c;
+}
+.taskdash-root input[type="date"]::-webkit-calendar-picker-indicator {
+  opacity: 0.72;
+  cursor: pointer;
+  flex: 0 0 auto;
+  margin-inline-end: 4px;
+}
+.taskdash-root input[type="date"]::-webkit-datetime-edit {
+  padding-inline-start: 9px;
+}
+.taskdash-root input[type="time"]::-webkit-calendar-picker-indicator {
+  opacity: 0.38;
+  cursor: pointer;
+}
+
+.taskdash-root .markdown-body {
+  color: #33403a;
+  font-size: 14px;
+  line-height: 1.72;
+  overflow-wrap: anywhere;
+  word-break: normal;
+  text-rendering: optimizeLegibility;
+  font-feature-settings: 'kern' 1, 'liga' 1, 'calt' 1;
+}
+.taskdash-root .markdown-body.markdown-compact {
+  font-size: 13px;
+  line-height: 1.5;
+}
+.taskdash-root .markdown-body.markdown-compact > * + * { margin-top: 5px; }
+.taskdash-root .markdown-body > *:first-child { margin-top: 0; }
+.taskdash-root .markdown-body > *:last-child { margin-bottom: 0; }
+.taskdash-root .markdown-body > * + * { margin-top: 13px; }
+.taskdash-root .markdown-body h1,
+.taskdash-root .markdown-body h2,
+.taskdash-root .markdown-body h3,
+.taskdash-root .markdown-body h4,
+.taskdash-root .markdown-body h5,
+.taskdash-root .markdown-body h6 {
+  color: #1d2421;
+  line-height: 1.25;
+  font-weight: 800;
+  letter-spacing: 0;
+}
+.taskdash-root .markdown-body h1 { font-size: 22px; margin-top: 20px; }
+.taskdash-root .markdown-body h2 { font-size: 18px; margin-top: 19px; padding-bottom: 7px; border-bottom: 1px solid rgba(40,60,50,0.10); }
+.taskdash-root .markdown-body h3 { font-size: 15px; margin-top: 17px; color: #115c34; }
+.taskdash-root .markdown-body h4,
+.taskdash-root .markdown-body h5,
+.taskdash-root .markdown-body h6 { font-size: 13px; margin-top: 14px; }
+.taskdash-root .markdown-body p,
+.taskdash-root .markdown-body ul,
+.taskdash-root .markdown-body ol,
+.taskdash-root .markdown-body blockquote,
+.taskdash-root .markdown-body table,
+.taskdash-root .markdown-body pre,
+.taskdash-root .markdown-body hr { margin-bottom: 0; }
+.taskdash-root .markdown-body ul,
+.taskdash-root .markdown-body ol { padding-left: 23px; }
+.taskdash-root .markdown-body ul ul,
+.taskdash-root .markdown-body ul ol,
+.taskdash-root .markdown-body ol ul,
+.taskdash-root .markdown-body ol ol { margin-top: 5px; }
+.taskdash-root .markdown-body li { padding-left: 3px; }
+.taskdash-root .markdown-body li + li { margin-top: 6px; }
+.taskdash-root .markdown-body li > p { margin: 0; }
+.taskdash-root .markdown-body li > p + p { margin-top: 7px; }
+.taskdash-root .markdown-body li::marker {
+  color: #13733f;
+  font-weight: 800;
+}
+.taskdash-root .markdown-body strong { color: #1d2421; font-weight: 800; }
+.taskdash-root .markdown-body em { color: #5a615b; }
+.taskdash-root .markdown-body a {
+  color: #13733f;
+  text-decoration: none;
+  border-bottom: 1px solid rgba(20,120,72,0.28);
+  transition: color 0.15s, border-color 0.15s;
+}
+.taskdash-root .markdown-body a:hover {
+  color: #115c34;
+  border-bottom-color: rgba(20,120,72,0.58);
+}
+.taskdash-root .markdown-body blockquote {
+  border-left: 3px solid rgba(20,120,72,0.46);
+  padding: 9px 12px;
+  margin-left: 0;
+  color: #5a615b;
+  background: rgba(20,120,72,0.055);
+  border-radius: 0 8px 8px 0;
+}
+.taskdash-root .markdown-body code {
+  border: 1px solid rgba(40,60,50,0.10);
+  border-radius: 6px;
+  background: rgba(255,255,255,0.58);
+  padding: 2px 6px;
+  color: #115c34;
+  font-size: 12px;
+  font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Consolas, monospace;
+}
+.taskdash-root .markdown-body pre {
+  overflow-x: auto;
+  border: 1px solid rgba(255,255,255,0.62);
+  border-radius: 10px;
+  background: rgba(255,255,255,0.50);
+  padding: 12px 13px;
+  white-space: pre;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.70);
+}
+.taskdash-root .markdown-body pre code {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  white-space: inherit;
+  line-height: 1.58;
+}
+.taskdash-root .markdown-body img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  border-radius: 8px;
+  border: 1px solid rgba(255,255,255,0.60);
+  background: rgba(255,255,255,0.45);
+}
+.taskdash-root .markdown-body hr {
+  height: 1px;
+  border: 0;
+  background: linear-gradient(90deg, transparent, rgba(40,60,50,0.14), transparent);
+  margin-top: 18px;
+}
+.taskdash-root .markdown-body table {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 12px;
+  border: 1px solid rgba(255,255,255,0.60);
+  border-radius: 8px;
+  background: rgba(255,255,255,0.45);
+}
+.taskdash-root .markdown-body th,
+.taskdash-root .markdown-body td {
+  border-right: 1px solid rgba(40,60,50,0.08);
+  border-bottom: 1px solid rgba(40,60,50,0.08);
+  padding: 7px 9px;
+  text-align: left;
+  vertical-align: top;
+}
+.taskdash-root .markdown-body tr > :last-child { border-right: 0; }
+.taskdash-root .markdown-body tbody tr:last-child > * { border-bottom: 0; }
+.taskdash-root .markdown-body tbody tr:nth-child(odd) td { background: rgba(255,255,255,0.28); }
+.taskdash-root .markdown-body th {
+  color: #1d2421;
+  background: rgba(20,120,72,0.08);
+}
+.taskdash-root .markdown-body input[type="checkbox"] {
+  width: 14px;
+  height: 14px;
+  margin: 0 7px 0 -2px;
+  vertical-align: -2px;
+  accent-color: #13733f;
+}
+.taskdash-root .markdown-body .contains-task-list {
+  list-style: none;
+  padding-left: 2px;
+}
+.taskdash-root .markdown-body .task-list-item {
+  padding-left: 0;
+}
+.taskdash-root .markdown-body del {
+  color: #8a928d;
+}
+.taskdash-root .markdown-body kbd {
+  border: 1px solid rgba(40,60,50,0.14);
+  border-bottom-color: rgba(40,60,50,0.26);
+  border-radius: 6px;
+  background: rgba(255,255,255,0.55);
+  color: #222a25;
+  padding: 1px 5px;
+  font: 11px 'JetBrains Mono', ui-monospace, SFMono-Regular, Consolas, monospace;
+}
+
+.taskdash-root .markdown-body .wikilink {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 8px 2px;
+  border-radius: 999px;
+  background: rgba(20,120,72,0.10);
+  border: 1px solid rgba(20,120,72,0.20);
+  color: #115c34;
+  font-weight: 650;
+  font-size: 0.95em;
+  line-height: 1.45;
+  white-space: nowrap;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: default;
+}
+.taskdash-root .markdown-body .wikilink::before {
+  content: '@';
+  font-weight: 800;
+  color: #13733f;
+  opacity: 0.85;
+}
+
+.taskdash-mention-menu {
+  position: fixed;
+  z-index: 1000;
+  overflow-y: auto;
+  padding: 5px;
+  border-radius: 12px;
+  background: rgba(255,255,255,0.88);
+  border: 1px solid rgba(255,255,255,0.70);
+  box-shadow: 0 18px 44px rgba(20,40,30,0.16), inset 0 1px 0 rgba(255,255,255,0.80);
+  backdrop-filter: blur(24px) saturate(1.6);
+  -webkit-backdrop-filter: blur(24px) saturate(1.6);
+}
+.taskdash-mention-menu-hint {
+  padding: 5px 9px 7px;
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #5f9d79;
+  border-bottom: 1px solid rgba(40,60,50,0.08);
+  margin-bottom: 4px;
+}
+.taskdash-mention-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding: 7px 9px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: #222a25;
+  font-family: inherit;
+  font-size: 12.5px;
+  text-align: left;
+  cursor: pointer;
+}
+.taskdash-mention-item.active {
+  background: rgba(20,120,72,0.10);
+  color: #115c34;
+}
+.taskdash-mention-item-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 650;
+}
+.taskdash-mention-item-type {
+  flex-shrink: 0;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.9;
+}
+
+.taskdash-root ::selection {
+  background: rgba(20,120,72,0.20);
+  color: #115c34;
+}
+.taskdash-root input:focus,
+.taskdash-root textarea:focus,
+.taskdash-root select:focus {
+  border-color: rgba(20,120,72,0.36) !important;
+  box-shadow: 0 0 0 3px rgba(20,120,72,0.10);
+}
+.taskdash-root input,
+.taskdash-root textarea,
+.taskdash-root select {
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.taskdash-root button {
+  transition: opacity 0.15s ease, background 0.15s ease, border-color 0.15s ease,
+    box-shadow 0.15s ease, transform 0.1s ease, filter 0.15s ease;
+}
+.taskdash-root button:active {
+  transform: scale(0.985);
+}
+.taskdash-root button:focus-visible,
+.taskdash-root input:focus-visible,
+.taskdash-root textarea:focus-visible,
+.taskdash-root select:focus-visible {
+  outline: 2px solid rgba(20,120,72,0.42);
+  outline-offset: 1px;
+}
+.taskdash-root [role="button"]:focus-visible { outline:2px solid rgba(20,120,72,0.42); outline-offset:1px; }
+.taskdash-root .td-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(29,36,33,0.18);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+.taskdash-root .td-dialog {
+  width: min(420px, 100%);
+  padding: 20px;
+  border: 1px solid rgba(255,255,255,0.72);
+  border-radius: 18px;
+  background: rgba(247,250,248,0.96);
+  box-shadow: 0 20px 60px rgba(20,40,30,0.22), inset 0 1px 0 rgba(255,255,255,0.82);
+}
+.taskdash-root .td-dialog-eyebrow { color:#8a928d; font:700 10px var(--font-mono); letter-spacing:0.12em; text-transform:uppercase; }
+.taskdash-root .td-dialog h2 { margin:8px 0 8px; color:#1d2421; font-size:18px; }
+.taskdash-root .td-dialog p { margin:0; color:#5a615b; font-size:13px; line-height:1.55; }
+.taskdash-root .td-dialog-actions { display:flex; justify-content:flex-end; gap:8px; margin-top:18px; }
+.taskdash-root .td-dialog-actions button { min-height:36px; padding:8px 13px; border-radius:9px; font-family:inherit; font-size:12px; font-weight:800; cursor:pointer; }
+.taskdash-root .td-dialog-cancel { border:1px solid rgba(255,255,255,0.70); background:rgba(255,255,255,0.62); color:#5a615b; }
+.taskdash-root .td-dialog-confirm { border:1px solid rgba(225,91,79,0.20); background:rgba(225,91,79,0.10); color:#c2533f; }
+.taskdash-root .td-metadata-dialog {
+  width: min(920px, calc(100vw - 32px));
+  max-height: min(780px, calc(100vh - 32px));
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  overflow: hidden;
+}
+.taskdash-root .td-metadata-dialog-header { display:flex; align-items:flex-start; justify-content:space-between; gap:18px; padding:20px 22px 16px; border-bottom:1px solid rgba(40,60,50,0.10); flex-shrink:0; }
+.taskdash-root .td-metadata-dialog-header h2 { margin:8px 0 5px; }
+.taskdash-root .td-metadata-dialog-actions { display:flex; align-items:center; gap:8px; flex-shrink:0; }
+.taskdash-root .td-metadata-dialog-actions button { min-height:36px; padding:8px 13px; border-radius:9px; font-family:inherit; font-size:12px; font-weight:800; cursor:pointer; }
+.taskdash-root .td-metadata-dialog-save { border:0; background:linear-gradient(150deg,#2bb172,#0f6b3f); color:#fff; box-shadow:0 8px 18px rgba(15,107,63,0.18); }
+.taskdash-root .td-metadata-dialog-save:disabled,
+.taskdash-root .td-metadata-dialog-actions button:disabled { cursor:not-allowed; opacity:0.55; }
+.taskdash-root .td-metadata-dialog-body { min-height:0; overflow-y:auto; padding:18px 22px 24px; }
+.taskdash-root .td-metadata-dialog .glass-thin { min-height:auto !important; flex:0 0 auto !important; overflow:visible !important; }
+.taskdash-root .td-setup-mark,
+.taskdash-root .td-vault-mark { display:grid; place-items:center; width:34px; height:34px; border-radius:11px; background:linear-gradient(150deg,#2bb172,#0f6b3f); color:#fff; font-size:24px; font-weight:400; }
+.taskdash-root .td-vault-mark { width:24px; height:24px; border-radius:8px; font-size:18px; }
+.taskdash-root .td-empty-state { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:7px; min-height:150px; padding:24px 14px; color:#5a615b; text-align:center; }
+.taskdash-root .td-empty-state-title { color:#222a25; font-size:13px; font-weight:800; line-height:1.35; }
+.taskdash-root .td-empty-state-detail { max-width:280px; color:#8a928d; font-size:11px; line-height:1.5; }
+.taskdash-root .td-empty-state-action { margin-top:5px; min-height:32px; padding:7px 11px; border:1px solid rgba(20,120,72,0.20); border-radius:8px; background:rgba(20,120,72,0.09); color:#13733f; font-family:inherit; font-size:11px; font-weight:800; cursor:pointer; }

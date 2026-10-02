@@ -1,4 +1,6 @@
 .DS_Store
+node_modules/
+coverage/
 
 # Local/editor state
 .obsidian/
@@ -7,4 +9,3 @@
 dist/
 build/
 *.zip
-

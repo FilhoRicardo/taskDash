@@ -1,0 +1,217 @@
+/* TaskDash plugin chrome — everything app-level lives under .taskdash-root
+   so no styles leak into the rest of Obsidian. */
+
+.taskdash-view-content {
+  padding: 0;
+  overflow: hidden;
+}
+
+.taskdash-root {
+  position: relative;
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+}
+
+.taskdash-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+/* ── Narrow-pane layout (container width < 768px) ──
+   Single column: list stacked over the main panel, icon rail becomes a
+   horizontal bottom bar with large tap targets and no hover-only tips. */
+
+.taskdash-root .shell.td-narrow {
+  display: flex;
+  flex-direction: column;
+  padding: 8px;
+  gap: 8px;
+}
+
+.taskdash-root .rail-desktop-tabs,
+.taskdash-root .rail-desktop-secondary { display: contents; }
+.taskdash-root .rail-mobile-tabs { display: none; }
+.taskdash-root .rail-group { display:flex; flex-direction:column; align-items:center; gap:6px; }
+.taskdash-root .rail-group-label { display:block; color:#8a928d; font:700 8px var(--font-mono); letter-spacing:0.10em; text-transform:uppercase; }
+
+.taskdash-root .shell.td-narrow > .rail {
+  order: 3;
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-start;
+  width: 100%;
+  height: 60px;
+  padding: 6px 8px;
+  gap: 4px;
+  overflow-x: hidden;
+  overflow-y: hidden;
+  flex-shrink: 0;
+  border-radius: var(--r-lg, 14px);
+  border-right: 0;
+}
+
+.taskdash-root .shell.td-narrow > .rail .rail-sep { display: none; }
+.taskdash-root .shell.td-narrow > .rail .rail-vault-btn { display: none; }
+
+.taskdash-root .shell.td-narrow > .rail .rail-btn {
+  width: 48px;
+  height: 48px;
+  flex-shrink: 0;
+}
+
+/* Hover tooltips are hover-only — off in narrow/touch layout. */
+.taskdash-root .shell.td-narrow > .rail .rail-btn .tip { display: none; }
+
+.taskdash-root .shell.td-narrow > .td-pane-list {
+  order: 2;
+  margin: 0;
+  width: 100% !important;
+  display: none !important;
+  flex-shrink: 0;
+}
+
+.taskdash-root .shell.td-narrow > .td-pane-list.mobile-list-open {
+  display: flex !important;
+  position: absolute;
+  inset: 8px 8px 76px;
+  z-index: 100;
+  max-height: none;
+  box-shadow: 0 18px 48px rgba(20,40,30,0.22);
+}
+
+.taskdash-root .shell.td-narrow > .td-pane-main {
+  order: 1;
+  flex: 1;
+  min-height: 0;
+  border-radius: var(--r-lg, 14px);
+}
+
+.taskdash-root .shell.td-narrow > .rail .rail-desktop-tabs,
+.taskdash-root .shell.td-narrow > .rail .rail-desktop-secondary { display: none; }
+.taskdash-root .shell.td-narrow > .rail .rail-mobile-tabs {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+}
+.taskdash-root .shell.td-narrow > .rail .rail-mobile-more-menu {
+  position: absolute;
+  right: 8px;
+  bottom: 64px;
+  z-index: 120;
+  display: grid;
+  min-width: 190px;
+  max-height: min(70vh, 420px);
+  overflow-y: auto;
+  gap: 3px;
+  padding: 6px;
+  border: 1px solid rgba(255,255,255,0.72);
+  border-radius: 12px;
+  background: rgba(247,250,248,0.96);
+  box-shadow: 0 14px 32px rgba(20,40,30,0.18);
+}
+.taskdash-root .shell.td-narrow > .rail .rail-mobile-more-menu button {
+  min-height: 36px;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #222a25;
+  text-align: left;
+  font-family: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.taskdash-root .shell.td-narrow > .rail .rail-mobile-more-menu button:hover,
+.taskdash-root .shell.td-narrow > .rail .rail-mobile-more-menu button:focus-visible { background: rgba(20,120,72,0.10); color: #115c34; }
+.taskdash-root .shell.td-narrow > .rail .rail-mobile-tabs .rail-btn {
+  width: auto;
+  min-width: 0;
+  flex: 1;
+  height: 48px;
+  gap: 3px;
+  flex-direction: column;
+  font-size: 9px;
+}
+.taskdash-root .shell.td-narrow > .rail .rail-mobile-label {
+  display: block;
+  font-size: 9px;
+  line-height: 1;
+  font-weight: 700;
+}
+
+/* Larger touch targets for form controls in narrow layout. */
+.taskdash-root .shell.td-narrow button { min-height: 32px; }
+.taskdash-root .shell.td-narrow input,
+.taskdash-root .shell.td-narrow select,
+.taskdash-root .shell.td-narrow textarea { font-size: 16px; }
+
+.taskdash-root .td-new-task-header { position: sticky; top: 0; z-index: 20; background: rgba(238,241,239,0.92); backdrop-filter: blur(18px); }
+.taskdash-root .td-new-task-form { min-width: 0; }
+.taskdash-root .td-new-task-body { min-height: 0; }
+.taskdash-root .td-new-task-secondary-toggle { display: none; }
+
+.taskdash-root .shell.td-narrow .td-new-task-body { overflow-y: auto !important; }
+.taskdash-root .shell.td-narrow .td-mission-top-metrics { grid-template-columns:repeat(2,minmax(0,1fr)) !important; }
+.taskdash-root .shell.td-narrow .td-mission-heading { align-items:flex-start !important; flex-wrap:wrap; }
+.taskdash-root .shell.td-narrow .td-mission-body { grid-template-columns:1fr !important; overflow-y:auto !important; }
+.taskdash-root .shell.td-narrow .td-mission-daily { min-height:320px !important; }
+.taskdash-root .shell.td-narrow .td-task-detail-body { display:flex !important; flex-direction:column; overflow-y:auto !important; }
+.taskdash-root .shell.td-narrow .td-task-document { overflow:visible !important; border-right:0 !important; }
+.taskdash-root .shell.td-narrow .td-task-inspector { overflow:visible !important; border-top:1px solid var(--background-modifier-border); }
+.taskdash-root .shell.td-narrow .td-task-metadata-editor { max-height:none; padding:14px; }
+.taskdash-root .shell.td-narrow .td-metadata-dialog { width:calc(100vw - 16px); max-height:calc(100dvh - 16px); }
+.taskdash-root .shell.td-narrow .td-metadata-dialog-header { flex-wrap:wrap; gap:12px; padding:14px; }
+.taskdash-root .shell.td-narrow .td-metadata-dialog-actions { width:100%; }
+.taskdash-root .shell.td-narrow .td-metadata-dialog-actions button { flex:1; }
+.taskdash-root .shell.td-narrow .td-metadata-dialog-body { padding:12px; }
+.taskdash-root .shell.td-narrow .td-metadata-grid { grid-template-columns:1fr !important; }
+.taskdash-root .shell.td-narrow .td-new-task-form {
+  display: block !important;
+  height: auto !important;
+  max-width: none !important;
+}
+.taskdash-root .shell.td-narrow .td-new-task-form > .td-new-task-primary,
+.taskdash-root .shell.td-narrow .td-new-task-form > .td-new-task-secondary { width: 100%; }
+.taskdash-root .shell.td-narrow .td-task-form-grid,
+.taskdash-root .shell.td-narrow .td-task-builder-parts,
+.taskdash-root .shell.td-narrow .td-task-link-grid {
+  grid-template-columns: 1fr !important;
+}
+.taskdash-root .shell.td-narrow .td-new-task-secondary-toggle {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  margin: 4px 0 12px;
+  padding: 10px 12px;
+  border: 1px solid rgba(255,255,255,0.62);
+  border-radius: 10px;
+  background: rgba(255,255,255,0.50);
+  color: #13733f;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.taskdash-root .shell.td-narrow .td-new-task-secondary-fields.is-collapsed { display: none; }
+
+.taskdash-root .td-calendar-agenda { display: grid; gap: 10px; }
+.taskdash-root .td-calendar-agenda-day { padding: 10px; border-radius: 14px; }
+.taskdash-root .td-calendar-agenda-day-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+.taskdash-root .td-calendar-agenda-day-header button { min-height: 36px; flex: 1; text-align: left; border: 0; border-radius: 9px; padding: 8px 10px; background: rgba(255,255,255,0.42); color: #1d2421; font-family: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }
+.taskdash-root .td-calendar-agenda-day-header span { color: #5a615b; font: 700 11px var(--font-mono); }
+.taskdash-root .td-calendar-agenda-card { padding:10px; border-radius:10px; }
+.taskdash-root .td-calendar-agenda-empty { padding: 14px; border: 1px dashed rgba(40,60,50,0.14); border-radius: 10px; color: #8a928d; font-size: 12px; text-align: center; }
+.taskdash-root .td-calendar-agenda-move { display: flex; align-items: center; gap: 6px; margin-top: 6px; color: #5a615b; font-size: 10px; }
+.taskdash-root .td-calendar-agenda-move input { min-height: 30px; padding: 5px 8px; font-size: 12px; }
+.taskdash-root .td-mission-queues { order: -1; }
+.taskdash-root .td-daily-empty-state { width:min(420px,100%); margin:auto; padding:24px; border:1px solid rgba(20,120,72,0.18); border-radius:16px; background:rgba(20,120,72,0.06); text-align:center; }
+.taskdash-root .td-daily-empty-icon { width:34px; height:34px; margin:0 auto 12px; display:grid; place-items:center; border-radius:11px; background:rgba(20,120,72,0.12); color:#13733f; font-size:24px; font-weight:500; }
+.taskdash-root .td-task-metadata-editor { max-height:42%; }

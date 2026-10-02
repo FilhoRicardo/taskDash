@@ -1,0 +1,335 @@
+export function parseFrontmatter(txt) {
+  const m = txt.match(/^---\n([\s\S]*?)\n---/);
+  if (!m) return {};
+  const res = {}; let key = null;
+  for (const line of m[1].split('\n')) {
+    if (/^\s*-\s+/.test(line)) {
+      const v = line.replace(/^\s*-\s+/, '').trim().replace(/^["']|["']$/g, '');
+      if (key && Array.isArray(res[key])) res[key].push(v);
+    } else {
+      const kv = line.match(/^(\w+):\s*(.*)/);
+      if (!kv) continue;
+      key = kv[1]; const raw = kv[2].trim();
+      if (!raw) res[key] = [];
+      else if (raw[0] === '[') res[key] = raw.slice(1,-1).split(',').map(s => s.trim().replace(/^["']|["']$/g, ''));
+      else res[key] = raw.replace(/^["']|["']$/g, '');
+    }
+  }
+  return res;
+}
+
+const wl = s => {
+  if (Array.isArray(s)) s = s[0];
+  if (typeof s !== 'string' || !s) return null;
+  return s.replace(/^\[\[|\]\]$/g, '');
+};
+const fileBase = name => name.replace(/\\/g, '/').split('/').pop();
+const basename = name => fileBase(name).replace(/\.md$/i, '');
+const ignoredName = (name, { includeUnderscore = false } = {}) => {
+  const base = basename(name).trim().toLowerCase();
+  if (base === 'index') return true;
+  if (!includeUnderscore && base.startsWith('_')) return true;
+  return false;
+};
+export const isProjectFileName = name => {
+  const base = basename(name).trim();
+  return /^project\b/i.test(base) || /^cover_.+/i.test(base);
+};
+const projectDisplayName = name => basename(name).replace(/^cover_/i, '').trim();
+const titleFromName = name => basename(name)
+  .split('-')
+  .filter(Boolean)
+  .map(w => w.charAt(0).toUpperCase() + w.slice(1))
+  .join(' ');
+const attachmentName = path => {
+  if (Array.isArray(path)) path = path[0];
+  if (typeof path !== 'string' || !path) return null;
+  return path.replace(/\\/g, '/').split('/').pop();
+};
+const normalizeLogDate = rawDate => {
+  const iso = rawDate.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (iso) return rawDate;
+  const slash = rawDate.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (!slash) return null;
+  const [, d, m, y] = slash;
+  return `${y}-${String(Number(m)).padStart(2, '0')}-${String(Number(d)).padStart(2, '0')}`;
+};
+
+function parseDatedLogs(txt) {
+  const logs = [];
+  const hRx = /(^|\n)### (?:\[\[)?(\d{4}-\d{2}-\d{2}|\d{1,2}\/\d{1,2}\/\d{4})(?:\]\])?[ \t]*(?=\n|$)/g;
+  const headers = [...txt.matchAll(hRx)].map(m => ({
+    date: normalizeLogDate(m[2]),
+    start: m.index + m[1].length,
+    end: m.index + m[0].length,
+  })).filter(h => h.date);
+  headers.forEach((h, i) => {
+    const section = txt.slice(h.end, headers[i + 1]?.start ?? txt.length);
+    [...section.matchAll(/^Log:\s*([\s\S]*?)(?=\nLog:\s|\n---[ \t]*(?=\n|$)|(?![\s\S]))/gm)].forEach(lm => {
+      const text = lm[1].trim();
+      if (text) logs.push({ date: h.date, text, order: logs.length });
+    });
+  });
+  logs.sort((a, b) => a.date.localeCompare(b.date) || a.order - b.order);
+  logs.forEach(l => { delete l.order; });
+  return logs;
+}
+
+export function parseTask(name, txt) {
+  const fm = parseFrontmatter(txt), title = fm.title || basename(name);
+  const cl = [...txt.matchAll(/- \[([ x])\] (.+)/g)].map(m => ({done:m[1]==='x',text:m[2]}));
+  const logs = parseDatedLogs(txt);
+
+  const tags = Array.isArray(fm.tags) ? fm.tags : fm.tags ? [fm.tags] : [];
+
+  return {
+    id:name, title, filename:basename(name),
+    priority:fm.priority||'normal', status:fm.status||'none', due:fm.due||null, scheduled:fm.scheduled||null,
+    threadSubject:fm.threadSubject||'',
+    dateCreated:fm.dateCreated||null, dateModified:fm.dateModified||null,
+    contexts:Array.isArray(fm.contexts)?fm.contexts:fm.contexts?[fm.contexts]:[],
+    client:wl(fm.client), building:wl(fm.building),
+    projects:Array.isArray(fm.projects)?fm.projects.map(wl):fm.projects?[wl(fm.projects)]:[],
+    waitingfor:wl(fm.waitingfor),
+    timeEstimate:fm.timeEstimate||'',
+    tags, archived: name.startsWith('__done__/') || tags.includes('archived'),
+    recurrent: fm.recurrent === 'true' || fm.Recurrent === 'true' || tags.includes('recurrent') || tags.includes('recurring'),
+    recurrence: fm.recurrence || null,
+    completeInstances: Array.isArray(fm.complete_instances) ? fm.complete_instances : [],
+    skippedInstances: Array.isArray(fm.skipped_instances) ? fm.skipped_instances : [],
+    completedDate: fm.completedDate || null,
+    checklist:cl, checklistDone:cl.filter(c=>c.done).length, checklistTotal:cl.length,
+    logs, raw:txt,
+  };
+}
+
+export function parseProject(name, txt) {
+  const fm = parseFrontmatter(txt);
+  const h1 = txt.match(/^#\s+(.+)$/m)?.[1]?.trim();
+  const tags = Array.isArray(fm.tags) ? fm.tags : fm.tags ? [fm.tags] : [];
+  return {
+    id: name,
+    filename: basename(name),
+    title: fm.title || h1 || titleFromName(projectDisplayName(name)),
+    status: fm.status || fm.projectStatus || 'active',
+    client: wl(fm.client),
+    summary: fm.summary || '',
+    tags,
+    type: (fm.type || fm.Type || '').toLowerCase(),
+    dateCreated: fm.dateCreated || null,
+    dateModified: fm.dateModified || null,
+    raw: txt,
+  };
+}
+
+function sectionBody(txt, headingRx) {
+  const match = headingRx.exec(txt);
+  if (!match) return '';
+  const start = match.index + match[0].length;
+  const next = txt.slice(start).search(/\n##\s+/);
+  return txt.slice(start, next === -1 ? txt.length : start + next).trim();
+}
+
+function bulletLines(txt) {
+  return txt
+    .split('\n')
+    .map(line => line.trim())
+    .filter(line => /^-\s+.+/.test(line))
+    .map(line => line.replace(/^-\s+/, '').trim());
+}
+
+function tableRows(txt) {
+  return txt
+    .split('\n')
+    .map(line => line.trim())
+    .filter(line => /^\|.*\|$/.test(line))
+    .map(line => line.slice(1, -1).split('|').map(cell => cell.trim()))
+    .filter(cells => cells.length >= 2 && !/^:?-+:?$/.test(cells[0]) && cells[0].toLowerCase() !== 'time')
+    .map(cells => ({ time: cells[0], event: cells[1] }));
+}
+
+export function parseDailyNote(name, txt) {
+  const fm = parseFrontmatter(txt);
+  const h1 = txt.match(/^#\s+(.+)$/m)?.[1]?.trim();
+  const timeClock = sectionBody(txt, /(^|\n)##\s+.*Time Clock[ \t]*(?=\n|$)/i);
+  const notes = sectionBody(txt, /(^|\n)##\s+.*Notes[ \t]*(?=\n|$)/i);
+  const reflections = sectionBody(txt, /(^|\n)##\s+.*Reflections[ \t]*(?=\n|$)/i);
+  const brainDump = sectionBody(txt, /(^|\n)##\s+.*Brain dump.*[ \t]*(?=\n|$)/i);
+  return {
+    id: name,
+    filename: basename(name),
+    date: fm.date || basename(name),
+    workStatus: fm.workStatus || 'workday',
+    title: h1 || basename(name),
+    timeClock: tableRows(timeClock),
+    notes: bulletLines(notes),
+    reflections: bulletLines(reflections),
+    brainDump: bulletLines(brainDump),
+    raw: txt,
+  };
+}
+
+export function parseMeeting(name, txt) {
+  const fm = parseFrontmatter(txt);
+  const h1 = txt.match(/^#\s+(.+)$/m)?.[1]?.trim();
+  return {
+    id: name,
+    filename: basename(name),
+    title: fm.title || h1 || titleFromName(name),
+    date: fm.due || fm.date || (fm.dateCreated || '').slice(0, 10) || null,
+    dateCreated: fm.dateCreated || null,
+    raw: txt,
+  };
+}
+
+export function parseProperty(name, txt) {
+  const fm = parseFrontmatter(txt);
+  const h1 = txt.match(/^#\s+(.+)$/m)?.[1]?.trim();
+  const commentsStart = txt.search(/(^|\n)## Property Comments[ \t]*(?=\n|$)/i);
+  const commentText = commentsStart === -1 ? '' : txt.slice(commentsStart);
+  const tags = Array.isArray(fm.tags) ? fm.tags : fm.tags ? [fm.tags] : [];
+  const cover = fm.cover || fm.image || null;
+  return {
+    id: name,
+    filename: basename(name),
+    title: fm.building || fm.title || h1 || titleFromName(name),
+    client: wl(fm.client),
+    summary: fm.summary || '',
+    cover,
+    coverName: attachmentName(cover),
+    tags,
+    comments: parseDatedLogs(commentText),
+    raw: txt,
+  };
+}
+
+export function parsePerson(name, txt) {
+  const fm = parseFrontmatter(txt);
+  const h1 = txt.match(/^#\s+(.+)$/m)?.[1]?.trim();
+  const tags = Array.isArray(fm.tags) ? fm.tags : fm.tags ? [fm.tags] : [];
+  return {
+    id: name,
+    filename: basename(name),
+    title: fm.person || fm.name || fm.title || h1 || titleFromName(name),
+    company: wl(fm.company || fm.client),
+    role: fm.role || '',
+    email: fm.email || '',
+    phone: fm.phone || '',
+    tags,
+    dateCreated: fm.dateCreated || null,
+    dateModified: fm.dateModified || null,
+    raw: txt,
+  };
+}
+
+export function parseOrganization(name, txt) {
+  const fm = parseFrontmatter(txt);
+  const h1 = txt.match(/^#\s+(.+)$/m)?.[1]?.trim();
+  const tags = Array.isArray(fm.tags) ? fm.tags : fm.tags ? [fm.tags] : [];
+  return {
+    id: name,
+    filename: basename(name),
+    title: fm.organization || fm.name || fm.title || h1 || titleFromName(name),
+    industry: fm.industry || '',
+    website: fm.website || '',
+    email: fm.email || '',
+    phone: fm.phone || '',
+    tags,
+    dateCreated: fm.dateCreated || null,
+    dateModified: fm.dateModified || null,
+    raw: txt,
+  };
+}
+
+// Reads run in parallel: per-file latency (sync clients, antivirus, slow
+// disks) must not multiply by file count.
+export async function readMdFiles(dir, acc = [], prefix = '', options = {}) {
+  const jobs = [];
+  for await (const [name, h] of dir.entries()) {
+    if (ignoredName(name, options)) continue;
+    const rel = prefix ? `${prefix}/${name}` : name;
+    if (h.kind === 'file' && name.endsWith('.md') && name !== 'timetracker.md') {
+      jobs.push((async () => {
+        try {
+          acc.push({ name: rel, handle: h, text: await (await h.getFile()).text() });
+        } catch(e) {
+          console.warn(`Skipped unreadable markdown entry: ${name}`, e);
+        }
+      })());
+    } else if (h.kind === 'directory' && !name.startsWith('.')) {
+      jobs.push(readMdFiles(h, acc, rel, options).then(() => undefined, e => {
+        console.warn(`Skipped unreadable markdown entry: ${name}`, e);
+      }));
+    }
+  }
+  await Promise.all(jobs);
+  return acc;
+}
+
+// For the Projects folder: iterate each immediate subfolder and read only the
+// single .md file whose name starts with "Cover" (case-insensitive). All other
+// files and nested subfolders are ignored.
+export async function readProjectCoverFiles(dir) {
+  const acc = [];
+  const jobs = [];
+  for await (const [folderName, folderHandle] of dir.entries()) {
+    if (folderHandle.kind !== 'directory' || folderName.startsWith('.')) continue;
+    jobs.push((async () => {
+      try {
+        for await (const [fileName, fileHandle] of folderHandle.entries()) {
+          try {
+            if (fileHandle.kind !== 'file') continue;
+            if (!fileName.endsWith('.md')) continue;
+            if (!/^cover/i.test(fileName)) continue;
+            const text = await (await fileHandle.getFile()).text();
+            acc.push({ name: `${folderName}/${fileName}`, handle: fileHandle, text });
+            break; // only the first Cover file per subfolder
+          } catch(e) {
+            console.warn(`Skipped unreadable project cover file: ${fileName}`, e);
+          }
+        }
+      } catch(e) {
+        console.warn(`Skipped unreadable project subfolder: ${folderName}`, e);
+      }
+    })());
+  }
+  await Promise.all(jobs);
+  return acc;
+}
+
+// Returns just filenames (without .md extension) for autocomplete sources.
+export async function readDirNames(dir, options = {}, acc = []) {
+  if (options.projectOnly) {
+    // Mirror readProjectCoverFiles: one Cover file per subfolder, used as the project name.
+    for await (const [folderName, folderHandle] of dir.entries()) {
+      if (folderHandle.kind !== 'directory' || folderName.startsWith('.')) continue;
+      for await (const [fileName, fileHandle] of folderHandle.entries()) {
+        if (fileHandle.kind !== 'file' || !fileName.endsWith('.md')) continue;
+        if (!/^cover/i.test(fileName)) continue;
+        acc.push(projectDisplayName(fileName));
+        break;
+      }
+    }
+    return acc;
+  }
+  for await (const [name, h] of dir.entries()) {
+    if (ignoredName(name)) continue;
+    if (h.kind === 'file' && name.endsWith('.md')) acc.push(basename(name));
+    else if (h.kind === 'directory' && !name.startsWith('.'))
+      await readDirNames(h, options, acc);
+  }
+  return acc;
+}
+
+const IMAGE_RX = /\.(png|jpe?g|gif|webp|avif)$/i;
+
+export async function readImageFiles(dir, acc = []) {
+  for await (const [name, h] of dir.entries()) {
+    if (ignoredName(name)) continue;
+    if (h.kind === 'file' && IMAGE_RX.test(name))
+      acc.push({ name, handle: h });
+    else if (h.kind === 'directory' && !name.startsWith('.'))
+      await readImageFiles(h, acc);
+  }
+  return acc;
+}

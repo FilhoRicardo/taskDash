@@ -1,0 +1,453 @@
+// @vitest-environment happy-dom
+//
+// End-to-end integration: boots the real plugin class (main.ts), opens the
+// real view (view.tsx), which mounts the real React app (App.jsx) wired to
+// the real ObsidianVaultAdapter (vault/obsidian.ts) against a fake vault.
+// Asserts the dashboard actually renders vault data and honors the startup
+// rule (zero vault reads before the view opens).
+
+import { beforeEach, describe, expect, it } from 'vitest';
+import TaskDashPlugin from '../main.ts';
+import { TASKDASH_VIEW_TYPE } from '../view.tsx';
+
+// ── Fake vault (duck-typed TFile/TFolder like the adapter expects) ──
+function makeFakeApp() {
+  const files = new Map();
+  const folders = new Set();
+  const base = p => p.split('/').pop();
+  const parentOf = p => (p.includes('/') ? p.slice(0, p.lastIndexOf('/')) : '');
+  let reads = 0;
+
+  const fileObj = path => ({
+    path,
+    name: base(path),
+    stat: { mtime: files.get(path).mtime, size: String(files.get(path).content).length },
+  });
+  const folderObj = path => ({
+    path,
+    name: base(path),
+    get children() {
+      const kids = [];
+      for (const f of folders) if (f && parentOf(f) === path) kids.push(folderObj(f));
+      for (const p of files.keys()) if (parentOf(p) === path) kids.push(fileObj(p));
+      return kids;
+    },
+  });
+
+  const vault = {
+    getName() {
+      return 'test-vault';
+    },
+    getAbstractFileByPath(path) {
+      if (folders.has(path)) return folderObj(path);
+      if (files.has(path)) return fileObj(path);
+      return null;
+    },
+    async create(path, content) {
+      files.set(path, { content, mtime: Date.now() });
+      return fileObj(path);
+    },
+    async createFolder(path) {
+      folders.add(path);
+    },
+    async readBinary(tfile) {
+      reads += 1;
+      return new TextEncoder().encode(String(files.get(tfile.path).content)).buffer;
+    },
+    async process(tfile, fn) {
+      const entry = files.get(tfile.path);
+      const next = fn(String(entry.content));
+      files.set(tfile.path, { content: next, mtime: entry.mtime + 1 });
+      return next;
+    },
+    async modifyBinary() {},
+    async createBinary() {},
+    async trash(target) {
+      files.delete(target.path);
+      folders.delete(target.path);
+    },
+    on() {
+      return {};
+    },
+    offref() {},
+  };
+
+  const openedFiles = [];
+  const app = {
+    vault,
+    fileManager: {},
+    workspace: {
+      getLeavesOfType: () => [],
+      getLeaf: () => ({ setViewState: async () => {}, openFile:async file => openedFiles.push(file.path) }),
+      revealLeaf: async () => {},
+    },
+    __viewFactories: {},
+    __commands: [],
+    __ribbon: [],
+    __files: files,
+    __folders: folders,
+    readCount: () => reads,
+    __openedFiles: openedFiles,
+  };
+  return app;
+}
+
+const TASK_MD = `---
+title: Ship the integration test
+status: in-progress
+priority: high
+due: 2026-07-06
+tags:
+  - work
+---
+# Ship the integration test
+
+- [ ] render in the dashboard
+`;
+
+const EDITABLE_TASK_MD = `---
+title: Edit a native task log
+status: none
+priority: normal
+due: 2026-07-10
+tags:
+  - task
+---
+# Edit a native task log
+
+### [[2026-06-03]]
+Log: [08:03] Original log text
+
+---
+`;
+
+const SECOND_TASK_MD = `---
+title: Review the release
+status: none
+priority: normal
+due: 2026-07-11
+tags:
+  - task
+---
+# Review the release
+`;
+
+const BRAIN_DUMP_TASK_MD = `---
+title: BD - Explore a rough idea
+status: none
+priority: normal
+---
+# BD - Explore a rough idea
+`;
+
+const WAITING_TASK_MD = `---
+title: Follow up with Jane
+status: none
+priority: normal
+waitingfor:
+  - Jane Doe
+---
+# Follow up with Jane
+`;
+
+async function waitFor(predicate, timeoutMs = 5000) {
+  const startedAt = Date.now();
+  while (Date.now() - startedAt < timeoutMs) {
+    if (predicate()) return true;
+    await new Promise(r => setTimeout(r, 25));
+  }
+  return predicate();
+}
+
+describe('TaskDash plugin end-to-end', () => {
+  beforeEach(() => {
+    document.body.innerHTML = '';
+    globalThis.ResizeObserver = class {
+      constructor(callback) { this.callback = callback; }
+      observe() { this.callback([{ contentRect:{ width:1800 } }]); }
+      disconnect() {}
+    };
+  });
+
+  it('boots, registers surfaces without touching the vault, and renders vault data when the view opens', async () => {
+    const app = makeFakeApp();
+    app.__folders.add('Tasks');
+    app.__folders.add('Done');
+    app.__folders.add('People');
+    app.__files.set('Tasks/ship-it.md', { content: TASK_MD, mtime: 1 });
+    app.__files.set('People/Jane Doe.md', { content: '---\nperson: Jane Doe\n---\n', mtime: 1 });
+    // A reference folder must be configured or the app shows its one-time
+    // folder-setup screen instead of the dashboard.
+    app.__pluginData = {
+      folders: { tasks: 'Tasks', done: 'Done', people: 'People' },
+      enableStatusBarTimer: true,
+    };
+
+    const plugin = new TaskDashPlugin(app, { id: 'taskdash', version: '0.1.0' });
+    await plugin.onload();
+
+    // Surfaces registered…
+    expect(Object.keys(app.__viewFactories)).toEqual([TASKDASH_VIEW_TYPE]);
+    expect(app.__commands.map(c => c.id).sort()).toEqual([
+      'create-task',
+      'open',
+      'open-review',
+      'open-waiting',
+      'refresh',
+      'toggle-timer',
+      'triage-brain-dump',
+    ]);
+    expect(app.__ribbon).toHaveLength(1);
+    expect(app.__settingTab).toBeTruthy();
+    // …and the startup rule holds: zero vault reads before the view opens.
+    expect(app.readCount()).toBe(0);
+
+    // Open the view like Obsidian would.
+    const view = app.__viewFactories[TASKDASH_VIEW_TYPE]({});
+    view.app = app;
+    await view.onOpen();
+
+    const rendered = await waitFor(() => view.contentEl.textContent.includes('Ship the integration test'));
+    expect(rendered).toBe(true);
+    expect(app.readCount()).toBeGreaterThan(0);
+    expect(view.contentEl.querySelector('.taskdash-root')).toBeTruthy();
+    expect(view.contentEl.querySelector('.shell')).toBeTruthy();
+    expect(view.contentEl.querySelector('.td-task-list-group')?.textContent).toContain('Overdue');
+
+    // Clean unmount.
+    await view.onClose();
+    expect(view.contentEl.textContent).toBe('');
+  });
+
+  it('keeps Brain Dump out of work and exposes Review and Waiting as separate native queues', async () => {
+    const app = makeFakeApp();
+    app.__folders.add('Tasks');
+    app.__files.set('Tasks/ship-it.md', { content:TASK_MD, mtime:1 });
+    app.__files.set('Tasks/BD - rough-idea.md', { content:BRAIN_DUMP_TASK_MD, mtime:2 });
+    app.__files.set('Tasks/follow-up.md', { content:WAITING_TASK_MD, mtime:3 });
+    app.__pluginData = { folders:{ tasks:'Tasks' }, enableStatusBarTimer:true };
+
+    const plugin = new TaskDashPlugin(app, { id:'taskdash-2-2', version:'2.2.0' });
+    await plugin.onload();
+    const view = app.__viewFactories[TASKDASH_VIEW_TYPE]({});
+    view.app = app;
+    await view.onOpen();
+
+    const workReady = await waitFor(() => view.contentEl.querySelectorAll('.td-task-list-row').length === 2);
+    expect(workReady).toBe(true);
+    expect(await waitFor(() => view.contentEl.querySelector('.td-task-inspector-save')?.textContent === 'Saved')).toBe(true);
+    expect([...view.contentEl.querySelectorAll('.td-task-list-row')].some(row => row.textContent.includes('Explore a rough idea'))).toBe(false);
+
+    view.contentEl.querySelector('button[aria-label="BD tasks"]')
+      .dispatchEvent(new MouseEvent('click', { bubbles:true, cancelable:true }));
+    expect(await waitFor(() => [...view.contentEl.querySelectorAll('.td-task-list-row')]
+      .some(row => row.textContent.includes('Explore a rough idea')))).toBe(true);
+    await new Promise(resolve => setTimeout(resolve, 50));
+
+    view.contentEl.querySelector('button[aria-label="Review"]')
+      .dispatchEvent(new MouseEvent('click', { bubbles:true, cancelable:true }));
+    expect(await waitFor(() => !!view.contentEl.querySelector('.td-workflow-layout'))).toBe(true);
+    expect(view.contentEl.querySelector('.td-workflow-layout').textContent).not.toContain('Explore a rough idea');
+    await new Promise(resolve => setTimeout(resolve, 50));
+
+    view.contentEl.querySelector('button[aria-label="Waiting"]')
+      .dispatchEvent(new MouseEvent('click', { bubbles:true, cancelable:true }));
+    expect(await waitFor(() => view.contentEl.querySelector('.td-page-host')?.textContent.includes('Follow up with Jane'))).toBe(true);
+
+    await view.onClose();
+  });
+
+  it('saves an edited task-log comment through the native view', async () => {
+    const app = makeFakeApp();
+    app.__folders.add('Tasks');
+    app.__files.set('Tasks/editable-task.md', { content: EDITABLE_TASK_MD, mtime: 1 });
+    app.__pluginData = {
+      folders: { tasks: 'Tasks' },
+      enableStatusBarTimer: true,
+    };
+
+    const plugin = new TaskDashPlugin(app, { id: 'taskdash', version: '0.1.0' });
+    await plugin.onload();
+    const view = app.__viewFactories[TASKDASH_VIEW_TYPE]({});
+    view.app = app;
+    await view.onOpen();
+
+    const taskRowReady = await waitFor(() => [...view.contentEl.querySelectorAll('[role="button"]')]
+      .some(row => row.textContent.includes('Edit a native task log')));
+    expect(taskRowReady).toBe(true);
+
+    const taskRow = [...view.contentEl.querySelectorAll('[role="button"]')]
+      .find(row => row.textContent.includes('Edit a native task log'));
+    taskRow.dispatchEvent(new MouseEvent('click', { bubbles:true, cancelable:true }));
+
+    const editButtonReady = await waitFor(() => [...view.contentEl.querySelectorAll('button')]
+      .some(button => button.textContent === 'Edit'));
+    expect(editButtonReady).toBe(true);
+    [...view.contentEl.querySelectorAll('button')]
+      .find(button => button.textContent === 'Edit')
+      .dispatchEvent(new MouseEvent('click', { bubbles:true, cancelable:true }));
+
+    const textareaReady = await waitFor(() => [...view.contentEl.querySelectorAll('textarea')]
+      .some(textarea => textarea.value === 'Original log text'));
+    expect(textareaReady).toBe(true);
+    let textarea = [...view.contentEl.querySelectorAll('textarea')]
+      .find(element => element.value === 'Original log text');
+
+    [...view.contentEl.querySelectorAll('button')]
+      .find(button => button.textContent === 'Save')
+      .dispatchEvent(new MouseEvent('click', { bubbles:true, cancelable:true }));
+
+    const editorClosedWithoutChange = await waitFor(() => [...view.contentEl.querySelectorAll('textarea')]
+      .every(element => element.value !== 'Original log text'));
+    expect(editorClosedWithoutChange).toBe(true);
+    expect(app.__files.get('Tasks/editable-task.md').content).toContain('Log: [08:03] Original log text');
+
+    [...view.contentEl.querySelectorAll('button')]
+      .find(button => button.textContent === 'Edit')
+      .dispatchEvent(new MouseEvent('click', { bubbles:true, cancelable:true }));
+    const reopenedEditor = await waitFor(() => [...view.contentEl.querySelectorAll('textarea')]
+      .some(element => element.value === 'Original log text'));
+    expect(reopenedEditor).toBe(true);
+    textarea = [...view.contentEl.querySelectorAll('textarea')]
+      .find(element => element.value === 'Original log text');
+    const valueSetter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set;
+    valueSetter.call(textarea, 'Updated log text');
+    textarea.dispatchEvent(new Event('input', { bubbles:true }));
+
+    const saveButtonReady = await waitFor(() => [...view.contentEl.querySelectorAll('button')]
+      .some(button => button.textContent === 'Save'));
+    expect(saveButtonReady).toBe(true);
+    [...view.contentEl.querySelectorAll('button')]
+      .find(button => button.textContent === 'Save')
+      .dispatchEvent(new MouseEvent('click', { bubbles:true, cancelable:true }));
+
+    const saved = await waitFor(() => app.__files.get('Tasks/editable-task.md').content.includes('Log: [08:03] Updated log text'));
+    expect(saved).toBe(true);
+    expect(view.contentEl.textContent).toContain('Updated log text');
+    expect(view.contentEl.textContent).not.toContain('Original log text');
+
+    await view.onClose();
+  });
+
+  it('edits task metadata in the persistent native inspector', async () => {
+    const app = makeFakeApp();
+    app.__folders.add('Tasks');
+    app.__files.set('Tasks/ship-it.md', { content: TASK_MD, mtime: 1 });
+    app.__pluginData = {
+      folders: { tasks: 'Tasks' },
+      enableStatusBarTimer: true,
+    };
+
+    const plugin = new TaskDashPlugin(app, { id: 'taskdash', version: '0.1.0' });
+    await plugin.onload();
+    const view = app.__viewFactories[TASKDASH_VIEW_TYPE]({});
+    view.app = app;
+    await view.onOpen();
+
+    const taskRowReady = await waitFor(() => [...view.contentEl.querySelectorAll('[role="button"]')]
+      .some(row => row.textContent.includes('Ship the integration test')));
+    expect(taskRowReady).toBe(true);
+    [...view.contentEl.querySelectorAll('[role="button"]')]
+      .find(row => row.textContent.includes('Ship the integration test'))
+      .dispatchEvent(new MouseEvent('click', { bubbles:true, cancelable:true }));
+
+    const inspectorReady = await waitFor(() => view.contentEl.querySelector('.td-task-inspector'));
+    expect(inspectorReady).toBe(true);
+    const inspector = view.contentEl.querySelector('.td-task-inspector');
+    expect(inspector.textContent).toContain('Properties');
+    expect(inspector.textContent).toContain('ship-it');
+    expect(view.contentEl.querySelector('.td-metadata-dialog')).toBeNull();
+
+    const contexts = inspector.querySelector('input[placeholder="work, phone"]');
+    const valueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
+    valueSetter.call(contexts, 'work, phone');
+    contexts.dispatchEvent(new Event('input', { bubbles:true }));
+
+    [...inspector.querySelectorAll('button')]
+      .find(button => button.textContent === 'Save')
+      .dispatchEvent(new MouseEvent('click', { bubbles:true, cancelable:true }));
+    const saved = await waitFor(() => app.__files.get('Tasks/ship-it.md').content.includes('  - "phone"'));
+    expect(saved).toBe(true);
+    expect(view.contentEl.querySelector('.td-task-inspector')).toBeTruthy();
+
+    await view.onClose();
+  });
+
+  it('uses a spacious task-properties dialog at normal pane widths', async () => {
+    globalThis.ResizeObserver = class {
+      constructor(callback) { this.callback = callback; }
+      observe() { this.callback([{ contentRect:{ width:1200 } }]); }
+      disconnect() {}
+    };
+
+    const app = makeFakeApp();
+    app.__folders.add('Tasks');
+    app.__files.set('Tasks/ship-it.md', { content:TASK_MD, mtime:1 });
+    app.__pluginData = { folders:{ tasks:'Tasks' }, enableStatusBarTimer:true };
+
+    const plugin = new TaskDashPlugin(app, { id:'taskdash-2-2', version:'2.2.0' });
+    await plugin.onload();
+    const view = app.__viewFactories[TASKDASH_VIEW_TYPE]({});
+    view.app = app;
+    await view.onOpen();
+
+    expect(await waitFor(() => [...view.contentEl.querySelectorAll('button')]
+      .some(button => button.textContent === 'Properties'))).toBe(true);
+    expect(view.contentEl.querySelector('.td-task-inspector')).toBeNull();
+
+    [...view.contentEl.querySelectorAll('button')]
+      .find(button => button.textContent === 'Properties')
+      .dispatchEvent(new MouseEvent('click', { bubbles:true, cancelable:true }));
+
+    expect(await waitFor(() => !!view.contentEl.querySelector('.td-metadata-dialog'))).toBe(true);
+    expect(view.contentEl.querySelector('.td-metadata-dialog').textContent).toContain('Ship the integration test');
+
+    await view.onClose();
+  });
+
+  it('asks before discarding unsaved inspector metadata when selecting another task', async () => {
+    const app = makeFakeApp();
+    app.__folders.add('Tasks');
+    app.__files.set('Tasks/ship-it.md', { content: TASK_MD, mtime: 1 });
+    app.__files.set('Tasks/review.md', { content: SECOND_TASK_MD, mtime: 2 });
+    app.__pluginData = { folders: { tasks:'Tasks' }, enableStatusBarTimer:true };
+
+    const plugin = new TaskDashPlugin(app, { id:'taskdash', version:'0.1.0' });
+    await plugin.onload();
+    const view = app.__viewFactories[TASKDASH_VIEW_TYPE]({});
+    view.app = app;
+    await view.onOpen();
+
+    const rowsReady = await waitFor(() => [...view.contentEl.querySelectorAll('.td-task-list-row')].length === 2);
+    expect(rowsReady).toBe(true);
+    [...view.contentEl.querySelectorAll('.td-task-list-row')]
+      .find(row => row.textContent.includes('Ship the integration test'))
+      .dispatchEvent(new MouseEvent('click', { bubbles:true, cancelable:true }));
+
+    const inspectorReady = await waitFor(() => view.contentEl.querySelector('.td-task-inspector'));
+    expect(inspectorReady).toBe(true);
+    const contexts = view.contentEl.querySelector('.td-task-inspector input[placeholder="work, phone"]');
+    const valueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
+    valueSetter.call(contexts, 'work, unsaved-audit');
+    contexts.dispatchEvent(new Event('input', { bubbles:true }));
+
+    [...view.contentEl.querySelectorAll('.td-task-list-row')]
+      .find(row => row.textContent.includes('Review the release'))
+      .dispatchEvent(new MouseEvent('click', { bubbles:true, cancelable:true }));
+
+    const dialogReady = await waitFor(() => view.contentEl.querySelector('.td-unsaved-dialog'));
+    expect(dialogReady).toBe(true);
+    expect(view.contentEl.querySelector('.td-task-inspector-file').textContent).toContain('ship-it');
+    expect(view.contentEl.querySelector('.td-unsaved-dialog').textContent).toContain('Unsaved property changes');
+
+    [...view.contentEl.querySelectorAll('.td-unsaved-dialog button')]
+      .find(button => button.textContent === 'Discard')
+      .dispatchEvent(new MouseEvent('click', { bubbles:true, cancelable:true }));
+
+    const switched = await waitFor(() => view.contentEl.querySelector('.td-task-inspector-file')?.textContent.includes('review'));
+    expect(switched).toBe(true);
+    expect(app.__files.get('Tasks/ship-it.md').content).not.toContain('unsaved-audit');
+
+    await view.onClose();
+  });
+});

@@ -1,0 +1,756 @@
+.taskdash-root {
+  --font-ui: 'Schibsted Grotesk', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Consolas, monospace;
+
+  --ink: #1d2421;
+  --ink-strong: #222a25;
+  --ink-dim: #5a615b;
+  --ink-muted: #8a928d;
+  --ink-faint: #9aa19c;
+
+  --accent: #13733f;
+  --accent-deep: #115c34;
+  --accent-gradient: linear-gradient(180deg,#23a564,#13733f);
+  --accent-soft: rgba(20,120,72,0.10);
+  --accent-line: rgba(20,120,72,0.20);
+  --good: #13733f;
+  --warn: #a9791f;
+  --bad: #c2533f;
+  --info: #3f6fd0;
+  --violet: #5b57b0;
+
+  --glass-bg: rgba(255,255,255,0.46);
+  --glass-bg-strong: rgba(255,255,255,0.46);
+  --glass-inner: rgba(255,255,255,0.55);
+  --glass-line: rgba(255,255,255,0.55);
+  --glass-line-strong: rgba(255,255,255,0.60);
+  --glass-inset: inset 0 1px 0 rgba(255,255,255,0.80);
+  --glass-shadow: 0 14px 40px rgba(20,40,30,0.09);
+  --glass-card-shadow: 0 12px 32px rgba(20,40,30,0.08);
+
+  --r-sm: 10px;
+  --r-md: 13px;
+  --r-lg: 18px;
+  --r-xl: 18px;
+  --blur: 36px;
+}
+
+.taskdash-root .wallpaper {
+  position: absolute; inset: 0; z-index: 0; overflow: hidden; pointer-events: none;
+  background:
+    radial-gradient(820px 620px at 6% -12%, rgba(20,120,72,0.18), transparent 58%),
+    radial-gradient(760px 640px at 106% 112%, rgba(20,120,72,0.15), transparent 55%),
+    radial-gradient(620px 520px at 52% 128%, rgba(26,86,116,0.08), transparent 60%),
+    linear-gradient(180deg,#eef1ef,#e1e7e3);
+}
+.taskdash-root .wallpaper::before, .taskdash-root .wallpaper::after, .taskdash-root .wallpaper > .blob {
+  display: none;
+}
+
+.taskdash-root .shell {
+  display: grid;
+  grid-template-columns: 64px 286px minmax(0,1fr);
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+  position: relative;
+  z-index: 1;
+  padding: 0 12px 0 0;
+  gap: 12px;
+  color: var(--ink);
+  font-family: var(--font-ui);
+  background: transparent !important;
+}
+.taskdash-root .shell > .pane {
+  display: flex; flex-direction: column; min-height: 0;
+  border-radius: var(--r-xl);
+  overflow: hidden;
+}
+.taskdash-root .shell > .pane:nth-of-type(1) {
+  border-radius: 0;
+  background: rgba(255,255,255,0.34) !important;
+  border: 0;
+  border-right: 1px solid rgba(255,255,255,0.5);
+  box-shadow: none;
+}
+.taskdash-root .shell > .pane:nth-of-type(2) {
+  margin: 12px 0;
+}
+.taskdash-root .shell > .pane:nth-of-type(3) {
+  border-radius: 0;
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+.taskdash-root .rail {
+  display: flex; flex-direction: column; align-items: center;
+  padding: 12px 0; gap: 6px;
+}
+.taskdash-root .rail-btn {
+  width: 44px; height: 44px; border-radius: 13px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: transparent;
+  border: 0;
+  color: #7b837d;
+  cursor: pointer; padding: 0;
+  transition: background 0.15s, color 0.15s, border-color 0.15s, transform 0.12s;
+  position: relative;
+  font-family: inherit;
+}
+.taskdash-root .rail-btn:hover { background: rgba(255,255,255,0.55); color: #3a423d; }
+.taskdash-root .rail-btn:active { transform: scale(0.94); }
+.taskdash-root .rail-btn.on {
+  background: var(--accent-gradient);
+  color: #fff;
+  box-shadow: 0 7px 16px rgba(16,96,60,0.42), inset 0 1px 0 rgba(255,255,255,0.40);
+}
+.taskdash-root .rail-btn .tip {
+  position: absolute; left: calc(100% + 12px); top: 50%; transform: translateY(-50%);
+  padding: 5px 10px; border-radius: 8px;
+  background: rgba(255,255,255,0.90);
+  border: 1px solid rgba(255,255,255,0.70);
+  color: var(--ink); font-size: 11.5px; font-weight: 600; white-space: nowrap;
+  pointer-events: none; opacity: 0; transition: opacity 0.15s; z-index: 80;
+  box-shadow: 0 10px 24px rgba(20,40,30,0.12);
+}
+.taskdash-root .rail-btn:hover .tip { opacity: 1; }
+.taskdash-root .rail-sep { width: 24px; height: 1px; background: rgba(40,60,50,0.08); margin: 4px 0; }
+
+.taskdash-root .glass {
+  background: var(--glass-bg) !important;
+  backdrop-filter: blur(var(--blur)) saturate(180%);
+  -webkit-backdrop-filter: blur(var(--blur)) saturate(180%);
+  border: 1px solid var(--glass-line) !important;
+  box-shadow: var(--glass-inset), var(--glass-shadow);
+}
+.taskdash-root .glass-strong {
+  background: var(--glass-bg-strong) !important;
+  backdrop-filter: blur(var(--blur)) saturate(180%);
+  -webkit-backdrop-filter: blur(var(--blur)) saturate(180%);
+  border: 1px solid var(--glass-line-strong) !important;
+  box-shadow: var(--glass-inset), var(--glass-shadow);
+}
+.taskdash-root .glass-thin {
+  background: var(--glass-inner) !important;
+  border: 1px solid rgba(255,255,255,0.60) !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.60);
+}
+
+.taskdash-root .tdg-num     { font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-feature-settings: 'tnum'; }
+.taskdash-root .tdg-eyebrow { font-family: var(--font-mono); font-size: 10px; font-weight: 700; letter-spacing: 0.10em; text-transform: uppercase; color: var(--ink-faint); }
+
+.taskdash-root .tdg-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 22px; padding: 0 10px; border-radius: 999px;
+  font-family: var(--font-mono);
+  font-size: 10.5px; font-weight: 600; letter-spacing: 0;
+  background: rgba(255,255,255,0.60); color: var(--ink-dim);
+  border: 1px solid rgba(255,255,255,0.70);
+}
+.taskdash-root .tdg-chip.accent { background: var(--accent-soft); color: var(--accent-deep); border-color: var(--accent-line); }
+.taskdash-root .tdg-chip.good   { background: var(--accent-soft); color: var(--accent); border-color: var(--accent-line); }
+
+.taskdash-root .tdg-ring-wrap   { position: relative; width: 88px; height: 88px; flex-shrink: 0; }
+.taskdash-root .tdg-ring-wrap svg { transform: rotate(-90deg); }
+.taskdash-root .tdg-ring-label  { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 16px; font-weight: 800; }
+.taskdash-root .tdg-ring-label .small { font-size: 10px; font-weight: 600; color: var(--ink-muted); }
+
+.taskdash-root .shell h1,
+.taskdash-root .shell h2,
+.taskdash-root .shell h3 {
+  letter-spacing: 0 !important;
+}
+
+.taskdash-root .shell input,
+.taskdash-root .shell textarea,
+.taskdash-root .shell select {
+  color-scheme: light !important;
+}
+
+@keyframes tdg-barIn { from { transform: scaleY(0.05); opacity: 0; } to { transform: scaleY(1); opacity: 1; } }
+.taskdash-root .tdg-bar { transform-origin: bottom; animation: tdg-barIn 0.5s cubic-bezier(.2,.7,.2,1) both; }
+
+/* TaskDash 2.0 — Native Workbench
+   Flat panes and Obsidian theme tokens intentionally replace the earlier
+   glass treatment without changing any vault or task behavior. */
+.taskdash-root .shell.td-v2 {
+  --ink: var(--text-normal, #1d2421);
+  --ink-strong: var(--text-normal, #1d2421);
+  --ink-dim: var(--text-muted, #626862);
+  --ink-muted: var(--text-muted, #7b817c);
+  --ink-faint: var(--text-faint, #969c97);
+  --native-border: var(--background-modifier-border, #dfe3df);
+  --native-hover: var(--background-modifier-hover, rgba(20,120,72,0.07));
+  --native-selected: color-mix(in srgb, var(--interactive-accent, #13733f) 10%, var(--background-primary, #fff));
+  grid-template-columns: 196px 300px minmax(0, 1fr);
+  gap: 0;
+  padding: 0;
+  color: var(--text-normal, #1d2421);
+  background: var(--background-primary, #fff) !important;
+}
+
+.taskdash-root:has(.shell.td-v2) .wallpaper {
+  background: var(--background-primary, #fff);
+}
+
+.taskdash-root .shell.td-v2 > .pane,
+.taskdash-root .shell.td-v2 .glass,
+.taskdash-root .shell.td-v2 .glass-strong,
+.taskdash-root .shell.td-v2 .glass-thin {
+  border-radius: 0;
+  background: var(--background-primary, #fff) !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+.taskdash-root .shell.td-v2 > .rail {
+  align-items: stretch;
+  gap: 2px;
+  padding: 10px 8px;
+  background: var(--background-secondary, #f5f6f5) !important;
+  border-right: 1px solid var(--native-border) !important;
+}
+
+.taskdash-root .shell.td-v2 .rail-group {
+  align-items: stretch;
+  gap: 2px;
+  margin-bottom: 10px;
+}
+
+.taskdash-root .shell.td-v2 .rail-group-label {
+  padding: 7px 10px 3px;
+  color: var(--text-faint, #969c97);
+  font: 600 10px var(--font-interface, system-ui);
+  letter-spacing: .02em;
+  text-align: left;
+  text-transform: uppercase;
+}
+
+.taskdash-root .shell.td-v2 .rail-btn {
+  width: 100%;
+  height: 34px;
+  min-height: 34px;
+  justify-content: flex-start;
+  gap: 9px;
+  padding: 0 10px;
+  border-radius: 5px;
+  color: var(--text-muted, #626862);
+  font-size: 13px;
+  font-weight: 500;
+  text-align: left;
+}
+
+.taskdash-root .shell.td-v2 .rail-btn:hover {
+  background: var(--native-hover);
+  color: var(--text-normal, #1d2421);
+}
+
+.taskdash-root .shell.td-v2 .rail-btn.on {
+  background: var(--native-selected);
+  color: var(--interactive-accent, #13733f);
+  box-shadow: inset 2px 0 0 var(--interactive-accent, #13733f);
+}
+
+.taskdash-root .shell.td-v2 .rail-vault-btn {
+  height: 40px;
+  margin-bottom: 5px;
+  background: transparent !important;
+  border-color: transparent !important;
+  color: var(--text-normal, #1d2421) !important;
+  box-shadow: none !important;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.taskdash-root .shell.td-v2 .rail-vault-btn svg {
+  color: var(--interactive-accent, #13733f);
+}
+
+.taskdash-root .shell.td-v2 .rail-brand-label,
+.taskdash-root .shell.td-v2 .rail-nav-label {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.taskdash-root .shell.td-v2 .rail-btn .tip,
+.taskdash-root .shell.td-v2 .rail-sep {
+  display: none;
+}
+
+.taskdash-root .shell.td-v2 .rail-desktop-tabs,
+.taskdash-root .shell.td-v2 .rail-desktop-secondary {
+  display: block;
+}
+
+.taskdash-root .shell.td-v2 > .td-pane-list {
+  margin: 0;
+  background: var(--background-primary, #fff) !important;
+  border-right: 1px solid var(--native-border) !important;
+}
+
+.taskdash-root .shell.td-v2 > .td-pane-list > div {
+  border-color: var(--native-border) !important;
+}
+
+.taskdash-root .shell.td-v2 .td-pane-list input,
+.taskdash-root .shell.td-v2 .td-pane-list select {
+  background: var(--background-primary) !important;
+  border-color: var(--background-modifier-border) !important;
+  color: var(--text-normal) !important;
+}
+
+.taskdash-root .shell.td-v2 .td-library-row {
+  border: 1px solid transparent !important;
+  border-radius: 5px !important;
+  background: transparent !important;
+  color: var(--text-normal) !important;
+}
+
+.taskdash-root .shell.td-v2 .td-library-row:hover {
+  background: var(--background-modifier-hover) !important;
+}
+
+.taskdash-root .shell.td-v2 .td-library-row[aria-selected="true"] {
+  border-color: color-mix(in srgb, var(--interactive-accent) 22%, transparent) !important;
+  background: var(--native-selected) !important;
+}
+
+.taskdash-root .shell.td-v2 .td-library-row > div {
+  color: var(--text-normal) !important;
+}
+
+.taskdash-root .shell.td-v2 .td-library-row > div + div {
+  color: var(--text-muted) !important;
+}
+
+.taskdash-root .shell.td-v2 .td-vault-mark {
+  width: 22px;
+  height: 22px;
+  border-radius: 5px;
+  background: var(--interactive-accent, #13733f);
+  font-size: 17px;
+  box-shadow: none;
+}
+
+.taskdash-root .shell.td-v2 .td-task-list-row {
+  margin-bottom: 1px !important;
+  border-color: transparent !important;
+  border-radius: 5px !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.taskdash-root .shell.td-v2 .td-task-list-group {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 13px 8px 5px;
+  color: var(--text-faint, #969c97);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+
+.taskdash-root .shell.td-v2 .td-task-list-row:hover {
+  background: var(--native-hover) !important;
+}
+
+.taskdash-root .shell.td-v2 .td-task-list-row.is-selected {
+  background: var(--native-selected) !important;
+  border-color: color-mix(in srgb, var(--interactive-accent, #13733f) 22%, transparent) !important;
+}
+
+.taskdash-root .shell.td-v2 > .td-pane-main {
+  background: var(--background-primary, #fff) !important;
+}
+
+/* 2.1 shared page language: every primary view inherits the same native
+   canvas, divider, typography, control, and focus treatment. */
+.taskdash-root .shell.td-v2 .td-page-host {
+  color: var(--text-normal);
+  font-family: var(--font-interface, system-ui);
+}
+
+.taskdash-root .shell.td-v2 .td-page-host > div {
+  background: var(--background-primary) !important;
+}
+
+.taskdash-root .shell.td-v2 .td-page-host h1,
+.taskdash-root .shell.td-v2 .td-page-host h2,
+.taskdash-root .shell.td-v2 .td-page-host h3 {
+  color: var(--text-normal) !important;
+  font-family: var(--font-interface, system-ui);
+}
+
+.taskdash-root .shell.td-v2 .td-page-host input,
+.taskdash-root .shell.td-v2 .td-page-host textarea,
+.taskdash-root .shell.td-v2 .td-page-host select {
+  background: var(--background-primary) !important;
+  border-color: var(--background-modifier-border) !important;
+  color: var(--text-normal) !important;
+  box-shadow: none !important;
+}
+
+.taskdash-root .shell.td-v2 .td-page-host .glass-thin {
+  background: var(--background-secondary) !important;
+  border: 1px solid var(--background-modifier-border) !important;
+}
+
+.taskdash-root .shell.td-v2 .td-detail-page {
+  background: var(--background-primary) !important;
+}
+
+.taskdash-root .shell.td-v2 .td-detail-header {
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.taskdash-root .shell.td-v2 .td-detail-actions button,
+.taskdash-root .shell.td-v2 .td-detail-identity-action button,
+.taskdash-root .shell.td-v2 .td-detail-editor button {
+  border: 1px solid var(--background-modifier-border) !important;
+  border-radius: 5px !important;
+  background: var(--background-secondary) !important;
+  color: var(--text-normal) !important;
+  box-shadow: none !important;
+}
+
+.taskdash-root .shell.td-v2 .td-detail-actions button:last-child {
+  border-color: var(--interactive-accent) !important;
+  background: var(--interactive-accent) !important;
+  color: var(--text-on-accent) !important;
+}
+
+.taskdash-root .shell.td-v2 .td-detail-chip,
+.taskdash-root .shell.td-v2 .td-detail-preview {
+  border: 1px solid var(--background-modifier-border);
+  background: var(--background-primary);
+  color: var(--text-normal);
+}
+
+.taskdash-root .shell.td-v2 .td-detail-metric-value {
+  color: var(--text-normal) !important;
+}
+
+.taskdash-root .shell.td-v2 button:focus-visible,
+.taskdash-root .shell.td-v2 input:focus-visible,
+.taskdash-root .shell.td-v2 textarea:focus-visible,
+.taskdash-root .shell.td-v2 select:focus-visible,
+.taskdash-root .shell.td-v2 [role="button"]:focus-visible {
+  outline: 2px solid var(--interactive-accent) !important;
+  outline-offset: 2px;
+}
+
+.taskdash-root .shell.td-v2 .td-task-detail-body {
+  background: var(--background-primary, #fff);
+}
+
+.taskdash-root .shell.td-v2 .td-task-document {
+  border-right: 1px solid var(--native-border) !important;
+}
+
+.taskdash-root .shell.td-v2 .td-task-description,
+.taskdash-root .shell.td-v2 .td-task-activity {
+  max-width: 760px;
+}
+
+.taskdash-root .shell.td-v2 .td-task-description {
+  padding-bottom: 28px;
+}
+
+.taskdash-root .shell.td-v2 .td-task-activity {
+  padding-top: 24px;
+  border-top: 1px solid var(--native-border);
+}
+
+.taskdash-root .shell.td-v2 .td-task-inspector {
+  background: var(--background-secondary, #f5f6f5);
+}
+
+.taskdash-root .shell.td-v2 .td-task-properties-trigger {
+  min-height: 38px;
+  padding: 8px 13px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 8px;
+  background: var(--background-primary);
+  color: var(--text-normal);
+  cursor: pointer;
+  font: 700 12px var(--font-interface, system-ui);
+}
+
+.taskdash-root .shell.td-v2 .td-task-properties-trigger:hover {
+  background: var(--background-modifier-hover);
+}
+
+.taskdash-root .shell.td-v2 .td-task-inspector-heading {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin: -18px -18px 14px;
+  padding: 15px 18px 12px;
+  background: var(--background-secondary, #f5f6f5);
+  border-bottom: 1px solid var(--native-border);
+}
+
+.taskdash-root .shell.td-v2 .td-task-inspector-eyebrow {
+  color: var(--text-normal, #1d2421);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.taskdash-root .shell.td-v2 .td-task-inspector-file {
+  max-width: 190px;
+  margin-top: 3px;
+  overflow: hidden;
+  color: var(--text-faint, #969c97);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.taskdash-root .shell.td-v2 .td-task-inspector-save {
+  min-height: 30px;
+  padding: 5px 11px;
+  border: 1px solid var(--interactive-accent, #13733f);
+  border-radius: 5px;
+  background: var(--interactive-accent, #13733f);
+  color: var(--text-on-accent, #fff);
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.taskdash-root .shell.td-v2 .td-task-inspector-save:disabled,
+.taskdash-root .shell.td-v2 .td-task-inspector-save:not(:hover) {
+  box-shadow: none;
+}
+
+.taskdash-root .shell.td-v2 .td-task-open-note {
+  width: 100%;
+  min-height: 32px;
+  margin-bottom: 8px;
+  padding: 6px 10px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 5px;
+  background: var(--background-primary);
+  color: var(--text-normal);
+  font: 600 11px var(--font-interface, system-ui);
+  cursor: pointer;
+}
+
+.taskdash-root .shell.td-v2 .td-task-open-note:hover {
+  background: var(--background-modifier-hover);
+}
+
+.taskdash-root .shell.td-v2 .td-task-inspector-dirty {
+  margin-bottom: 6px;
+  color: var(--text-warning, #a9791f);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.taskdash-root .shell.td-v2 .td-task-inspector .td-task-metadata-editor,
+.taskdash-root .shell.td-v2 .td-task-inspector .glass-thin {
+  max-height: none;
+  padding: 12px 0 0 !important;
+  overflow: visible;
+  background: transparent !important;
+}
+
+.taskdash-root .shell.td-v2 input,
+.taskdash-root .shell.td-v2 textarea,
+.taskdash-root .shell.td-v2 select {
+  color-scheme: normal !important;
+}
+
+@media (max-width: 1080px) {
+  .taskdash-root .shell.td-v2:not(.td-narrow) {
+    grid-template-columns: 176px 270px minmax(0, 1fr);
+  }
+
+  .taskdash-root .shell.td-v2:not(.td-narrow) .td-task-detail-body {
+    grid-template-columns: minmax(390px, 1fr) 285px !important;
+  }
+}
+
+/* TaskDash 2.2 workflow pages reuse the native detail-page surfaces. */
+.taskdash-root .td-workflow-layout {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(280px, .75fr);
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 10px;
+}
+
+.taskdash-root .td-workflow-card {
+  border-radius: 8px !important;
+  padding: 16px;
+  min-width: 0;
+}
+
+.taskdash-root .td-workflow-summary {
+  grid-row: 1 / 3;
+  overflow-y: auto;
+}
+
+.taskdash-root .td-workflow-progress,
+.taskdash-root .td-workflow-date-row,
+.taskdash-root .td-workflow-button-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.taskdash-root .td-workflow-progress {
+  justify-content: space-between;
+  margin-bottom: 12px;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.taskdash-root .td-workflow-chips {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.taskdash-root .td-workflow-chips span {
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: var(--native-selected);
+  color: var(--interactive-accent);
+  font-size: 10px;
+  font-weight: 750;
+}
+
+.taskdash-root .td-workflow-description {
+  padding-top: 14px;
+  border-top: 1px solid var(--native-border);
+  color: var(--text-normal);
+  line-height: 1.65;
+}
+
+.taskdash-root .td-workflow-description .markdown-body {
+  color: var(--text-normal);
+}
+
+.taskdash-root .td-workflow-section-label {
+  margin: 0 0 9px;
+  color: var(--text-faint);
+  font-size: 10px;
+  font-weight: 750;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.taskdash-root .td-workflow-date-row,
+.taskdash-root .td-workflow-button-row {
+  margin-bottom: 15px;
+}
+
+.taskdash-root .td-workflow-date-row input {
+  flex: 1;
+  min-width: 150px;
+}
+
+.taskdash-root .td-workflow-primary,
+.taskdash-root .td-workflow-secondary,
+.taskdash-root .td-workflow-danger,
+.taskdash-root .td-workflow-date-row button {
+  min-height: 34px;
+  padding: 7px 12px;
+  border-radius: 5px;
+  border: 1px solid var(--background-modifier-border);
+  background: var(--background-primary);
+  color: var(--text-normal);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.taskdash-root .td-workflow-primary,
+.taskdash-root .td-workflow-date-row button {
+  border-color: var(--interactive-accent);
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+}
+
+.taskdash-root .td-workflow-secondary {
+  color: var(--interactive-accent);
+}
+
+.taskdash-root .td-workflow-danger {
+  color: var(--text-error);
+}
+
+.taskdash-root .td-workflow-actions textarea {
+  min-height: 88px;
+  margin-bottom: 8px;
+}
+
+.taskdash-root .td-workflow-add-note {
+  width: 100%;
+}
+
+.taskdash-root .td-workflow-activity {
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.taskdash-root .td-workflow-log {
+  display: grid;
+  grid-template-columns: 90px minmax(0, 1fr);
+  gap: 9px;
+  padding: 8px 0;
+  border-top: 1px solid var(--native-border);
+  color: var(--text-normal);
+  font-size: 11px;
+}
+
+.taskdash-root .td-workflow-log span,
+.taskdash-root .td-workflow-empty {
+  color: var(--text-muted);
+}
+
+.taskdash-root .td-review-batch {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--native-border);
+}
+
+.taskdash-root .td-review-batch-row {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.taskdash-root .td-review-batch-row input { min-width: 0; }
+.taskdash-root .td-review-batch-row button { flex-shrink: 0; }
+
+@media (max-width: 1080px) {
+  .taskdash-root .td-workflow-layout {
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+  }
+
+  .taskdash-root .td-workflow-summary { overflow: visible; }
+}
