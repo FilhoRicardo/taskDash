@@ -106,7 +106,7 @@ export default function MentionTextarea({ textareaRef, onChange, onKeyDown, onBl
       if (e.key === 'ArrowDown') { e.preventDefault(); setActive(a => (a + 1) % matches.length); return; }
       if (e.key === 'ArrowUp')   { e.preventDefault(); setActive(a => (a - 1 + matches.length) % matches.length); return; }
       if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); pick(matches[Math.min(active, matches.length - 1)]); return; }
-      if (e.key === 'Escape') { e.preventDefault(); closeMenu(); return; }
+      if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); closeMenu(); return; }
     }
     onKeyDown?.(e);
   };

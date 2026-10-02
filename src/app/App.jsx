@@ -203,7 +203,7 @@ function MetadataDialog({ title, meta, onCancel, onSave, children }) {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    const onKeyDown = event => { if (event.key === 'Escape') { event.preventDefault(); onCancel(); } };
+    const onKeyDown = event => { if (event.key === 'Escape' && !event.defaultPrevented) { event.preventDefault(); onCancel(); } };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [onCancel]);
@@ -220,7 +220,7 @@ function MetadataDialog({ title, meta, onCancel, onSave, children }) {
 
   return (
     <div className="td-dialog-backdrop td-metadata-dialog-backdrop" role="presentation" onMouseDown={event=>{ if (event.target === event.currentTarget) onCancel(); }}>
-      <section className="td-dialog td-metadata-dialog" role="dialog" aria-modal="true" aria-labelledby="td-metadata-dialog-title">
+      <section className="td-dialog td-metadata-dialog" role="dialog" aria-modal="true" aria-labelledby="td-metadata-dialog-title" onKeyDown={event=>{ if (event.key === 'Escape' && !event.defaultPrevented) { event.preventDefault(); onCancel(); } }}>
         <div className="td-metadata-dialog-header">
           <div>
             <div className="td-dialog-eyebrow">Edit metadata</div>
@@ -1410,7 +1410,7 @@ function ComboInput({ value, onChange, options = [], placeholder }) {
         if (event.key === 'ArrowDown') { event.preventDefault(); setOpen(true); setActiveIndex(index => Math.min(index + 1, filtered.length - 1)); }
         else if (event.key === 'ArrowUp') { event.preventDefault(); setOpen(true); setActiveIndex(index => Math.max(index - 1, 0)); }
         else if (event.key === 'Enter' && open) { event.preventDefault(); const next = filtered[activeIndex]; setInput(next); onChange(next); setOpen(false); }
-        else if (event.key === 'Escape') { event.preventDefault(); setOpen(false); }
+        else if (event.key === 'Escape' && open && filtered.length) { event.preventDefault(); event.stopPropagation(); setOpen(false); }
       }} onBlur={()=>setTimeout(()=>setOpen(false), 120)}
         placeholder={placeholder || 'Pick or type...'} style={inputBase}/>
       {open && filtered.length > 0 && (
@@ -1444,7 +1444,7 @@ function SelectInput({ value, onChange, options = [] }) {
         else if (event.key === 'Home') { event.preventDefault(); setOpen(true); setActiveIndex(0); }
         else if (event.key === 'End') { event.preventDefault(); setOpen(true); setActiveIndex(options.length - 1); }
         else if (event.key === 'Enter' && open) { event.preventDefault(); choose(options[activeIndex]); }
-        else if (event.key === 'Escape') { event.preventDefault(); setOpen(false); }
+        else if (event.key === 'Escape' && open && options.length) { event.preventDefault(); event.stopPropagation(); setOpen(false); }
       }} onBlur={()=>setTimeout(()=>setOpen(false), 120)}
         style={{ ...inputBase, minHeight:39, display:'flex', alignItems:'center', justifyContent:'space-between', gap:10, textAlign:'left', cursor:'pointer' }}>
         <span>{selected?.label || value}</span>
@@ -1500,7 +1500,7 @@ function ChipMulti({ value, onChange, options, placeholder }) {
           if (e.key === 'ArrowDown' && filtered.length) { e.preventDefault(); setOpen(true); setActiveIndex(index => Math.min(index + 1, filtered.length - 1)); }
           else if (e.key === 'ArrowUp' && filtered.length) { e.preventDefault(); setOpen(true); setActiveIndex(index => Math.max(index - 1, 0)); }
           else if (e.key === 'Enter') { e.preventDefault(); if (open && filtered[activeIndex]) addOption(filtered[activeIndex]); else add(); }
-          else if (e.key === 'Escape') { e.preventDefault(); setOpen(false); }
+          else if (e.key === 'Escape' && open && filtered.length) { e.preventDefault(); e.stopPropagation(); setOpen(false); }
           else if (e.key === 'Backspace'&&!input&&value.length){onChange(value.slice(0,-1));}
         }}
         onBlur={()=>setTimeout(()=>{ setOpen(false); add(); }, 120)}

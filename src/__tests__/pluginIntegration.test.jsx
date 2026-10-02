@@ -613,6 +613,91 @@ describe('TaskDash plugin end-to-end', () => {
     await view.onClose();
   });
 
+  it('closes an open metadata picker before cancelling the Properties dialog with Escape', async () => {
+    globalThis.ResizeObserver = class {
+      constructor(callback) { this.callback = callback; }
+      observe() { this.callback([{ contentRect:{ width:1200 } }]); }
+      disconnect() {}
+    };
+
+    const app = makeFakeApp();
+    app.__folders.add('Tasks');
+    app.__folders.add('People');
+    app.__folders.add('Projects');
+    app.__folders.add('Projects/Alpha');
+    app.__files.set('Tasks/ship-it.md', { content:TASK_MD, mtime:1 });
+    app.__files.set('People/Jane Doe.md', { content:'---\nperson: Jane Doe\n---\n', mtime:1 });
+    app.__files.set('Projects/Alpha/Cover_Alpha.md', { content:'---\nproject: Alpha\n---\n', mtime:1 });
+    app.__pluginData = { folders:{ tasks:'Tasks', people:'People', projects:'Projects' }, enableStatusBarTimer:true };
+
+    const plugin = new TaskDashPlugin(app, { id:'taskdash-2-2', version:'2.2.0' });
+    await plugin.onload();
+    const view = app.__viewFactories[TASKDASH_VIEW_TYPE]({});
+    view.app = app;
+    document.body.append(view.contentEl);
+    await view.onOpen();
+
+    expect(await waitFor(() => [...view.contentEl.querySelectorAll('.td-task-list-row')]
+      .some(row => row.textContent.includes('Ship the integration test')))).toBe(true);
+    const taskRow = [...view.contentEl.querySelectorAll('.td-task-list-row')]
+      .find(row => row.textContent.includes('Ship the integration test'));
+    taskRow.dispatchEvent(new MouseEvent('click', { bubbles:true, cancelable:true }));
+    [...view.contentEl.querySelectorAll('button')]
+      .find(button => button.textContent === 'Properties')
+      .dispatchEvent(new MouseEvent('click', { bubbles:true, cancelable:true }));
+
+    const dialogReady = await waitFor(() => view.contentEl.querySelector('.td-metadata-dialog'));
+    expect(dialogReady).toBeTruthy();
+    const dialog = view.contentEl.querySelector('.td-metadata-dialog');
+    const priority = dialog.querySelector('button[role="combobox"]');
+    priority.click();
+    expect(await waitFor(() => dialog.querySelector('[role="listbox"]'), 500)).toBe(true);
+    priority.dispatchEvent(new KeyboardEvent('keydown', { key:'Escape', bubbles:true, cancelable:true }));
+    expect(await waitFor(() => !dialog.querySelector('[role="listbox"]'), 500)).toBe(true);
+    expect(view.contentEl.querySelector('.td-metadata-dialog')).toBeTruthy();
+
+    const projectInput = dialog.querySelector('input[placeholder="Type project name + Enter..."]');
+    const valueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
+    valueSetter.call(projectInput, 'Alpha');
+    projectInput.dispatchEvent(new Event('input', { bubbles:true }));
+    expect(dialog.querySelector('[role="listbox"]')?.textContent).toContain('Alpha');
+    projectInput.dispatchEvent(new KeyboardEvent('keydown', { key:'Escape', bubbles:true, cancelable:true }));
+    expect(await waitFor(() => !dialog.querySelector('[role="listbox"]'), 500)).toBe(true);
+    expect(view.contentEl.querySelector('.td-metadata-dialog')).toBeTruthy();
+
+    const contexts = dialog.querySelector('input[placeholder="work, phone"]');
+    valueSetter.call(contexts, 'unsaved audit');
+    contexts.dispatchEvent(new Event('input', { bubbles:true }));
+
+    const waitingFor = [...dialog.querySelectorAll('input[role="combobox"]')]
+      .find(input => input.parentElement?.parentElement?.textContent.includes('Waiting for'));
+    valueSetter.call(waitingFor, 'Jane');
+    waitingFor.focus();
+    waitingFor.dispatchEvent(new Event('input', { bubbles:true }));
+    expect(dialog.querySelector('[role="listbox"]')?.textContent).toContain('Jane Doe');
+
+    waitingFor.dispatchEvent(new KeyboardEvent('keydown', { key:'Escape', bubbles:true, cancelable:true }));
+    expect(await waitFor(() => !dialog.querySelector('[role="listbox"]'), 500)).toBe(true);
+    expect(view.contentEl.querySelector('.td-metadata-dialog')).toBeTruthy();
+    expect(dialog.querySelector('input[placeholder="work, phone"]').value).toBe('unsaved audit');
+    expect(dialog.querySelector('[role="listbox"]')).toBeNull();
+
+    const secondEscape = new KeyboardEvent('keydown', { key:'Escape', bubbles:true, cancelable:true });
+    contexts.dispatchEvent(secondEscape);
+    expect(secondEscape.defaultPrevented).toBe(true);
+    expect(await waitFor(() => !view.contentEl.querySelector('.td-metadata-dialog'), 500)).toBe(true);
+
+    const note = view.contentEl.querySelector('textarea[placeholder^="Add a note"]');
+    const textareaSetter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set;
+    textareaSetter.call(note, '@Jane');
+    note.dispatchEvent(new Event('input', { bubbles:true }));
+    expect(await waitFor(() => document.querySelector('.taskdash-mention-menu'), 500)).toBe(true);
+    note.dispatchEvent(new KeyboardEvent('keydown', { key:'Escape', bubbles:true, cancelable:true }));
+    expect(await waitFor(() => !document.querySelector('.taskdash-mention-menu'), 500)).toBe(true);
+
+    await view.onClose();
+  });
+
   it('asks before discarding unsaved inspector metadata when selecting another task', async () => {
     const app = makeFakeApp();
     app.__folders.add('Tasks');
