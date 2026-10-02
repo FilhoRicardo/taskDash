@@ -2520,6 +2520,7 @@ export default function App({ vaultAdapter, onOpenSettings }) {
       confirmLabel:task.recurrent ? 'Archive series' : 'Complete task',
       onConfirm:async()=>{
         setConfirmDialog(null);
+        let completionWritten = false;
         try {
           if (timer?.taskId === taskId && !(await stop())) return;
           const latest = await readHandleText(handle);
@@ -2528,10 +2529,12 @@ export default function App({ vaultAdapter, onOpenSettings }) {
             const filename = await uniqueFileNameInDir(dirs.done, taskId.split('/').pop());
             if (vaultAdapter.moveFile) {
               await writeFile(handle, updated, { expectedContent:latest });
+              completionWritten = true;
               await vaultAdapter.moveFile(dirs.tasks, taskId, dirs.done, filename);
             } else {
               const doneHandle = await dirs.done.getFileHandle(filename, { create:true });
               await writeFile(doneHandle, updated);
+              completionWritten = true;
               await removeFileAtPath(dirs.tasks, taskId);
             }
             await loadFiles(dirs.tasks, dirs.done);
@@ -2547,6 +2550,36 @@ export default function App({ vaultAdapter, onOpenSettings }) {
           setToast(`"${task.title}" marked done and archived`);
         } catch(e) {
           console.error('close task failed', e);
+          if (completionWritten) {
+            const current = await readHandleText(handle);
+            const updatedTask = parseTask(taskId, current);
+            setTasks(previous => previous.map(item => item.id === taskId ? updatedTask : item));
+            setSel(taskId);
+            const showArchiveRetry = error => setConfirmDialog({
+              title:'Task completed, archive pending',
+              message:`"${task.title}" is marked done in Tasks, but could not be moved to Done / Archive: ${error.message}`,
+              confirmLabel:'Retry archive',
+              onConfirm:async()=>{
+                setConfirmDialog(null);
+                try {
+                  const filename = await uniqueFileNameInDir(dirs.done, taskId.split('/').pop());
+                  if (vaultAdapter.moveFile) {
+                    await vaultAdapter.moveFile(dirs.tasks, taskId, dirs.done, filename);
+                  } else {
+                    const doneHandle = await dirs.done.getFileHandle(filename, { create:true });
+                    await writeFile(doneHandle, await readHandleText(handle));
+                    await removeFileAtPath(dirs.tasks, taskId);
+                  }
+                  await loadFiles(dirs.tasks, dirs.done);
+                  setToast(`"${task.title}" moved to Done / Archive`);
+                } catch(retryError) {
+                  showArchiveRetry(retryError);
+                }
+              },
+            });
+            showArchiveRetry(e);
+            return;
+          }
           alert('Failed to close task: ' + e.message);
         }
       },

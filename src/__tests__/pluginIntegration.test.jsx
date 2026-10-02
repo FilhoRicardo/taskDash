@@ -84,7 +84,17 @@ function makeFakeApp() {
   const openedFiles = [];
   const app = {
     vault,
-    fileManager: {},
+    fileManager: {
+      async renameFile(file, path) {
+        if (app.__failRename) {
+          app.__failRename = false;
+          throw new Error('Injected rename failure');
+        }
+        const entry = files.get(file.path);
+        files.delete(file.path);
+        files.set(path, { ...entry, mtime: entry.mtime + 1 });
+      },
+    },
     workspace: {
       getLeavesOfType: () => [],
       getLeaf: () => ({ setViewState: async () => {}, openFile:async file => openedFiles.push(file.path) }),
@@ -524,6 +534,50 @@ describe('TaskDash plugin end-to-end', () => {
     expect(saved).toBe(true);
     expect(view.contentEl.querySelector('.td-task-inspector')).toBeTruthy();
 
+    await view.onClose();
+  });
+
+  it('reconciles a completed task after archive failure and retries without losing intervening edits', async () => {
+    const app = makeFakeApp();
+    app.__folders.add('Tasks');
+    app.__folders.add('Done');
+    app.__files.set('Tasks/a.md', { content: TASK_MD, mtime: 1 });
+    app.__files.set('Done/a.md', { content: 'Existing archived note', mtime: 2 });
+    app.__pluginData = { folders: { tasks: 'Tasks', done: 'Done' }, enableStatusBarTimer: true };
+
+    const plugin = new TaskDashPlugin(app, { id: 'taskdash-2-2', version: '2.2.0' });
+    await plugin.onload();
+    const view = app.__viewFactories[TASKDASH_VIEW_TYPE]({});
+    view.app = app;
+    await view.onOpen();
+    expect(await waitFor(() => [...view.contentEl.querySelectorAll('.td-task-list-row')]
+      .some(row => row.textContent.includes('Ship the integration test')))).toBe(true);
+
+    [...view.contentEl.querySelectorAll('.td-task-list-row')]
+      .find(row => row.textContent.includes('Ship the integration test'))
+      .dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+    expect(await waitFor(() => view.contentEl.querySelector('.td-task-inspector'))).toBeTruthy();
+
+    app.__failRename = true;
+    view.contentEl.querySelector('button[title="Mark done & archived"]')
+      .dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+    expect(await waitFor(() => view.contentEl.querySelector('.td-dialog-confirm')?.textContent === 'Complete task')).toBe(true);
+    view.contentEl.querySelector('.td-dialog-confirm').dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+
+    expect(await waitFor(() => view.contentEl.querySelector('.td-dialog-confirm')?.textContent === 'Retry archive')).toBe(true);
+    expect(app.__files.get('Tasks/a.md').content).toContain('status: done');
+    expect(app.__files.get('Tasks/a.md').content).toContain('  - archived');
+    expect(view.contentEl.querySelector('.td-dialog').textContent).toContain('completed');
+    expect(app.__files.has('Done/a-2.md')).toBe(false);
+
+    app.__files.get('Tasks/a.md').content += '\nExternal edit retained\n';
+    view.contentEl.querySelector('.td-dialog-confirm').dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+
+    expect(await waitFor(() => app.__files.has('Done/a-2.md'))).toBe(true);
+    expect(app.__files.has('Tasks/a.md')).toBe(false);
+    expect(app.__files.get('Done/a.md').content).toBe('Existing archived note');
+    expect(app.__files.get('Done/a-2.md').content).toContain('External edit retained');
+    expect([...view.contentEl.querySelectorAll('.td-dialog-confirm')].some(button => button.textContent === 'Retry archive')).toBe(false);
     await view.onClose();
   });
 
