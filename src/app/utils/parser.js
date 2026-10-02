@@ -1,8 +1,8 @@
 export function parseFrontmatter(txt) {
-  const m = txt.match(/^---\n([\s\S]*?)\n---/);
+  const m = txt.match(/^---\r?\n([\s\S]*?)\r?\n---/);
   if (!m) return {};
   const res = {}; let key = null;
-  for (const line of m[1].split('\n')) {
+  for (const line of m[1].split(/\r?\n/)) {
     if (/^\s*-\s+/.test(line)) {
       const v = line.replace(/^\s*-\s+/, '').trim().replace(/^["']|["']$/g, '');
       if (key && Array.isArray(res[key])) res[key].push(v);

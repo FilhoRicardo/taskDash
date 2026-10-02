@@ -2,6 +2,14 @@ import { describe, expect, it } from 'vitest';
 import { isProjectFileName, parseDailyNote, parseMeeting, parseOrganization, parseProject, parseProperty, parseTask, readDirNames, readMdFiles } from '../parser.js';
 
 describe('parseTask', () => {
+  it('reads CRLF TaskNotes frontmatter the same as LF frontmatter', () => {
+    const lf = '---\ntitle: Example\nstatus: done\ndue: 2026-10-02\nRecurrent: true\n---\nBody stays as written.\n';
+    const crlf = lf.replace(/\n/g, '\r\n');
+
+    const parsed = parseTask('Example.md', crlf);
+    expect({ ...parsed, raw: parsed.raw.replace(/\r\n/g, '\n') }).toEqual(parseTask('Example.md', lf));
+  });
+
   it('reads TaskNotes frontmatter, checklist, dates, links, recurrence, and logs', () => {
     const raw = `---
 title: Review lease renewal

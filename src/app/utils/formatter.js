@@ -10,6 +10,15 @@ export const isToday = d => d === tod();
 export const isOver  = d => d && d < tod();
 export const minsFromMs = ms => Math.round(ms / 60000) || 1;
 
+function readFrontmatter(raw) {
+  const match = raw.match(/^---(\r?\n)([\s\S]*?)\r?\n---/);
+  if (!match) return null;
+  return {
+    fm: match[2].replace(/\r\n/g, '\n'),
+    write: fm => `${raw.slice(0, match.index)}---${match[1]}${fm.replace(/\n/g, match[1])}${match[1]}---${raw.slice(match.index + match[0].length)}`,
+  };
+}
+
 export function longDate(date = new Date()) {
   return date.toLocaleDateString('en-US', { weekday:'long', year:'numeric', month:'long', day:'numeric' });
 }
@@ -256,17 +265,17 @@ function timeLabel(date = new Date()) {
 }
 
 function ensureFrontmatter(raw) {
-  return /^---\n[\s\S]*?\n---/.test(raw) ? raw : `---\n---\n\n${raw.trimStart()}`;
+  return /^---\r?\n[\s\S]*?\r?\n---/.test(raw) ? raw : `---\n---\n\n${raw.trimStart()}`;
 }
 
 function setFrontmatterValue(raw, key, value) {
   const withFm = ensureFrontmatter(raw);
-  const match = withFm.match(/^---\n([\s\S]*?)\n---/);
-  if (!match) return withFm;
-  const fm = match[1];
+  const frontmatter = readFrontmatter(withFm);
+  if (!frontmatter) return withFm;
+  const fm = frontmatter.fm;
   const rx = new RegExp(`^${key}:.*$`, 'm');
   const nextFm = rx.test(fm) ? fm.replace(rx, `${key}: ${value}`) : `${fm.trimEnd()}\n${key}: ${value}`;
-  return `---\n${nextFm}\n---${withFm.slice(match[0].length)}`;
+  return frontmatter.write(nextFm);
 }
 
 function timeClockSection(rows = []) {
@@ -583,19 +592,18 @@ export function buildNewOrganizationMd({ name, industry, website, email, phone, 
 }
 
 export function touchDateModified(raw) {
-  const fmMatch = raw.match(/^---\n([\s\S]*?)\n---/);
-  if (!fmMatch) return raw;
-  let fm = fmMatch[1];
+  const frontmatter = readFrontmatter(raw);
+  if (!frontmatter) return raw;
+  let fm = frontmatter.fm;
   const re = /^dateModified:[ \t]*.*$/m;
   if (re.test(fm)) fm = fm.replace(re, `dateModified: ${tod()}`);
   else fm = fm + (fm.endsWith('\n') ? '' : '\n') + `dateModified: ${tod()}`;
-  return raw.replace(/^---\n[\s\S]*?\n---/, `---\n${fm}\n---`);
+  return frontmatter.write(fm);
 }
 
 export function setPropertyCover(raw, coverPath) {
-  const fmMatch = raw.match(/^---\n([\s\S]*?)\n---/);
-  const frontmatter = fmMatch?.[1] || '';
-  let fm = frontmatter;
+  const frontmatter = readFrontmatter(raw);
+  let fm = frontmatter?.fm || '';
 
   const upsert = (key, value) => {
     const re = new RegExp(`^${key}:[ \\t]*.*$`, 'm');
@@ -606,8 +614,8 @@ export function setPropertyCover(raw, coverPath) {
   upsert('cover', yamlQuote(coverPath));
   upsert('dateModified', tod());
 
-  if (!fmMatch) return `---\n${fm}\n---\n\n${raw.trimStart()}`;
-  return raw.replace(/^---\n[\s\S]*?\n---/, `---\n${fm}\n---`);
+  if (!frontmatter) return `---\n${fm}\n---\n\n${raw.trimStart()}`;
+  return frontmatter.write(fm);
 }
 
 function addDays(dateStr, days) {
@@ -625,9 +633,9 @@ function addMonths(dateStr, months) {
 }
 
 export function updateTaskDates(raw, { due, scheduled }) {
-  const fmMatch = raw.match(/^---\n([\s\S]*?)\n---/);
-  if (!fmMatch) return raw;
-  let fm = fmMatch[1];
+  const frontmatter = readFrontmatter(raw);
+  if (!frontmatter) return raw;
+  let fm = frontmatter.fm;
 
   const upsertOrRemove = (key, value) => {
     const re = new RegExp(`^${key}:[ \\t]*.*$`, 'm');
@@ -645,7 +653,7 @@ export function updateTaskDates(raw, { due, scheduled }) {
   if (modifiedRx.test(fm)) fm = fm.replace(modifiedRx, `dateModified: ${isoLocal()}`);
   else fm = fm + (fm.endsWith('\n') ? '' : '\n') + `dateModified: ${isoLocal()}`;
 
-  return raw.replace(/^---\n[\s\S]*?\n---/, `---\n${fm.trimEnd()}\n---`);
+  return frontmatter.write(fm.trimEnd());
 }
 
 function replaceFrontmatterField(fm, key, nextLines = []) {
@@ -677,9 +685,9 @@ export function updateTaskMetadata(raw, {
   timeEstimate = '',
   recurrent = false,
 }) {
-  const fmMatch = raw.match(/^---\n([\s\S]*?)\n---/);
-  if (!fmMatch) return raw;
-  let fm = fmMatch[1];
+  const frontmatter = readFrontmatter(raw);
+  if (!frontmatter) return raw;
+  let fm = frontmatter.fm;
   const cleanList = values => [...new Set((values || []).map(value => String(value).trim()).filter(Boolean))];
   const setScalar = (key, value) => {
     fm = replaceFrontmatterField(fm, key, value ? [`${key}: ${value}`] : []);
@@ -702,13 +710,13 @@ export function updateTaskMetadata(raw, {
   fm = replaceFrontmatterField(fm, 'Recurrent', recurrent ? ['Recurrent: true'] : []);
   setScalar('dateModified', isoLocal());
 
-  return raw.replace(/^---\n[\s\S]*?\n---/, `---\n${fm.trim()}\n---`);
+  return frontmatter.write(fm.trim());
 }
 
 export function updateTaskThreadSubject(raw, threadSubject) {
-  const fmMatch = raw.match(/^---\n([\s\S]*?)\n---/);
-  if (!fmMatch) return raw;
-  let fm = fmMatch[1];
+  const frontmatter = readFrontmatter(raw);
+  if (!frontmatter) return raw;
+  let fm = frontmatter.fm;
   const value = String(threadSubject || '').trim();
   const subjectRx = /^threadSubject:[ \t]*.*\n?/m;
 
@@ -724,7 +732,7 @@ export function updateTaskThreadSubject(raw, threadSubject) {
   if (modifiedRx.test(fm)) fm = fm.replace(modifiedRx, `dateModified: ${isoLocal()}`);
   else fm = fm + (fm.endsWith('\n') ? '' : '\n') + `dateModified: ${isoLocal()}`;
 
-  return raw.replace(/^---\n[\s\S]*?\n---/, `---\n${fm.trimEnd()}\n---`);
+  return frontmatter.write(fm.trimEnd());
 }
 
 export function postponeTaskDates(raw, currentDue, currentScheduled, days = 7) {
@@ -826,9 +834,9 @@ function upsertFrontmatterArray(fm, key, values) {
 }
 
 export function finishRecurrentTaskInstance(raw, currentDue, currentScheduled) {
-  const fmMatch = raw.match(/^---\n([\s\S]*?)\n---/);
-  if (!fmMatch) return raw;
-  let fm = fmMatch[1];
+  const frontmatter = readFrontmatter(raw);
+  if (!frontmatter) return raw;
+  let fm = frontmatter.fm;
   const recurrence = fm.match(/^recurrence:[ \t]*(.*)$/m)?.[1]?.trim() || '';
   const instanceDate = currentDue || currentScheduled || tod();
   const completed = frontmatterArray(fm, 'complete_instances');
@@ -840,7 +848,7 @@ export function finishRecurrentTaskInstance(raw, currentDue, currentScheduled) {
   fm = frontmatterRemove(fm, 'scheduled');
   fm = frontmatterUpsert(fm, 'dateModified', isoLocal());
 
-  return raw.replace(/^---\n[\s\S]*?\n---/, `---\n${fm.trimEnd()}\n---`);
+  return frontmatter.write(fm.trimEnd());
 }
 
 // ── Mark task done + archived (in-place frontmatter update) ──
@@ -848,9 +856,9 @@ export function markTaskDone(raw) {
   const today = tod();
   const nowIso = isoLocal();
 
-  const fmMatch = raw.match(/^---\n([\s\S]*?)\n---/);
-  if (!fmMatch) return raw;
-  let fm = fmMatch[1];
+  const frontmatter = readFrontmatter(raw);
+  if (!frontmatter) return raw;
+  let fm = frontmatter.fm;
 
   const upsert = (key, value) => {
     const re = new RegExp(`^${key}:[ \\t]*.*$`, 'm');
@@ -882,5 +890,5 @@ export function markTaskDone(raw) {
     }
   }
 
-  return raw.replace(/^---\n[\s\S]*?\n---/, `---\n${fm}\n---`);
+  return frontmatter.write(fm);
 }
