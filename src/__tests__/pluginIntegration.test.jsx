@@ -421,6 +421,60 @@ describe('TaskDash plugin end-to-end', () => {
     await view.onClose();
   });
 
+  it('keeps Review checkbox Space from navigating while row Enter and Space still navigate', async () => {
+    globalThis.ResizeObserver = class {
+      constructor(callback) { this.callback = callback; }
+      observe() { this.callback([{ contentRect:{ width:500 } }]); }
+      disconnect() {}
+    };
+
+    const app = makeFakeApp();
+    app.__folders.add('Tasks');
+    app.__files.set('Tasks/ship-it.md', { content:TASK_MD, mtime:1 });
+    app.__files.set('Tasks/review-release.md', { content:SECOND_TASK_MD.replace('status: none', 'status: in-progress'), mtime:2 });
+    app.__pluginData = { folders:{ tasks:'Tasks' }, enableStatusBarTimer:true };
+
+    const plugin = new TaskDashPlugin(app, { id:'taskdash-2-2', version:'2.2.0' });
+    await plugin.onload();
+    const view = app.__viewFactories[TASKDASH_VIEW_TYPE]({});
+    view.app = app;
+    await view.onOpen();
+
+    expect(await waitFor(() => view.contentEl.querySelectorAll('.td-task-list-row').length === 2)).toBe(true);
+    window.dispatchEvent(new CustomEvent('taskdash-2-2-command', { detail:{ action:'open-review' } }));
+    expect(await waitFor(() => !!view.contentEl.querySelector('.td-workflow-layout'))).toBe(true);
+    expect(await waitFor(() => view.contentEl.querySelectorAll('.td-task-list-row input[type="checkbox"]').length === 2)).toBe(true);
+
+    const taskRows = [...view.contentEl.querySelectorAll('.td-task-list-row')];
+    const checkboxRow = taskRows.find(row => !row.classList.contains('is-selected'));
+    const checkbox = checkboxRow.querySelector('input[type="checkbox"]');
+    checkbox.focus();
+    const listOpenBeforeSpace = view.contentEl.querySelector('.td-pane-list').classList.contains('mobile-list-open');
+    // happy-dom verifies propagation and navigation; it does not emulate a browser's native Space toggle.
+    const checkboxSpace = new KeyboardEvent('keydown', { key:' ', bubbles:true, cancelable:true });
+    checkbox.dispatchEvent(checkboxSpace);
+
+    expect(checkboxSpace.defaultPrevented).toBe(false);
+    expect(checkboxRow.classList.contains('is-selected')).toBe(false);
+    expect(view.contentEl.querySelector('.td-pane-list').classList.contains('mobile-list-open')).toBe(listOpenBeforeSpace);
+
+    const rowSpace = new KeyboardEvent('keydown', { key:' ', bubbles:true, cancelable:true });
+    checkboxRow.dispatchEvent(rowSpace);
+    expect(rowSpace.defaultPrevented).toBe(true);
+    expect(await waitFor(() => checkboxRow.classList.contains('is-selected'))).toBe(true);
+    expect(await waitFor(() => !view.contentEl.querySelector('.td-pane-list').classList.contains('mobile-list-open'))).toBe(true);
+
+    view.contentEl.querySelector('button').dispatchEvent(new MouseEvent('click', { bubbles:true, cancelable:true }));
+    const enterRow = [...view.contentEl.querySelectorAll('.td-task-list-row')]
+      .find(row => !row.classList.contains('is-selected'));
+    const rowEnter = new KeyboardEvent('keydown', { key:'Enter', bubbles:true, cancelable:true });
+    enterRow.dispatchEvent(rowEnter);
+    expect(rowEnter.defaultPrevented).toBe(true);
+    expect(await waitFor(() => enterRow.classList.contains('is-selected'))).toBe(true);
+
+    await view.onClose();
+  });
+
   it('saves an edited task-log comment through the native view', async () => {
     const app = makeFakeApp();
     app.__folders.add('Tasks');
