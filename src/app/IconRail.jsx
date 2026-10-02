@@ -97,7 +97,7 @@ export default function IconRail({ view, setView, vaultName = 'Vault', onSetting
         <button className={`rail-btn ${view === 'mission' ? 'on' : ''}`} onClick={() => setView('mission')} aria-label="Today">
           <Icon name="sun"/><span className="rail-mobile-label">Today</span>
         </button>
-        <button className={`rail-btn ${view === 'tasks' ? 'on' : ''}`} onClick={() => { setView('tasks'); onOpenList?.(); }} aria-label="Tasks">
+        <button className={`rail-btn ${view === 'tasks' ? 'on' : ''}`} onClick={() => onOpenList?.()} aria-label="Tasks">
           <Icon name="check"/><span className="rail-mobile-label">Tasks</span>
         </button>
         <button className={`rail-btn ${view === 'calendar' ? 'on' : ''}`} onClick={() => setView('calendar')} aria-label="Calendar">

@@ -1704,6 +1704,7 @@ export default function App({ vaultAdapter, onOpenSettings }) {
   const nudgeRef        = useRef();
   const imageUrlsRef    = useRef({});
   const loadedSectionsRef = useRef({});
+  const keepMobileListOpenRef = useRef(false);
 
   // ── Load saved handles on boot, query permissions ──
   useEffect(() => {
@@ -3327,7 +3328,11 @@ export default function App({ vaultAdapter, onOpenSettings }) {
   };
 
   const applyNavigation = useCallback((next) => {
-    if (next.view !== undefined) setView(next.view);
+    if (next.view !== undefined) {
+      if (next.view !== view && next.openList) keepMobileListOpenRef.current = true;
+      setView(next.view);
+    }
+    if (next.openList) setMobileListOpen(true);
     if (next.taskId !== undefined) setSel(next.taskId);
     if (next.closeList) setMobileListOpen(false);
     setNewTaskOpen(!!next.openNewTask);
@@ -3336,7 +3341,7 @@ export default function App({ vaultAdapter, onOpenSettings }) {
     setNewProjectOpen(false);
     setNewPersonOpen(false);
     setNewOrgOpen(false);
-  }, []);
+  }, [view]);
 
   const requestNavigation = useCallback((next) => {
     if (taskMetadataDirty) setPendingNavigation(next);
@@ -3368,6 +3373,10 @@ export default function App({ vaultAdapter, onOpenSettings }) {
   }, [task?.id]);
 
   useEffect(() => {
+    if (keepMobileListOpenRef.current) {
+      keepMobileListOpenRef.current = false;
+      return;
+    }
     setMobileListOpen(false);
   }, [view]);
 
@@ -3622,7 +3631,7 @@ export default function App({ vaultAdapter, onOpenSettings }) {
           onSettings={() => setFolderSetupOpen(true)}
           isNarrow={isNarrow}
           onNewTask={() => requestNavigation({ view:'tasks', openNewTask:true })}
-          onOpenList={() => setMobileListOpen(true)}
+          onOpenList={() => requestNavigation({ view:'tasks', openList:true })}
         />
 
       {/* ─── Sidebar ─── */}

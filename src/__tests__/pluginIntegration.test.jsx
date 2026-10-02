@@ -776,6 +776,71 @@ describe('TaskDash plugin end-to-end', () => {
     await view.onClose();
   });
 
+  it('opens the mobile task list with Tasks navigation and keeps cancelled navigation in place', async () => {
+    globalThis.ResizeObserver = class {
+      constructor(callback) { this.callback = callback; }
+      observe() { this.callback([{ contentRect:{ width:500 } }]); }
+      disconnect() {}
+    };
+
+    const app = makeFakeApp();
+    app.__folders.add('Tasks');
+    app.__files.set('Tasks/ship-it.md', { content:TASK_MD, mtime:1 });
+    app.__files.set('Tasks/review.md', { content:SECOND_TASK_MD, mtime:2 });
+    app.__pluginData = { folders:{ tasks:'Tasks' }, enableStatusBarTimer:true };
+
+    const plugin = new TaskDashPlugin(app, { id:'taskdash-2-2', version:'2.2.0' });
+    await plugin.onload();
+    const view = app.__viewFactories[TASKDASH_VIEW_TYPE]({});
+    view.app = app;
+    await view.onOpen();
+
+    expect(await waitFor(() => view.contentEl.querySelectorAll('.td-task-list-row').length === 2)).toBe(true);
+    await new Promise(resolve => setTimeout(resolve, 50));
+    const clickButton = label => {
+      view.contentEl.querySelector(`.rail-mobile-tabs button[aria-label="${label}"]`)
+        .dispatchEvent(new MouseEvent('click', { bubbles:true, cancelable:true }));
+    };
+
+    clickButton('Today');
+    expect(await waitFor(() => view.contentEl.querySelector('.rail-mobile-tabs button[aria-label="Today"]')?.classList.contains('on'))).toBe(true);
+    clickButton('Tasks');
+    expect(await waitFor(() => view.contentEl.querySelector('.td-pane-list')?.classList.contains('mobile-list-open'), 300)).toBe(true);
+
+    [...view.contentEl.querySelectorAll('.td-task-list-row')]
+      .find(row => row.textContent.includes('Ship the integration test'))
+      .dispatchEvent(new MouseEvent('click', { bubbles:true, cancelable:true }));
+    expect(await waitFor(() => !view.contentEl.querySelector('.td-pane-list').classList.contains('mobile-list-open'))).toBe(true);
+
+    [...view.contentEl.querySelectorAll('button')]
+      .find(button => button.textContent === 'Properties')
+      .dispatchEvent(new MouseEvent('click', { bubbles:true, cancelable:true }));
+    expect(await waitFor(() => !!view.contentEl.querySelector('.td-metadata-dialog'))).toBe(true);
+    const contexts = view.contentEl.querySelector('.td-metadata-dialog input[placeholder="work, phone"]');
+    const valueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
+    valueSetter.call(contexts, 'work, mobile-draft');
+    contexts.dispatchEvent(new Event('input', { bubbles:true }));
+    clickButton('Today');
+    expect(await waitFor(() => !!view.contentEl.querySelector('.td-unsaved-dialog'))).toBe(true);
+    [...view.contentEl.querySelectorAll('.td-unsaved-dialog button')]
+      .find(button => button.textContent === 'Stay')
+      .dispatchEvent(new MouseEvent('click', { bubbles:true, cancelable:true }));
+    expect(await waitFor(() => !view.contentEl.querySelector('.td-unsaved-dialog'))).toBe(true);
+    expect(view.contentEl.querySelector('.td-pane-list').classList.contains('mobile-list-open')).toBe(false);
+    expect(view.contentEl.querySelector('.td-metadata-dialog')).toBeTruthy();
+
+    [...view.contentEl.querySelectorAll('.td-metadata-dialog button')]
+      .find(button => button.textContent === 'Cancel')
+      .dispatchEvent(new MouseEvent('click', { bubbles:true, cancelable:true }));
+    expect(await waitFor(() => !view.contentEl.querySelector('.td-metadata-dialog'))).toBe(true);
+    clickButton('Tasks');
+    expect(await waitFor(() => view.contentEl.querySelector('.td-pane-list').classList.contains('mobile-list-open'))).toBe(true);
+    clickButton('Today');
+    expect(await waitFor(() => !view.contentEl.querySelector('.td-pane-list').classList.contains('mobile-list-open'))).toBe(true);
+
+    await view.onClose();
+  });
+
   it('asks before discarding unsaved inspector metadata when selecting another task', async () => {
     const app = makeFakeApp();
     app.__folders.add('Tasks');
