@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { finishRecurrentTaskInstance, markTaskDone, setPropertyCover, touchDateModified, updateTaskDates, updateTaskMetadata, updateTaskThreadSubject, appendNoteToMd } from '../formatter.js';
 import { markTaskDone, updateTaskDates, appendNoteToMd, updateTaskThreadSubject } from '../formatter.js';
 import { parseTask } from '../parser.js';
- 
+
 
 // Markdown safety: mutations must be surgical. Unknown frontmatter fields and
 // user-written content survive a parse → edit → write round-trip untouched.

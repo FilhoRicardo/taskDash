@@ -21,7 +21,7 @@ items:
     expect(parsed.double).toBe('Say "hello" at C:\\temp');
     expect(parsed.single).toBe("It's fine");
     expect(parsed.items).toEqual(['C:\\temp', "It's fine"]);
-    
+
   });
 
   it('reads TaskNotes frontmatter, checklist, dates, links, recurrence, and logs', () => {
