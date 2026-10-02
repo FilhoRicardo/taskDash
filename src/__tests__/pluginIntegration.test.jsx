@@ -283,7 +283,7 @@ describe('TaskDash plugin end-to-end', () => {
     [...view.contentEl.querySelectorAll('.td-task-list-row')]
       .find(row => row.textContent.includes('Review the release'))
       .dispatchEvent(new MouseEvent('click', { bubbles:true, cancelable:true }));
-    expect(await waitFor(() => view.contentEl.querySelector('.td-task-inspector-file')?.textContent.includes('review'))).toBe(true);
+    expect(await waitFor(() => view.contentEl.querySelector('h2')?.textContent === 'Review the release')).toBe(true);
     timerButton().dispatchEvent(new MouseEvent('click', { bubbles:true, cancelable:true }));
     await new Promise(resolve => setTimeout(resolve, 50));
     expect(JSON.parse(Object.values(localStorage).find(value => value.includes('"taskId"'))).taskId).toBe('ship-it.md');
@@ -399,7 +399,7 @@ describe('TaskDash plugin end-to-end', () => {
 
     const workReady = await waitFor(() => view.contentEl.querySelectorAll('.td-task-list-row').length === 2);
     expect(workReady).toBe(true);
-    expect(await waitFor(() => view.contentEl.querySelector('.td-task-inspector-save')?.textContent === 'Saved')).toBe(true);
+    expect(await waitFor(() => !!view.contentEl.querySelector('.td-task-properties-trigger'))).toBe(true);
     expect([...view.contentEl.querySelectorAll('.td-task-list-row')].some(row => row.textContent.includes('Explore a rough idea'))).toBe(false);
 
     view.contentEl.querySelector('button[aria-label="BD tasks"]')
@@ -547,7 +547,7 @@ describe('TaskDash plugin end-to-end', () => {
     await view.onClose();
   });
 
-  it('edits task metadata in the persistent native inspector', async () => {
+  it('keeps the wide task document free of a sidebar and edits metadata on demand', async () => {
     const app = makeFakeApp();
     app.__folders.add('Tasks');
     app.__files.set('Tasks/ship-it.md', { content: TASK_MD, mtime: 1 });
@@ -569,12 +569,17 @@ describe('TaskDash plugin end-to-end', () => {
       .find(row => row.textContent.includes('Ship the integration test'))
       .dispatchEvent(new MouseEvent('click', { bubbles:true, cancelable:true }));
 
-    const inspectorReady = await waitFor(() => view.contentEl.querySelector('.td-task-inspector'));
-    expect(inspectorReady).toBe(true);
-    const inspector = view.contentEl.querySelector('.td-task-inspector');
-    expect(inspector.textContent).toContain('Properties');
-    expect(inspector.textContent).toContain('ship-it');
+    expect(view.contentEl.querySelector('.td-task-inspector')).toBeNull();
+    const openNote = [...view.contentEl.querySelectorAll('button')]
+      .find(button => button.textContent === 'Open Markdown note');
+    expect(openNote).toBeTruthy();
+    openNote.click();
+    expect(await waitFor(() => app.__openedFiles.includes('Tasks/ship-it.md'))).toBe(true);
     expect(view.contentEl.querySelector('.td-metadata-dialog')).toBeNull();
+    view.contentEl.querySelector('.td-task-properties-trigger').click();
+    expect(await waitFor(() => view.contentEl.querySelector('.td-metadata-dialog'))).toBe(true);
+    const inspector = view.contentEl.querySelector('.td-metadata-dialog');
+    expect(inspector.textContent).toContain('ship-it');
 
     const contexts = inspector.querySelector('input[placeholder="work, phone"]');
     const timeEstimate = inspector.querySelector('input[type="number"][min="0"]');
@@ -585,16 +590,22 @@ describe('TaskDash plugin end-to-end', () => {
     expect(contexts.labels).toContain(contextsLabel);
     expect(timeEstimate.labels).toContain(timeEstimateLabel);
     expect(waitingFor.labels).toContain(waitingForLabel);
+    for (const name of ['Priority', 'Status', 'Client', 'Building', 'Projects', 'Extra tags']) {
+      const label = [...inspector.querySelectorAll('label')].find(element => element.textContent.startsWith(name));
+      expect(label.control, `${name} has a labelled control`).toBeTruthy();
+      expect(label.control.labels).toContain(label);
+    }
     const valueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
     valueSetter.call(contexts, 'work, phone');
     contexts.dispatchEvent(new Event('input', { bubbles:true }));
 
     [...inspector.querySelectorAll('button')]
-      .find(button => button.textContent === 'Save')
+      .find(button => button.textContent === 'Save metadata')
       .dispatchEvent(new MouseEvent('click', { bubbles:true, cancelable:true }));
     const saved = await waitFor(() => app.__files.get('Tasks/ship-it.md').content.includes('  - "phone"'));
     expect(saved).toBe(true);
-    expect(view.contentEl.querySelector('.td-task-inspector')).toBeTruthy();
+    expect(await waitFor(() => !view.contentEl.querySelector('.td-metadata-dialog'))).toBe(true);
+    expect(view.contentEl.querySelector('.td-task-inspector')).toBeNull();
 
     await view.onClose();
   });
@@ -618,7 +629,7 @@ describe('TaskDash plugin end-to-end', () => {
     [...view.contentEl.querySelectorAll('.td-task-list-row')]
       .find(row => row.textContent.includes('Ship the integration test'))
       .dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
-    expect(await waitFor(() => view.contentEl.querySelector('.td-task-inspector'))).toBeTruthy();
+    expect(await waitFor(() => !!view.contentEl.querySelector('.td-task-properties-trigger'))).toBe(true);
 
     app.__failRename = true;
     view.contentEl.querySelector('button[title="Mark done & archived"]')
@@ -697,6 +708,47 @@ describe('TaskDash plugin end-to-end', () => {
     expect(document.activeElement).toBe(propertiesButton);
 
     await view.onClose();
+  });
+
+  it.each([
+    ['Waiting for', 'Jane Doe'],
+    ['Priority', 'Low'],
+  ])('keeps %s options focused when keyboard focus leaves the picker input', async (field, optionName) => {
+    const app = makeFakeApp();
+    app.__folders.add('Tasks');
+    app.__folders.add('People');
+    app.__files.set('Tasks/ship-it.md', { content:TASK_MD, mtime:1 });
+    app.__files.set('People/Jane Doe.md', { content:'---\nperson: Jane Doe\n---\n', mtime:1 });
+    app.__pluginData = { folders:{ tasks:'Tasks', people:'People' }, enableStatusBarTimer:true };
+    const plugin = new TaskDashPlugin(app, { id:'taskdash-2-2', version:'2.2.0' });
+    await plugin.onload();
+    const view = app.__viewFactories[TASKDASH_VIEW_TYPE]({});
+    view.app = app;
+    document.body.append(view.contentEl);
+    await view.onOpen();
+    expect(await waitFor(() => view.contentEl.querySelector('.td-task-properties-trigger'))).toBeTruthy();
+    view.contentEl.querySelector('.td-task-properties-trigger').click();
+    expect(await waitFor(() => view.contentEl.querySelector('.td-metadata-dialog'))).toBeTruthy();
+    const dialog = view.contentEl.querySelector('.td-metadata-dialog');
+    const picker = [...dialog.querySelectorAll('label')].find(label => label.textContent.startsWith(field)).control;
+    picker.focus();
+    if (picker.tagName === 'BUTTON') picker.click();
+    expect(await waitFor(() => [...dialog.querySelectorAll('[role="option"]')].some(option => option.textContent.trim() === optionName))).toBe(true);
+    const option = [...dialog.querySelectorAll('[role="option"]')].find(element => element.textContent.trim() === optionName);
+    // Native Tab's focus transition; a real-browser check covers Tab dispatch itself.
+    option.focus();
+    await new Promise(resolve => setTimeout(resolve, 180));
+    expect(option.isConnected).toBe(true);
+    expect(document.activeElement).toBe(option);
+    option.click();
+    expect(await waitFor(() => picker.value === optionName || picker.textContent.includes(optionName))).toBe(true);
+    expect(document.activeElement).toBe(picker);
+    picker.focus();
+    if (picker.tagName === 'BUTTON') picker.click();
+    dialog.querySelector('.td-dialog-cancel').focus();
+    expect(await waitFor(() => !dialog.querySelector('[role="option"]'))).toBe(true);
+    await view.onClose();
+    view.contentEl.remove();
   });
 
   it('closes an open metadata picker before cancelling the Properties dialog with Escape', async () => {
@@ -849,7 +901,7 @@ describe('TaskDash plugin end-to-end', () => {
     await view.onClose();
   });
 
-  it('asks before discarding unsaved inspector metadata when selecting another task', async () => {
+  it('asks before discarding unsaved dialog metadata when selecting another task', async () => {
     const app = makeFakeApp();
     app.__folders.add('Tasks');
     app.__files.set('Tasks/ship-it.md', { content: TASK_MD, mtime: 1 });
@@ -869,9 +921,10 @@ describe('TaskDash plugin end-to-end', () => {
     firstRow.focus();
     firstRow.dispatchEvent(new MouseEvent('click', { bubbles:true, cancelable:true }));
 
-    const inspectorReady = await waitFor(() => view.contentEl.querySelector('.td-task-inspector'));
-    expect(inspectorReady).toBe(true);
-    const contexts = view.contentEl.querySelector('.td-task-inspector input[placeholder="work, phone"]');
+    expect(await waitFor(() => !!view.contentEl.querySelector('.td-task-properties-trigger'))).toBe(true);
+    view.contentEl.querySelector('.td-task-properties-trigger').click();
+    expect(await waitFor(() => !!view.contentEl.querySelector('.td-metadata-dialog'))).toBe(true);
+    const contexts = view.contentEl.querySelector('.td-metadata-dialog input[placeholder="work, phone"]');
     const valueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
     valueSetter.call(contexts, 'work, unsaved-audit');
     contexts.dispatchEvent(new Event('input', { bubbles:true }));
@@ -883,14 +936,14 @@ describe('TaskDash plugin end-to-end', () => {
     const dialogReady = await waitFor(() => view.contentEl.querySelector('.td-unsaved-dialog'));
     expect(dialogReady).toBe(true);
     expect(view.contentEl.querySelector('.td-unsaved-dialog').contains(document.activeElement)).toBe(true);
-    expect(view.contentEl.querySelector('.td-task-inspector-file').textContent).toContain('ship-it');
+    expect(view.contentEl.querySelector('.td-metadata-dialog').textContent).toContain('ship-it');
     expect(view.contentEl.querySelector('.td-unsaved-dialog').textContent).toContain('Unsaved property changes');
 
     [...view.contentEl.querySelectorAll('.td-unsaved-dialog button')]
       .find(button => button.textContent === 'Discard')
       .dispatchEvent(new MouseEvent('click', { bubbles:true, cancelable:true }));
 
-    const switched = await waitFor(() => view.contentEl.querySelector('.td-task-inspector-file')?.textContent.includes('review'));
+    const switched = await waitFor(() => view.contentEl.querySelector('h2')?.textContent === 'Review the release');
     expect(switched).toBe(true);
     expect(document.activeElement).toBe(firstRow);
     expect(app.__files.get('Tasks/ship-it.md').content).not.toContain('unsaved-audit');
@@ -927,8 +980,10 @@ describe('TaskDash plugin end-to-end', () => {
       .find(row => row.textContent.includes('Ship the integration test'))
       .dispatchEvent(new MouseEvent('click', { bubbles:true, cancelable:true }));
 
-    expect(await waitFor(() => view.contentEl.querySelector('.td-task-inspector input[placeholder="work, phone"]'))).toBe(true);
-    const contexts = view.contentEl.querySelector('.td-task-inspector input[placeholder="work, phone"]');
+    expect(await waitFor(() => !!view.contentEl.querySelector('.td-task-properties-trigger'))).toBe(true);
+    view.contentEl.querySelector('.td-task-properties-trigger').click();
+    expect(await waitFor(() => !!view.contentEl.querySelector('.td-metadata-dialog'))).toBe(true);
+    const contexts = view.contentEl.querySelector('.td-metadata-dialog input[placeholder="work, phone"]');
     const valueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
     valueSetter.call(contexts, 'unsaved audit');
     contexts.dispatchEvent(new Event('input', { bubbles:true }));
@@ -938,7 +993,7 @@ describe('TaskDash plugin end-to-end', () => {
       .dispatchEvent(new MouseEvent('click', { bubbles:true, cancelable:true }));
     expect(await waitFor(() => [...view.contentEl.querySelectorAll('button')]
       .some(button => button.textContent === 'Stop'), 1000)).toBe(true);
-    expect(view.contentEl.querySelector('.td-task-inspector input[placeholder="work, phone"]').value).toBe('unsaved audit');
+    expect(view.contentEl.querySelector('.td-metadata-dialog input[placeholder="work, phone"]').value).toBe('unsaved audit');
     [...view.contentEl.querySelectorAll('button')]
       .find(button => button.textContent === 'Stop')
       .dispatchEvent(new MouseEvent('click', { bubbles:true, cancelable:true }));
@@ -955,7 +1010,7 @@ describe('TaskDash plugin end-to-end', () => {
     email.dispatchEvent(new MouseEvent('click', { bubbles:true, cancelable:true }));
 
     expect(await waitFor(() => view.contentEl.textContent.includes('Email') && view.contentEl.textContent.includes('LIVE'), 1000)).toBe(true);
-    expect(view.contentEl.querySelector('.td-task-inspector input[placeholder="work, phone"]')?.value).toBe('unsaved audit');
+    expect(view.contentEl.querySelector('.td-metadata-dialog input[placeholder="work, phone"]')?.value).toBe('unsaved audit');
 
     [...view.contentEl.querySelectorAll('button')]
       .find(button => button.textContent === 'Stop' && button.parentElement.parentElement.textContent.includes('Email'))
@@ -972,7 +1027,7 @@ describe('TaskDash plugin end-to-end', () => {
       .dispatchEvent(new MouseEvent('click', { bubbles:true, cancelable:true }));
 
     expect(await waitFor(() => view.contentEl.textContent.includes('Audit follow-up') && view.contentEl.textContent.includes('LIVE'), 1000)).toBe(true);
-    expect(view.contentEl.querySelector('.td-task-inspector input[placeholder="work, phone"]').value).toBe('unsaved audit');
+    expect(view.contentEl.querySelector('.td-metadata-dialog input[placeholder="work, phone"]').value).toBe('unsaved audit');
 
     await view.onClose();
   }, 15000);

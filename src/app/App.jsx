@@ -258,7 +258,7 @@ function UnsavedChangesDialog({ open, onStay, onDiscard, onSave }) {
       <section ref={dialogRef} className="td-dialog td-unsaved-dialog" role="dialog" aria-modal="true" aria-labelledby="td-unsaved-title" tabIndex={-1}>
         <div className="td-dialog-eyebrow">Unsaved changes</div>
         <h2 id="td-unsaved-title">Unsaved property changes</h2>
-        <p>Save or discard the inspector changes before leaving this task.</p>
+        <p>Save or discard the metadata changes before leaving this task.</p>
         <div className="td-dialog-actions">
           <button ref={stayRef} type="button" onClick={onStay} className="td-dialog-cancel">Stay</button>
           <button type="button" onClick={onDiscard} className="td-dialog-cancel">Discard</button>
@@ -295,7 +295,6 @@ function MetadataDialog({ title, meta, onCancel, onSave, children }) {
       <section ref={dialogRef} className="td-dialog td-metadata-dialog" role="dialog" aria-modal="true" aria-labelledby="td-metadata-dialog-title" tabIndex={-1} onKeyDown={event=>{ if (event.key === 'Escape' && !event.defaultPrevented) { event.preventDefault(); onCancel(); } }}>
         <div className="td-metadata-dialog-header">
           <div>
-            <div className="td-dialog-eyebrow">Edit metadata</div>
             <h2 id="td-metadata-dialog-title">{title}</h2>
             {meta && <p>{meta}</p>}
           </div>
@@ -680,7 +679,7 @@ function taskMetadataDraft(task) {
   };
 }
 
-function TaskMetadataEditor({ task, draft, setDraft, refs, compact = false }) {
+function TaskMetadataEditor({ draft, setDraft, refs }) {
   const fieldId = useId();
   const set = (key, value) => setDraft(current => ({ ...current, [key]:value }));
   const priorityOptions = [
@@ -696,13 +695,13 @@ function TaskMetadataEditor({ task, draft, setDraft, refs, compact = false }) {
   ];
 
   return (
-    <MetadataEditorCard label={compact ? null : 'Task metadata'} meta={compact ? null : task.filename}>
+    <MetadataEditorCard label={null}>
       <div className="td-metadata-grid" style={{ display:'grid', gridTemplateColumns:'repeat(2,minmax(0,1fr))', gap:'0 11px' }}>
-        <Field label="Priority">
-          <SelectInput value={draft.priority} onChange={value=>set('priority', value)} options={priorityOptions}/>
+        <Field label="Priority" id={`${fieldId}-priority`}>
+          <SelectInput id={`${fieldId}-priority`} value={draft.priority} onChange={value=>set('priority', value)} options={priorityOptions}/>
         </Field>
-        <Field label="Status">
-          <SelectInput value={draft.status} onChange={value=>set('status', value)} options={statusOptions}/>
+        <Field label="Status" id={`${fieldId}-status`}>
+          <SelectInput id={`${fieldId}-status`} value={draft.status} onChange={value=>set('status', value)} options={statusOptions}/>
         </Field>
         <Field label="Contexts (comma-separated)" id={`${fieldId}-contexts`}>
           <input id={`${fieldId}-contexts`} value={draft.contexts} onChange={e=>set('contexts', e.target.value)} placeholder="work, phone" style={inputBase}/>
@@ -710,22 +709,22 @@ function TaskMetadataEditor({ task, draft, setDraft, refs, compact = false }) {
         <Field label="Time estimate (minutes)" id={`${fieldId}-time-estimate`}>
           <input id={`${fieldId}-time-estimate`} type="number" min="0" value={draft.timeEstimate} onChange={e=>set('timeEstimate', e.target.value)} placeholder="0" style={inputBase}/>
         </Field>
-        <Field label={`Client${refs.clients.length?` · ${refs.clients.length} available`:''}`}>
-          <ComboInput value={draft.client} onChange={value=>set('client', value)} options={refs.clients} placeholder="Pick or type..."/>
+        <Field label={`Client${refs.clients.length?` · ${refs.clients.length} available`:''}`} id={`${fieldId}-client`}>
+          <ComboInput id={`${fieldId}-client`} value={draft.client} onChange={value=>set('client', value)} options={refs.clients} placeholder="Pick or type..."/>
         </Field>
-        <Field label={`Building${refs.properties.length?` · ${refs.properties.length} available`:''}`}>
-          <ComboInput value={draft.building} onChange={value=>set('building', value)} options={refs.properties} placeholder="Pick or type..."/>
+        <Field label={`Building${refs.properties.length?` · ${refs.properties.length} available`:''}`} id={`${fieldId}-building`}>
+          <ComboInput id={`${fieldId}-building`} value={draft.building} onChange={value=>set('building', value)} options={refs.properties} placeholder="Pick or type..."/>
         </Field>
       </div>
-      <Field label={`Projects${refs.projects.length?` · ${refs.projects.length} available`:''}`}>
-        <ChipMulti value={draft.projects} onChange={value=>set('projects', value)} options={refs.projects} placeholder="Type project name + Enter..."/>
+      <Field label={`Projects${refs.projects.length?` · ${refs.projects.length} available`:''}`} id={`${fieldId}-projects`}>
+        <ChipMulti id={`${fieldId}-projects`} value={draft.projects} onChange={value=>set('projects', value)} options={refs.projects} placeholder="Type project name + Enter..."/>
       </Field>
       <div className="td-metadata-grid" style={{ display:'grid', gridTemplateColumns:'repeat(2,minmax(0,1fr))', gap:'0 11px' }}>
         <Field label={`Waiting for${refs.people.length?` · ${refs.people.length} available`:''}`} id={`${fieldId}-waiting-for`}>
           <ComboInput id={`${fieldId}-waiting-for`} value={draft.waitingfor} onChange={value=>set('waitingfor', value)} options={refs.people} placeholder="Pick or type..."/>
         </Field>
-        <Field label="Extra tags (comma-separated)">
-          <input value={draft.tags} onChange={e=>set('tags', e.target.value)} placeholder="admin, urgent" style={inputBase}/>
+        <Field label="Extra tags (comma-separated)" id={`${fieldId}-tags`}>
+          <input id={`${fieldId}-tags`} value={draft.tags} onChange={e=>set('tags', e.target.value)} placeholder="admin, urgent" style={inputBase}/>
         </Field>
       </div>
       <Field label="Recurrent">
@@ -1467,6 +1466,7 @@ function parseTrackerRows(raw = '') {
 }
 
 function ComboInput({ value, onChange, options = [], placeholder, id }) {
+  const inputRef = useRef(null);
   const [input, setInput] = useState(value || '');
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
@@ -1478,18 +1478,18 @@ function ComboInput({ value, onChange, options = [], placeholder, id }) {
 
   return (
     <div style={{ position:'relative' }} onBlur={event=>{ if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false); }}>
-      <input id={id} value={input} role="combobox" aria-expanded={open} aria-controls={listId} aria-activedescendant={open && filtered.length ? `${listId}-option-${activeIndex}` : undefined} aria-autocomplete="list" onFocus={()=>setOpen(true)} onChange={e=>{ setInput(e.target.value); onChange(e.target.value); setActiveIndex(0); setOpen(true); }} onKeyDown={event=>{
+      <input ref={inputRef} id={id} value={input} role="combobox" aria-expanded={open} aria-controls={listId} aria-activedescendant={open && filtered.length ? `${listId}-option-${activeIndex}` : undefined} aria-autocomplete="list" onFocus={()=>setOpen(true)} onChange={e=>{ setInput(e.target.value); onChange(e.target.value); setActiveIndex(0); setOpen(true); }} onKeyDown={event=>{
         if (!filtered.length) return;
         if (event.key === 'ArrowDown') { event.preventDefault(); setOpen(true); setActiveIndex(index => Math.min(index + 1, filtered.length - 1)); }
         else if (event.key === 'ArrowUp') { event.preventDefault(); setOpen(true); setActiveIndex(index => Math.max(index - 1, 0)); }
         else if (event.key === 'Enter' && open) { event.preventDefault(); const next = filtered[activeIndex]; setInput(next); onChange(next); setOpen(false); }
         else if (event.key === 'Escape' && open && filtered.length) { event.preventDefault(); event.stopPropagation(); setOpen(false); }
-      }} onBlur={()=>setTimeout(()=>setOpen(false), 120)}
+      }}
         placeholder={placeholder || 'Pick or type...'} style={inputBase}/>
       {open && filtered.length > 0 && (
         <div id={listId} role="listbox" style={{ position:'absolute', top:'calc(100% + 4px)', left:0, right:0, zIndex:80, maxHeight:280, overflowY:'auto', padding:4, borderRadius:9, background:'#f7faf8', border:'1px solid rgba(255,255,255,0.68)', boxShadow:'0 12px 30px rgba(20,40,30,0.14)' }}>
           {filtered.map((option,index) => (
-            <button key={option} id={`${listId}-option-${index}`} type="button" role="option" aria-selected={index === activeIndex} onMouseDown={e=>e.preventDefault()} onClick={()=>{ setInput(option); onChange(option); setOpen(false); }}
+            <button key={option} id={`${listId}-option-${index}`} type="button" role="option" aria-selected={index === activeIndex} onMouseDown={e=>e.preventDefault()} onClick={()=>{ setInput(option); onChange(option); inputRef.current?.focus(); setOpen(false); }}
               style={{ width:'100%', textAlign:'left', padding:'7px 9px', borderRadius:7, border:'none', background:index === activeIndex ? BRAND_SURFACE : 'transparent', color:'#222a25', cursor:'pointer', fontSize:12, fontFamily:'inherit' }}>
               {option}
             </button>
@@ -1500,17 +1500,18 @@ function ComboInput({ value, onChange, options = [], placeholder, id }) {
   );
 }
 
-function SelectInput({ value, onChange, options = [] }) {
+function SelectInput({ value, onChange, options = [], id }) {
+  const inputRef = useRef(null);
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
   const listId = useMemo(() => `td-select-${Math.random().toString(36).slice(2, 9)}`, []);
   const selected = options.find(option => option.value === value) || options[0];
   const selectedIndex = Math.max(0, options.findIndex(option => option.value === value));
-  const choose = option => { onChange(option.value); setOpen(false); };
+  const choose = option => { onChange(option.value); inputRef.current?.focus(); setOpen(false); };
 
   return (
     <div style={{ position:'relative' }} onBlur={event=>{ if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false); }}>
-      <button type="button" role="combobox" aria-haspopup="listbox" aria-expanded={open} aria-controls={listId} aria-activedescendant={open ? `${listId}-option-${activeIndex}` : undefined} onClick={()=>{ setActiveIndex(selectedIndex); setOpen(prev => !prev); }} onKeyDown={event=>{
+      <button ref={inputRef} id={id} type="button" role="combobox" aria-haspopup="listbox" aria-expanded={open} aria-controls={listId} aria-activedescendant={open ? `${listId}-option-${activeIndex}` : undefined} onClick={()=>{ setActiveIndex(selectedIndex); setOpen(prev => !prev); }} onKeyDown={event=>{
         if (!options.length) return;
         if (event.key === 'ArrowDown') { event.preventDefault(); setOpen(true); setActiveIndex(index => Math.min(index + 1, options.length - 1)); }
         else if (event.key === 'ArrowUp') { event.preventDefault(); setOpen(true); setActiveIndex(index => Math.max(index - 1, 0)); }
@@ -1518,7 +1519,7 @@ function SelectInput({ value, onChange, options = [] }) {
         else if (event.key === 'End') { event.preventDefault(); setOpen(true); setActiveIndex(options.length - 1); }
         else if (event.key === 'Enter' && open) { event.preventDefault(); choose(options[activeIndex]); }
         else if (event.key === 'Escape' && open && options.length) { event.preventDefault(); event.stopPropagation(); setOpen(false); }
-      }} onBlur={()=>setTimeout(()=>setOpen(false), 120)}
+      }}
         style={{ ...inputBase, minHeight:39, display:'flex', alignItems:'center', justifyContent:'space-between', gap:10, textAlign:'left', cursor:'pointer' }}>
         <span>{selected?.label || value}</span>
         <span style={{ color:TEXT_MUTED, fontSize:11, lineHeight:1 }}>▾</span>
@@ -1540,7 +1541,7 @@ function SelectInput({ value, onChange, options = [] }) {
   );
 }
 
-function ChipMulti({ value, onChange, options, placeholder }) {
+function ChipMulti({ value, onChange, options, placeholder, id }) {
   const [input, setInput] = useState('');
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
@@ -1565,10 +1566,10 @@ function ChipMulti({ value, onChange, options, placeholder }) {
       {value.map(p => (
         <span key={p} style={{ fontSize:11, fontWeight:600, padding:'3px 8px', borderRadius:14, background:BRAND_SURFACE_STRONG, color:BRAND_TEXT, display:'inline-flex', alignItems:'center', gap:5 }}>
           {p}
-          <button type="button" onClick={() => onChange(value.filter(x => x !== p))} style={{ background:'none', border:'none', color:BRAND_TEXT, cursor:'pointer', fontSize:14, lineHeight:1, padding:0 }}>×</button>
+          <button type="button" aria-label={`Remove ${p}`} onClick={() => onChange(value.filter(x => x !== p))} style={{ background:'none', border:'none', color:BRAND_TEXT, cursor:'pointer', fontSize:14, lineHeight:1, padding:0 }}>×</button>
         </span>
       ))}
-      <input value={input} role="combobox" aria-expanded={open} aria-controls={listId} aria-activedescendant={open && filtered.length ? `${listId}-option-${activeIndex}` : undefined} aria-autocomplete="list" onFocus={()=>setOpen(true)} onChange={e=>{ setInput(e.target.value); setActiveIndex(0); setOpen(true); }}
+      <input id={id} value={input} role="combobox" aria-expanded={open} aria-controls={listId} aria-activedescendant={open && filtered.length ? `${listId}-option-${activeIndex}` : undefined} aria-autocomplete="list" onFocus={()=>setOpen(true)} onChange={e=>{ setInput(e.target.value); setActiveIndex(0); setOpen(true); }}
         onKeyDown={e=>{
           if (e.key === 'ArrowDown' && filtered.length) { e.preventDefault(); setOpen(true); setActiveIndex(index => Math.min(index + 1, filtered.length - 1)); }
           else if (e.key === 'ArrowUp' && filtered.length) { e.preventDefault(); setOpen(true); setActiveIndex(index => Math.max(index - 1, 0)); }
@@ -1598,9 +1599,6 @@ export default function App({ vaultAdapter, onOpenSettings }) {
   // Narrow-pane layout keys off container width (breakpoint 768px).
   const [shellRef, shellWidth] = useContainerWidth();
   const isNarrow = shellWidth != null && shellWidth < 768;
-  // Keep the task document spacious on normal screens; reserve the permanent
-  // inspector for genuinely wide TaskDash panes.
-  const useTaskPropertiesDialog = shellWidth != null && shellWidth < 1700;
 
   // ── Folder handles (one per folder type), provided by the VaultAdapter ──
   const [dirs,      setDirs]      = useState({});           // { tasks: handle, ... }
@@ -3321,7 +3319,7 @@ export default function App({ vaultAdapter, onOpenSettings }) {
   const live      = timer?.taskId===sel;
   const taskDaysOpen = task ? daysOpenSince(task.dateCreated) : null;
   const taskAge = taskAgeTone(taskDaysOpen);
-  const taskMetadataDirty = !!task && JSON.stringify(taskMetadata) !== JSON.stringify(taskMetadataDraft(task));
+  const taskMetadataDirty = taskPropertiesOpen && !!task && JSON.stringify(taskMetadata) !== JSON.stringify(taskMetadataDraft(task));
 
   const openTaskProperties = () => {
     if (!task) return;
@@ -3626,11 +3624,11 @@ export default function App({ vaultAdapter, onOpenSettings }) {
         {taskPropertiesOpen && task && (
           <MetadataDialog
             title={task.title}
-            meta={task.filename}
+            meta={task.filename !== task.title ? task.filename : undefined}
             onCancel={cancelTaskProperties}
             onSave={saveTaskProperties}
           >
-            <TaskMetadataEditor task={task} draft={taskMetadata} setDraft={setTaskMetadata} refs={refs}/>
+            <TaskMetadataEditor draft={taskMetadata} setDraft={setTaskMetadata} refs={refs}/>
           </MetadataDialog>
         )}
 
@@ -4253,10 +4251,10 @@ export default function App({ vaultAdapter, onOpenSettings }) {
         <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', color:'#5a615b', fontSize:13 }}>← Select a task</div>
 
       ) : (
-        <div style={{ flex:1, display:'flex', flexDirection:'column', overflow:'hidden' }}>
-          <div style={{ padding:'22px 30px 18px', borderBottom:'1px solid rgba(255,255,255,0.60)', flexShrink:0 }}>
-            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:24 }}>
-              <div style={{ flex:1, minWidth:0 }}>
+        <div className="td-task-detail" style={{ flex:1, display:'flex', flexDirection:'column', overflow:'hidden' }}>
+          <div className="td-task-detail-header" style={{ padding:'22px 30px 18px', borderBottom:'1px solid rgba(255,255,255,0.60)', flexShrink:0 }}>
+            <div style={{ display:'flex', flexWrap:'wrap', justifyContent:'space-between', alignItems:'flex-start', gap:24 }}>
+              <div style={{ flex:'1 1 420px', minWidth:0 }}>
                 <div style={{ display:'flex', gap:7, alignItems:'center', marginBottom:9, flexWrap:'wrap' }}>
                   {isNarrow && <button onClick={()=>setMobileListOpen(true)} style={{ padding:'5px 9px', borderRadius:8, border:'1px solid rgba(255,255,255,0.62)', background:'rgba(255,255,255,0.55)', color:BRAND_TEXT, cursor:'pointer', fontSize:10, fontWeight:800, fontFamily:'inherit' }}>Task list</button>}
                   <PBadge p={task.priority}/><SBadge s={task.status}/>
@@ -4268,7 +4266,7 @@ export default function App({ vaultAdapter, onOpenSettings }) {
                   {task.contexts?.length > 0 && <span style={{ fontSize:12, color:'#5a615b' }}>· {task.contexts.slice(0,2).join(' · ')}</span>}
                 </div>
                 <h2 style={{ margin:0, fontSize:19, fontWeight:700, lineHeight:1.35, color:'#1d2421' }}>{task.title}</h2>
-                <div style={{ marginTop:9, display:'flex', alignItems:'end', gap:8, width:'min(100%, 620px)' }}>
+                <div className="td-task-subject" style={{ marginTop:9, display:'flex', alignItems:'end', gap:8, width:'min(100%, 620px)' }}>
                   <label style={{ flex:1, minWidth:0, display:'flex', flexDirection:'column', gap:4 }}>
                     <span style={{ fontSize:9, color:BRAND_LABEL, fontWeight:800, letterSpacing:'0.08em', textTransform:'uppercase' }}>Thread subject</span>
                     <input
@@ -4290,7 +4288,7 @@ export default function App({ vaultAdapter, onOpenSettings }) {
                 <div style={{ marginTop:11, display:'inline-flex', alignItems:'center', gap:8, padding:'7px 11px', borderRadius:9, border:`1px solid ${taskAge.border}`, background:taskAge.bg, color:taskAge.color, fontSize:12, fontWeight:850 }}>
                   {taskDaysOpen === null ? 'Open age unknown - no dateCreated' : `Open for ${taskDaysOpen} day${taskDaysOpen === 1 ? '' : 's'}`}
                 </div>
-                <div style={{ display:'flex', gap:10, alignItems:'end', flexWrap:'wrap', marginTop:15, maxWidth:760 }}>
+                <div className="td-task-dates" style={{ display:'flex', gap:10, alignItems:'end', flexWrap:'wrap', marginTop:15, maxWidth:760 }}>
                   <label style={{ display:'flex', flexDirection:'column', gap:5, minWidth:182 }}>
                     <span style={{ fontSize:9, color:'#5a615b', fontWeight:800, letterSpacing:'0.08em', textTransform:'uppercase' }}>Due</span>
                     <input type="date" value={task.due || ''} onChange={e=>changeTaskDates(task.id, { due:e.target.value })} style={{ ...inputBase, minHeight:38, padding:'9px 34px 9px 28px', fontSize:13 }}/>
@@ -4309,15 +4307,13 @@ export default function App({ vaultAdapter, onOpenSettings }) {
                   </button>
                 </div>
               </div>
-              <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:10, flexShrink:0 }}>
+              <div className="td-task-timer" style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:10, flexShrink:0, maxWidth:'100%' }}>
                 <div style={{ fontSize:31, fontWeight:800, letterSpacing:0, fontVariantNumeric:'tabular-nums', color:live?'#13733f':'#222a25', textShadow:live?'0 0 28px rgba(20,120,72,0.55)':'none', transition:'color 0.3s,text-shadow 0.3s' }}>{fmt(selTime)}</div>
-                <div style={{ display:'flex', gap:7 }}>
-                  {useTaskPropertiesDialog && (
-                    <button type="button" className="td-task-properties-trigger" onClick={openTaskProperties}>
-                      Properties
-                    </button>
-                  )}
-                  <button onClick={live?stop:()=>start(task.id)} style={{ padding:'9px 22px', borderRadius:10, border:'none', cursor:'pointer', fontWeight:700, fontSize:13, fontFamily:'inherit', background:live?'rgba(225,91,79,0.1)':BRAND_GRADIENT, color:live?'#c2533f':'#fff', boxShadow:live?'inset 0 0 0 1px rgba(225,91,79,0.3)':BRAND_SHADOW, transition:'all 0.2s' }}>{live?'Stop':'Start'}</button>
+                <div style={{ display:'flex', flexWrap:'wrap', gap:7 }}>
+                  <button type="button" className="td-task-properties-trigger" onClick={openTaskProperties}>
+                    Properties
+                  </button>
+                  <button className={live ? 'td-task-stop' : 'td-task-start'} onClick={live?stop:()=>start(task.id)} style={{ padding:'9px 22px', borderRadius:10, border:'none', cursor:'pointer', fontWeight:700, fontSize:13, fontFamily:'inherit', background:live?'rgba(225,91,79,0.1)':BRAND_GRADIENT, color:live?'#c2533f':'#fff', boxShadow:live?'inset 0 0 0 1px rgba(225,91,79,0.3)':BRAND_SHADOW, transition:'all 0.2s' }}>{live?'Stop':'Start'}</button>
                   {!task.archived && (
                     task.recurrent ? (
                       <>
@@ -4342,12 +4338,12 @@ export default function App({ vaultAdapter, onOpenSettings }) {
             </div>
           </div>
 
-          <div className="td-task-detail-body" style={{ flex:1, minHeight:0, display:'grid', gridTemplateColumns:useTaskPropertiesDialog?'minmax(0, 1fr)':'minmax(480px, 1fr) minmax(280px, 340px)', gap:0, overflow:'hidden' }}>
-            <main className="td-task-document" style={{ minWidth:0, overflowY:'auto', padding:'24px 32px', borderRight:useTaskPropertiesDialog?'none':'1px solid rgba(40,60,50,0.10)' }}>
+          <div className="td-task-detail-body" style={{ flex:1, minHeight:0, display:'grid', gridTemplateColumns:'minmax(0, 1fr)', gap:0, overflow:'hidden' }}>
+            <main className="td-task-document" style={{ minWidth:0, overflowY:'auto', padding:'24px 32px' }}>
               <section className="td-task-description">
                 <div style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline', gap:12, marginBottom:14 }}>
                   <h3 style={{ margin:0, fontSize:14, color:'#1d2421' }}>Task description</h3>
-                  <span style={{ fontSize:10, color:'#5a615b', fontWeight:800 }}>{task.filename}</span>
+                  <button type="button" className="td-task-properties-trigger" title={task.filename} onClick={()=>openTaskNote(task.id)} disabled={!vaultAdapter.openFile}>Open Markdown note</button>
                 </div>
                 <MarkdownBody emptyText="No task description body yet.">{taskDescriptionText(task.raw)}</MarkdownBody>
               </section>
@@ -4375,25 +4371,6 @@ export default function App({ vaultAdapter, onOpenSettings }) {
               </section>
             </main>
 
-            {!useTaskPropertiesDialog && <aside className="td-task-inspector" style={{ minWidth:0, overflowY:'auto', padding:'18px 18px 24px' }}>
-              <div className="td-task-inspector-heading">
-                <div>
-                  <div className="td-task-inspector-eyebrow">Properties</div>
-                  <div className="td-task-inspector-file">{task.filename}</div>
-                </div>
-                <button
-                  className="td-task-inspector-save"
-                  onClick={()=>saveTaskMetadata(task.id)}
-                >
-                  {taskMetadataDirty ? 'Save' : 'Saved'}
-                </button>
-              </div>
-              <button type="button" className="td-task-open-note" onClick={()=>openTaskNote(task.id)} disabled={!vaultAdapter.openFile}>
-                Open Markdown note
-              </button>
-              {taskMetadataDirty && <div className="td-task-inspector-dirty" role="status">Unsaved changes</div>}
-              <TaskMetadataEditor task={task} draft={taskMetadata} setDraft={setTaskMetadata} refs={refs} compact/>
-            </aside>}
           </div>
         </div>
       )}
@@ -4625,13 +4602,13 @@ function TaskCalendarOccurrence({ occurrence, compact = false, onSelectTask, onM
     if (nextDate && nextDate !== occurrence.date) onMoveOccurrence?.(occurrence, nextDate);
   };
   const title = (
-    <div title={occurrence.task.title} style={{ minWidth:0, fontSize:compact ? 13 : 10, fontWeight:650, lineHeight:1.35, overflowWrap:'anywhere', whiteSpace:'normal', display:'-webkit-box', WebkitLineClamp:compact ? 5 : 4, WebkitBoxOrient:'vertical', overflow:'hidden' }}>
+    <div title={occurrence.task.title} style={{ minWidth:0, fontSize:compact ? 13 : 12, fontWeight:650, lineHeight:1.35, overflowWrap:'anywhere', whiteSpace:'normal', display:'-webkit-box', WebkitLineClamp:compact ? 5 : 3, WebkitBoxOrient:'vertical', overflow:'hidden' }}>
       {occurrence.task.title}
     </div>
   );
 
   if (compact) return (
-    <div className="td-calendar-agenda-card" style={{ border:`1px solid ${tone.border}`, borderLeft:`3px solid ${tone.color}`, background:tone.bg }}>
+    <div className="td-calendar-agenda-card" style={{ border:`1px solid ${tone.border}`, borderLeft:`1px solid ${tone.color}`, background:tone.bg }}>
       <button className="td-calendar-occurrence" onClick={selectTask} title={movable ? 'Open task. Use the due date below to move it.' : 'Open recurring task'} style={{ width:'100%', border:0, background:'transparent', color:'var(--text-normal)', cursor:'pointer', padding:0, textAlign:'left', fontFamily:'inherit' }}>
         {title}
       </button>
@@ -4660,7 +4637,7 @@ function TaskCalendarOccurrence({ occurrence, compact = false, onSelectTask, onM
       }}
       onDragEnd={() => setDragging(null)}
       title={movable ? 'Drag to another day to update due date' : 'Recurring tasks cannot be moved from the calendar'}
-      style={{ width:'100%', minHeight:52, textAlign:'left', borderRadius:10, border:`1px solid ${tone.border}`, borderLeft:`3px solid ${tone.color}`, background:tone.bg, color:'var(--text-normal)', cursor:movable ? 'grab' : 'pointer', padding:'9px 10px', fontFamily:'inherit', overflow:'hidden', opacity:dragging?.id === occurrence.id ? 0.58 : 1 }}
+      style={{ width:'100%', minHeight:52, textAlign:'left', borderRadius:10, border:`1px solid ${tone.border}`, borderLeft:`1px solid ${tone.color}`, background:tone.bg, color:'var(--text-normal)', cursor:movable ? 'grab' : 'pointer', padding:'9px 10px', fontFamily:'inherit', overflow:'hidden', opacity:dragging?.id === occurrence.id ? 0.58 : 1 }}
     >
       {title}
     </button>
@@ -4691,12 +4668,11 @@ function TaskCalendarPanel({ dates, occurrencesByDate, selectedDate, weekLabel, 
 
   return (
     <div style={{ flex:1, display:'flex', flexDirection:'column', minHeight:0, overflow:'hidden' }}>
-      <div style={{ padding:'20px 28px 16px', borderBottom:'1px solid rgba(255,255,255,0.60)', flexShrink:0, display:'flex', justifyContent:'space-between', gap:18, alignItems:'flex-start' }}>
+      <div className="td-calendar-header" style={{ padding:'20px 28px 16px', borderBottom:'1px solid rgba(255,255,255,0.60)', flexShrink:0, display:'flex', flexWrap:'wrap', justifyContent:'space-between', gap:18, alignItems:'flex-start' }}>
         <div style={{ minWidth:0 }}>
-          <div style={{ fontSize:10, color:BRAND_LABEL, fontWeight:850, letterSpacing:'0.14em', textTransform:'uppercase', marginBottom:7 }}>Task calendar</div>
           <h2 style={{ margin:0, fontSize:23, lineHeight:1.1, color:'#1d2421', letterSpacing:0 }}>{weekLabel}</h2>
         </div>
-        <div style={{ display:'flex', gap:8, flexWrap:'wrap', justifyContent:'flex-end' }}>
+        <div className="td-calendar-actions" style={{ display:'flex', gap:8, flexWrap:'wrap', justifyContent:'flex-end' }}>
           <button onClick={()=>onNewTask?.(selectedDate)} style={{ minHeight:38, padding:'8px 12px', borderRadius:9, border:'none', background:BRAND_GRADIENT, color:'#fff', boxShadow:BRAND_SHADOW, cursor:'pointer', fontFamily:'inherit', fontSize:12, fontWeight:800 }}>+ New task</button>
           {[['Total',total,'var(--text-normal)','var(--background-secondary)','var(--background-modifier-border)'],['Overdue',overdueCount,'#c2533f','rgba(225,91,79,0.08)','rgba(225,91,79,0.18)'],['On track',onTrackCount,'#13733f','rgba(20,120,72,0.10)','rgba(20,120,72,0.20)']].map(([label,value,color,bg,border]) => (
             <div className="td-calendar-stat" key={label} style={{ minWidth:82, padding:'8px 10px', borderRadius:6, background:bg, border:`1px solid ${border}` }}>
@@ -4723,7 +4699,7 @@ function TaskCalendarPanel({ dates, occurrencesByDate, selectedDate, weekLabel, 
             })}
           </div>
         ) : (
-          <div style={{ minWidth:0, height:'100%', display:'grid', gridTemplateColumns:'repeat(7,minmax(0,1fr))', gap:7 }}>
+          <div className="td-calendar-week" aria-label="Week calendar" style={{ minWidth:1092, height:'100%', display:'grid', gridTemplateColumns:'repeat(7,minmax(150px,1fr))', gap:7 }}>
             {dates.map(dateStr => {
               const occurrences = occurrencesByDate[dateStr] || [];
               const draggingOver = dropDate === dateStr && canDrop(dateStr);
@@ -5417,7 +5393,7 @@ function MissionControlPanel({ today, overdue, recurrent, onNewTask, dailyNote, 
   );
 
   const TaskQueuePanel = ({ title, subtitle, tasks, tone, empty, showDates = true }) => (
-    <section className="glass-thin" style={{ minHeight:0, borderRadius:18, padding:'14px', display:'flex', flexDirection:'column' }}>
+    <section className="glass-thin td-task-queue" style={{ minHeight:0, borderRadius:18, padding:'14px', display:'flex', flexDirection:'column' }}>
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:12, marginBottom:12 }}>
         <div>
           <div style={{ fontSize:11, color:tone, fontWeight:850, textTransform:'uppercase', letterSpacing:'0.14em', marginBottom:5 }}>{title}</div>
@@ -5456,13 +5432,11 @@ function MissionControlPanel({ today, overdue, recurrent, onNewTask, dailyNote, 
 
   return (
     <div style={{ flex:1, display:'flex', flexDirection:'column', overflow:'hidden' }}>
-      <div style={{ padding:'12px 18px 13px', borderBottom:'1px solid rgba(255,255,255,0.60)', flexShrink:0 }}>
+      <div className="td-mission-header" style={{ padding:'12px 18px 13px', borderBottom:'1px solid rgba(255,255,255,0.60)', flexShrink:0 }}>
         <div className="td-mission-heading" style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline', gap:12, marginBottom:10 }}>
           <div style={{ minWidth:0 }}>
-            <div style={{ fontSize:10, color:'rgba(90,97,91,0.66)', fontWeight:750, letterSpacing:'0.16em', textTransform:'uppercase', marginBottom:3 }}>
-              {longDate(new Date())}
-            </div>
             <h2 style={{ margin:0, fontSize:24, fontWeight:850, letterSpacing:0, color:'#1d2421' }}>{greeting}.</h2>
+            <div className="td-mission-date">{longDate(new Date())}</div>
           </div>
           <div style={{ display:'flex', gap:7, alignItems:'center' }}>
             <button onClick={()=>setShowMissionMetrics(value => !value)} aria-expanded={showMissionMetrics} style={{ padding:'8px 10px', borderRadius:9, border:'1px solid rgba(255,255,255,0.62)', background:'rgba(255,255,255,0.55)', color:'#5a615b', cursor:'pointer', fontFamily:'inherit', fontSize:11, fontWeight:800 }}>{showMissionMetrics ? 'Hide metrics' : 'Review metrics'}</button>
@@ -5548,7 +5522,7 @@ function MissionControlPanel({ today, overdue, recurrent, onNewTask, dailyNote, 
           </div>
 
           <div style={{ flex:1, minHeight:0, borderRadius:16, border:'1px solid rgba(255,255,255,0.62)', background:'rgba(255,255,255,0.55)', padding:'14px 14px 12px', display:'flex', flexDirection:'column' }}>
-            <div style={{ flex:'0 0 auto', minHeight:120, paddingRight:4 }}>
+            <div className="td-daily-recent" style={{ flex:'0 0 auto', minHeight:120, paddingRight:4 }}>
               <div style={{ fontSize:10, color:'rgba(90,97,91,0.64)', fontWeight:800, textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:10 }}>
                 Recent {activeNote.label.toLowerCase()}
               </div>
@@ -5567,7 +5541,7 @@ function MissionControlPanel({ today, overdue, recurrent, onNewTask, dailyNote, 
               )}
             </div>
 
-            <div style={{ marginTop:12, paddingTop:12, borderTop:'1px solid rgba(255,255,255,0.62)' }}>
+            <div className="td-daily-composer" style={{ marginTop:12, paddingTop:12, borderTop:'1px solid rgba(255,255,255,0.62)' }}>
               <MentionTextarea
                 value={dailyInputs[activeNote.key] || ''}
                 onChange={e=>setDailyInputs(prev => ({ ...prev, [activeNote.key]: e.target.value }))}

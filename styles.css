@@ -1081,10 +1081,6 @@
   background: var(--background-primary, #fff);
 }
 
-.taskdash-root .shell.td-v2 .td-task-document {
-  border-right: 1px solid var(--native-border) !important;
-}
-
 .taskdash-root .shell.td-v2 .td-task-description,
 .taskdash-root .shell.td-v2 .td-task-activity {
   max-width: 760px;
@@ -1097,10 +1093,6 @@
 .taskdash-root .shell.td-v2 .td-task-activity {
   padding-top: 24px;
   border-top: 1px solid var(--native-border);
-}
-
-.taskdash-root .shell.td-v2 .td-task-inspector {
-  background: var(--background-secondary, #f5f6f5);
 }
 
 .taskdash-root .shell.td-v2 .td-task-properties-trigger {
@@ -1118,84 +1110,309 @@
   background: var(--background-modifier-hover);
 }
 
-.taskdash-root .shell.td-v2 .td-task-inspector-heading {
-  position: sticky;
-  top: 0;
-  z-index: 2;
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-  margin: -18px -18px 14px;
-  padding: 15px 18px 12px;
-  background: var(--background-secondary, #f5f6f5);
-  border-bottom: 1px solid var(--native-border);
+/* Task workspace polish: keep host theme colors and reserve accent for action. */
+.taskdash-root {
+  --td-surface: var(--background-primary, #fff);
+  --td-subtle: var(--background-secondary, #f5f6f5);
+  --td-border: var(--background-modifier-border, #dfe3df);
+  --td-text: var(--text-normal, #1d2421);
+  --td-muted: var(--text-muted, #59645d);
+  --td-accent: var(--interactive-accent, #13733f);
+  --td-on-accent: var(--text-on-accent, #fff);
 }
 
-.taskdash-root .shell.td-v2 .td-task-inspector-eyebrow {
-  color: var(--text-normal, #1d2421);
-  font-size: 12px;
-  font-weight: 700;
+.taskdash-root .shell.td-v2 .td-task-detail-header {
+  border-bottom: 1px solid var(--td-border) !important;
+  padding: 28px 32px 24px !important;
 }
 
-.taskdash-root .shell.td-v2 .td-task-inspector-file {
-  max-width: 190px;
-  margin-top: 3px;
-  overflow: hidden;
-  color: var(--text-faint, #969c97);
-  font-size: 10px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.taskdash-root .shell.td-v2 .td-task-detail h2 {
+  color: var(--td-text) !important;
+  font-size: 24px !important;
+  line-height: 1.3 !important;
+  text-wrap: balance;
 }
 
-.taskdash-root .shell.td-v2 .td-task-inspector-save {
-  min-height: 30px;
-  padding: 5px 11px;
-  border: 1px solid var(--interactive-accent, #13733f);
-  border-radius: 5px;
-  background: var(--interactive-accent, #13733f);
-  color: var(--text-on-accent, #fff);
-  font-family: inherit;
-  font-size: 11px;
-  font-weight: 700;
-  cursor: pointer;
+.taskdash-root .shell.td-v2 .td-task-detail h3 {
+  color: var(--td-text) !important;
+  font-size: 15px !important;
 }
 
-.taskdash-root .shell.td-v2 .td-task-inspector-save:disabled,
-.taskdash-root .shell.td-v2 .td-task-inspector-save:not(:hover) {
-  box-shadow: none;
+.taskdash-root .td-task-subject label > span,
+.taskdash-root .td-task-dates label > span,
+.taskdash-root .td-metadata-dialog-body label {
+  color: var(--td-muted) !important;
+  font: 600 12px var(--font-interface, system-ui) !important;
+  letter-spacing: normal !important;
+  text-transform: none !important;
 }
 
-.taskdash-root .shell.td-v2 .td-task-open-note {
-  width: 100%;
-  min-height: 32px;
-  margin-bottom: 8px;
-  padding: 6px 10px;
-  border: 1px solid var(--background-modifier-border);
-  border-radius: 5px;
-  background: var(--background-primary);
-  color: var(--text-normal);
-  font: 600 11px var(--font-interface, system-ui);
-  cursor: pointer;
+.taskdash-root .shell.td-v2 .td-task-detail input,
+.taskdash-root .shell.td-v2 .td-task-detail textarea,
+.taskdash-root .td-metadata-dialog input {
+  background: var(--td-surface) !important;
+  border: 1px solid var(--td-border) !important;
+  color: var(--td-text) !important;
+  caret-color: var(--td-accent);
+  box-shadow: none !important;
 }
 
-.taskdash-root .shell.td-v2 .td-task-open-note:hover {
-  background: var(--background-modifier-hover);
+.taskdash-root .td-task-detail input::placeholder,
+.taskdash-root .td-task-detail textarea::placeholder,
+.taskdash-root .td-metadata-dialog input::placeholder {
+  color: var(--td-muted);
+  opacity: 1;
 }
 
-.taskdash-root .shell.td-v2 .td-task-inspector-dirty {
-  margin-bottom: 6px;
-  color: var(--text-warning, #a9791f);
-  font-size: 10px;
-  font-weight: 700;
+.taskdash-root .shell.td-v2 .td-task-dates button,
+.taskdash-root .shell.td-v2 .td-task-properties-trigger,
+.taskdash-root .shell.td-v2 .td-task-timer button {
+  min-height: 38px;
+  border: 1px solid var(--td-border) !important;
+  border-radius: 6px !important;
+  background: var(--td-surface) !important;
+  color: var(--td-text) !important;
+  box-shadow: none !important;
+  font-weight: 600 !important;
 }
 
-.taskdash-root .shell.td-v2 .td-task-inspector .td-task-metadata-editor,
-.taskdash-root .shell.td-v2 .td-task-inspector .glass-thin {
-  max-height: none;
-  padding: 12px 0 0 !important;
-  overflow: visible;
+.taskdash-root .shell.td-v2 .td-task-dates button:hover,
+.taskdash-root .shell.td-v2 .td-task-properties-trigger:hover,
+.taskdash-root .shell.td-v2 .td-task-timer button:hover {
+  background: var(--td-subtle) !important;
+}
+
+.taskdash-root .shell.td-v2 .td-task-timer {
+  align-items: flex-end !important;
+}
+
+.taskdash-root .shell.td-v2 .td-task-timer > div:first-child {
+  color: var(--td-text) !important;
+  font-size: 28px !important;
+  text-shadow: none !important;
+}
+
+.taskdash-root .shell.td-v2 .td-task-timer .td-task-start,
+.taskdash-root .shell.td-v2 .td-task-note-composer > button,
+.taskdash-root .td-metadata-dialog-save {
+  background: var(--td-accent) !important;
+  border-color: transparent !important;
+  color: var(--td-on-accent) !important;
+  box-shadow: none !important;
+}
+
+.taskdash-root .shell.td-v2 .td-task-timer .td-task-stop {
+  color: var(--text-error, #b33d31) !important;
+}
+
+.taskdash-root .td-task-properties-trigger:disabled {
+  opacity: .55;
+  cursor: not-allowed;
+}
+
+.taskdash-root .td-task-detail .markdown-body {
+  max-width: 72ch;
+  color: var(--td-text);
+  line-height: 1.65;
+}
+
+.taskdash-root .td-metadata-dialog-backdrop {
+  background: rgba(0, 0, 0, .32);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.taskdash-root .td-metadata-dialog {
+  width: min(720px, calc(100vw - 32px));
+  background: var(--td-surface);
+  border: 0;
+  border-radius: 12px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, .24);
+  color: var(--td-text);
+}
+
+.taskdash-root .td-metadata-dialog-header {
+  padding: 24px;
+  border-color: var(--td-border);
+}
+
+.taskdash-root .td-metadata-dialog-header h2 {
+  margin: 0 0 6px;
+  color: var(--td-text);
+  font-size: 20px;
+}
+
+.taskdash-root .td-metadata-dialog-header p {
+  color: var(--td-muted);
+  overflow-wrap: anywhere;
+}
+
+.taskdash-root .td-metadata-dialog-body {
+  padding: 24px;
+}
+
+.taskdash-root .td-metadata-dialog .glass-thin {
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
   background: transparent !important;
+  box-shadow: none !important;
+}
+
+.taskdash-root .td-metadata-dialog .td-dialog-cancel {
+  background: var(--td-surface);
+  border-color: var(--td-border);
+  color: var(--td-text);
+}
+
+.taskdash-root .td-metadata-dialog [role="listbox"] {
+  background: var(--td-surface) !important;
+  border-color: var(--td-border) !important;
+}
+
+.taskdash-root .td-metadata-dialog [role="option"] {
+  color: var(--td-text) !important;
+}
+
+.taskdash-root .td-metadata-dialog [role="option"]:focus,
+.taskdash-root .td-metadata-dialog button:focus-visible,
+.taskdash-root .td-metadata-dialog input:focus-visible,
+.taskdash-root .shell.td-v2 .td-task-detail :focus-visible {
+  outline: 2px solid var(--td-accent) !important;
+  outline-offset: 2px;
+}
+
+.taskdash-root .shell.td-v2 .td-calendar-header {
+  border-color: var(--td-border) !important;
+}
+
+.taskdash-root .shell.td-v2 .td-calendar-actions > button {
+  background: var(--td-accent) !important;
+  color: var(--td-on-accent) !important;
+  box-shadow: none !important;
+  border-radius: 6px !important;
+}
+
+.taskdash-root .td-metadata-dialog button[role="combobox"] {
+  background: var(--td-surface) !important;
+  border: 1px solid var(--td-border) !important;
+  color: var(--td-text) !important;
+  box-shadow: none !important;
+}
+
+.taskdash-root .td-metadata-dialog-body label > span {
+  color: var(--td-text) !important;
+}
+
+.taskdash-root .shell.td-v2 .td-mission-header {
+  padding: 24px 24px 18px !important;
+  border-color: var(--td-border) !important;
+}
+
+.taskdash-root .td-mission-date {
+  margin-top: 6px;
+  color: var(--td-muted);
+  font-size: 13px;
+}
+
+.taskdash-root .shell.td-v2 .td-mission-heading {
+  flex-wrap: wrap;
+}
+
+.taskdash-root .shell.td-v2 .td-mission-heading button {
+  min-height: 36px;
+  border: 1px solid var(--td-border) !important;
+  background: var(--td-surface) !important;
+  color: var(--td-text) !important;
+  box-shadow: none !important;
+}
+
+.taskdash-root .shell.td-v2 .td-mission-heading button:last-child {
+  background: var(--td-accent) !important;
+  color: var(--td-on-accent) !important;
+  border-color: transparent !important;
+}
+
+.taskdash-root .shell.td-v2 .td-task-queue {
+  border-top: 1px solid var(--td-border) !important;
+  padding: 18px 14px !important;
+}
+
+.taskdash-root .td-task-queue > div:first-child > div > div:first-child {
+  font-size: 14px !important;
+  letter-spacing: normal !important;
+  text-transform: none !important;
+}
+
+.taskdash-root .td-task-queue > div:first-child > div > div + div,
+.taskdash-root .td-task-queue button > div + div {
+  color: var(--td-muted) !important;
+  font-size: 12px !important;
+}
+
+.taskdash-root .td-task-queue button {
+  background: var(--td-subtle) !important;
+  border: 1px solid var(--td-border) !important;
+  border-radius: 6px !important;
+}
+
+.taskdash-root .td-task-queue button > div:first-child {
+  color: var(--td-text) !important;
+  font-size: 13px !important;
+}
+
+.taskdash-root .td-task-queue button:hover {
+  background: var(--background-modifier-hover, #e9eeeb) !important;
+}
+
+.taskdash-root .shell.td-v2 .td-daily-composer textarea {
+  background: var(--td-surface) !important;
+  border-color: var(--td-border) !important;
+  color: var(--td-text) !important;
+  border-radius: 6px !important;
+}
+
+.taskdash-root .shell.td-narrow .td-task-detail {
+  overflow-y: auto !important;
+}
+
+.taskdash-root .shell.td-narrow .td-task-detail-header,
+.taskdash-root .shell.td-narrow .td-task-document,
+.taskdash-root .shell.td-narrow .td-calendar-header {
+  padding: 16px !important;
+}
+
+.taskdash-root .shell.td-narrow .td-task-detail-body {
+  flex: 0 0 auto !important;
+  overflow: visible !important;
+}
+
+.taskdash-root .shell.td-narrow .td-calendar-actions {
+  justify-content: flex-start !important;
+}
+
+.taskdash-root .shell.td-narrow .td-calendar-stat {
+  min-width: 68px !important;
+}
+
+.taskdash-root .shell.td-narrow .td-mission-body {
+  grid-template-rows: auto auto;
+  align-content: start;
+}
+
+.taskdash-root .shell.td-narrow .td-mission-daily {
+  min-height: 0 !important;
+}
+
+.taskdash-root .shell.td-narrow .td-daily-recent {
+  min-height: 0 !important;
+  max-height: 120px;
+  overflow-y: auto;
+}
+
+.taskdash-root .shell.td-narrow .td-daily-composer textarea {
+  min-height: 80px !important;
+  height: 80px;
 }
 
 .taskdash-root .shell.td-v2 input,
@@ -1209,9 +1426,6 @@
     grid-template-columns: 176px 270px minmax(0, 1fr);
   }
 
-  .taskdash-root .shell.td-v2:not(.td-narrow) .td-task-detail-body {
-    grid-template-columns: minmax(390px, 1fr) 285px !important;
-  }
 }
 
 /* TaskDash 2.2 workflow pages reuse the native detail-page surfaces. */
