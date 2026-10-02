@@ -34,26 +34,26 @@ const WRITE_BACKUPS_KEY = 'taskdashWriteBackups';
 const SAVED_FILTERS_KEY = 'taskdashSavedFilters';
 const REVIEWED_TASKS_KEY = 'taskdashReviewedTaskIds';
 const FOLDER_LABELS = Object.fromEntries(FOLDER_DEFS.map(def => [def.key, def.label]));
-const TEXT_PRIMARY = '#1d2421';
-const TEXT_SECONDARY = '#5a615b';
-const TEXT_MUTED = '#8a928d';
-const TEXT_FAINT = '#9aa19c';
-const BRAND_GRADIENT = 'linear-gradient(180deg,#23a564,#13733f)';
-const BRAND_SHADOW = '0 8px 18px rgba(16,96,60,0.30), inset 0 1px 0 rgba(255,255,255,0.32)';
-const BRAND_SURFACE = 'rgba(20,120,72,0.10)';
-const BRAND_SURFACE_STRONG = 'rgba(20,120,72,0.16)';
-const BRAND_BORDER = 'rgba(20,120,72,0.20)';
-const BRAND_BORDER_STRONG = 'rgba(20,120,72,0.42)';
-const BRAND_TEXT = '#115c34';
-const BRAND_LABEL = '#5f9d79';
-const GLASS_INNER = 'rgba(255,255,255,0.55)';
-const GLASS_BORDER = 'rgba(255,255,255,0.60)';
+const TEXT_PRIMARY = 'var(--td-text)';
+const TEXT_SECONDARY = 'var(--td-muted)';
+const TEXT_MUTED = 'var(--td-muted)';
+const TEXT_FAINT = 'var(--td-muted)';
+const BRAND_GRADIENT = 'var(--td-accent)';
+const BRAND_SHADOW = 'none';
+const BRAND_SURFACE = 'var(--td-selected)';
+const BRAND_SURFACE_STRONG = 'var(--td-selected)';
+const BRAND_BORDER = 'var(--td-border)';
+const BRAND_BORDER_STRONG = 'var(--td-accent)';
+const BRAND_TEXT = 'var(--td-accent-text)';
+const BRAND_LABEL = 'var(--td-muted)';
+const GLASS_INNER = 'var(--td-subtle)';
+const GLASS_BORDER = 'var(--td-border)';
 
 const STATUS_COLORS = {
-  done:          { bg:'rgba(20,120,72,0.10)',   color:'#13733f' },
+  done:          { bg:'rgba(20,120,72,0.10)',   color:'var(--td-accent-text)' },
   'in-progress': { bg:'rgba(91,141,239,0.10)',  color:'#3f6fd0' },
   todo:          { bg:'rgba(91,141,239,0.10)',  color:'#3f6fd0' },
-  none:          { bg:'rgba(90,97,91,0.10)',    color:'#5a615b' },
+  none:          { bg:'var(--td-subtle)',    color:'var(--td-muted)' },
 };
 
 function taskListGroup(task) {
@@ -151,11 +151,11 @@ function Toast({ msg, onClose }) {
   return (
     <div style={{ position:'fixed', top:16, left:'50%', transform:'translateX(-50%)', zIndex:999,
       padding:'12px 20px', borderRadius:10, background:'rgba(208,150,52,0.12)',
-      border:'1px solid rgba(208,150,52,0.28)', color:'#a9791f', fontSize:13, fontWeight:600,
+      border:'1px solid rgba(208,150,52,0.28)', color:'var(--td-warning)', fontSize:13, fontWeight:600,
       display:'flex', alignItems:'center', gap:12, boxShadow:'0 12px 32px rgba(20,40,30,0.12)',
       backdropFilter:'blur(12px)', maxWidth:440, fontFamily:'inherit' }}>
       <span>{msg}</span>
-      <button onClick={onClose} style={{ background:'none', border:'none', color:'#a9791f', cursor:'pointer', fontSize:18, lineHeight:1 }}>×</button>
+      <button onClick={onClose} style={{ background:'none', border:'none', color:'var(--td-warning)', cursor:'pointer', fontSize:18, lineHeight:1 }}>×</button>
     </div>
   );
 }
@@ -321,7 +321,7 @@ function EmptyState({ title, detail, actionLabel, onAction }) {
 
 function PBadge({ p }) {
   return <span style={{ fontSize:9, fontWeight:700, padding:'2px 7px', borderRadius:20, textTransform:'uppercase', letterSpacing:'0.05em',
-    background:p==='high'?'rgba(225,91,79,0.10)':'rgba(91,87,176,0.10)', color:p==='high'?'#c2533f':'#5b57b0', fontFamily:"'JetBrains Mono', monospace" }}>{p}</span>;
+    background:p==='high'?'rgba(225,91,79,0.10)':'rgba(91,87,176,0.10)', color:p==='high'?'var(--td-danger)':'#5b57b0', fontFamily:"'JetBrains Mono', monospace" }}>{p}</span>;
 }
 
 function SBadge({ s }) {
@@ -444,14 +444,13 @@ function MarkdownBody({ children, emptyText = 'No Markdown content yet.', compac
   );
 }
 
-function DetailPatternPanel({ eyebrow, title, subtitle, action, children }) {
+function DetailPatternPanel({ eyebrow: _eyebrow, title, subtitle, action, children }) {
   return (
     <div className="td-detail-page" style={{ flex:1, minHeight:0, overflow:'hidden', padding:'18px 24px 20px', display:'flex', flexDirection:'column' }}>
       <div className="td-detail-header" style={{ display:'flex', justifyContent:'space-between', gap:16, alignItems:'flex-start', marginBottom:12, flexShrink:0 }}>
         <div style={{ minWidth:0 }}>
-          <div style={{ fontSize:10, color:BRAND_LABEL, fontWeight:800, textTransform:'uppercase', letterSpacing:'0.14em', marginBottom:6 }}>{eyebrow}</div>
           <h2 style={{ margin:0, fontSize:26, color:TEXT_PRIMARY, letterSpacing:0, lineHeight:1.1 }}>{title}</h2>
-          {subtitle && <div style={{ fontSize:13, color:'rgba(90,97,91,0.78)', marginTop:6 }}>{subtitle}</div>}
+          {subtitle && <div style={{ fontSize:13, color:'var(--td-muted)', marginTop:6 }}>{subtitle}</div>}
         </div>
         {action && <div className="td-detail-actions">{action}</div>}
       </div>
@@ -559,7 +558,7 @@ function DetailIdentityCard({ avatarText, avatarRadius = 999, avatarNode, title,
           )}
           <div style={{ minWidth:0 }}>
             <div style={{ fontSize:18, color:TEXT_PRIMARY, fontWeight:800, lineHeight:1.1 }}>{title}</div>
-            {subtitle && <div style={{ fontSize:12, color:'rgba(90,97,91,0.72)', marginTop:5 }}>{subtitle}</div>}
+            {subtitle && <div style={{ fontSize:12, color:'var(--td-muted)', marginTop:5 }}>{subtitle}</div>}
             {!!chips.length && (
               <div style={{ display:'flex', gap:8, flexWrap:'wrap', marginTop:8 }}>
                 {chips.map(chip => (
@@ -600,7 +599,7 @@ function DetailNotesEditor({ meta, value, onChange, minHeight = 360, placeholder
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline', gap:12, marginBottom:12 }}>
         <div>
           <div style={{ fontSize:10, color:BRAND_LABEL, fontWeight:800, textTransform:'uppercase', letterSpacing:'0.14em', marginBottom:5 }}>Notes (Markdown)</div>
-          {meta && <div style={{ fontSize:12, color:'rgba(90,97,91,0.72)' }}>{meta}</div>}
+          {meta && <div style={{ fontSize:12, color:'var(--td-muted)' }}>{meta}</div>}
         </div>
       </div>
       <MentionTextarea
@@ -608,7 +607,7 @@ function DetailNotesEditor({ meta, value, onChange, minHeight = 360, placeholder
         onChange={onChange}
         placeholder={placeholder}
         spellCheck={false}
-        style={{ flex:1, width:'100%', resize:'none', padding:'16px 18px', borderRadius:14, background:'rgba(255,255,255,0.50)', border:'1px solid rgba(255,255,255,0.62)', color:'#222a25', outline:'none', fontFamily:"'JetBrains Mono', ui-monospace, SFMono-Regular, Consolas, monospace", fontSize:13, lineHeight:1.7 }}
+        style={{ flex:1, width:'100%', resize:'none', padding:'16px 18px', borderRadius:14, background:'var(--td-subtle)', border:'1px solid var(--td-border)', color:'var(--td-text)', outline:'none', fontFamily:"'JetBrains Mono', ui-monospace, SFMono-Regular, Consolas, monospace", fontSize:13, lineHeight:1.7 }}
       />
     </section>
   );
@@ -630,9 +629,9 @@ function DetailMarkdownEditorCard({ meta, value, onChange, emptyText }) {
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline', gap:12, marginBottom:10, flexShrink:0 }}>
         <div>
           <div style={{ fontSize:10, color:BRAND_LABEL, fontWeight:800, textTransform:'uppercase', letterSpacing:'0.14em', marginBottom:5 }}>Notes (Markdown)</div>
-          {meta && <div style={{ fontSize:12, color:'rgba(90,97,91,0.72)' }}>{meta}</div>}
+          {meta && <div style={{ fontSize:12, color:'var(--td-muted)' }}>{meta}</div>}
         </div>
-        <button onClick={()=>setEditing(value => !value)} style={{ padding:'6px 10px', borderRadius:999, border:'1px solid rgba(255,255,255,0.62)', background:'rgba(255,255,255,0.55)', color:BRAND_TEXT, fontSize:10, fontWeight:800, cursor:'pointer', fontFamily:'inherit' }}>
+        <button onClick={()=>setEditing(value => !value)} style={{ padding:'6px 10px', borderRadius:999, border:'1px solid var(--td-border)', background:'var(--td-subtle)', color:BRAND_TEXT, fontSize:10, fontWeight:800, cursor:'pointer', fontFamily:'inherit' }}>
           {editing ? 'Preview' : 'Edit'}
         </button>
       </div>
@@ -641,7 +640,7 @@ function DetailMarkdownEditorCard({ meta, value, onChange, emptyText }) {
           value={value}
           onChange={onChange}
           spellCheck={false}
-          style={{ flex:1, width:'100%', resize:'none', padding:'16px 18px', borderRadius:14, background:'rgba(255,255,255,0.50)', border:'1px solid rgba(255,255,255,0.62)', color:'#222a25', outline:'none', fontFamily:"'JetBrains Mono', ui-monospace, SFMono-Regular, Consolas, monospace", fontSize:13, lineHeight:1.7 }}
+          style={{ flex:1, width:'100%', resize:'none', padding:'16px 18px', borderRadius:14, background:'var(--td-subtle)', border:'1px solid var(--td-border)', color:'var(--td-text)', outline:'none', fontFamily:"'JetBrains Mono', ui-monospace, SFMono-Regular, Consolas, monospace", fontSize:13, lineHeight:1.7 }}
         />
       ) : (
         <div className="td-detail-preview" style={{ flex:1, minHeight:0, overflowY:'auto', borderRadius:6, padding:'16px 18px' }}>
@@ -656,7 +655,7 @@ function MetadataEditorCard({ label = 'Metadata', meta, children }) {
   return (
     <section className="glass-thin" style={{ borderRadius:16, padding:'16px', minHeight:0, flex:'1 1 0', overflowY:'auto' }}>
       {label && <div style={{ fontSize:10, color:BRAND_LABEL, fontWeight:800, textTransform:'uppercase', letterSpacing:'0.14em', marginBottom:5 }}>{label}</div>}
-      {meta && <div style={{ fontSize:12, color:'rgba(90,97,91,0.72)', marginBottom:14 }}>{meta}</div>}
+      {meta && <div style={{ fontSize:12, color:'var(--td-muted)', marginBottom:14 }}>{meta}</div>}
       <div style={{ maxWidth:720 }}>
         {children}
       </div>
@@ -730,7 +729,7 @@ function TaskMetadataEditor({ draft, setDraft, refs }) {
       <Field label="Recurrent">
         <label style={{ ...inputBase, display:'flex', alignItems:'center', gap:9, cursor:'pointer', minHeight:39 }}>
           <input type="checkbox" checked={draft.recurrent} onChange={e=>set('recurrent', e.target.checked)} style={{ accentColor:BRAND_LABEL }}/>
-          <span style={{ color:'#5a615b', fontSize:13 }}>Keep this task recurrent</span>
+          <span style={{ color:'var(--td-muted)', fontSize:13 }}>Keep this task recurrent</span>
         </label>
       </Field>
     </MetadataEditorCard>
@@ -885,7 +884,7 @@ function PropertyMetadataEditor({ selected, draft, setDraft, refs = { clients:[]
 function ScreenLogo() {
   return (
     <div aria-hidden="true" style={{ position:'absolute', right:16, bottom:12, zIndex:8, pointerEvents:'none', opacity:0.22 }}>
-      <div style={{ width:32, height:32, borderRadius:9, display:'grid', placeItems:'center', background:'linear-gradient(150deg,#24a661,#0d733f)', color:'#fff', boxShadow:'0 8px 18px rgba(15,107,63,0.22), inset 0 1px 0 rgba(255,255,255,0.35)' }}>
+      <div style={{ width:32, height:32, borderRadius:9, display:'grid', placeItems:'center', background:'linear-gradient(150deg,#24a661,#0d733f)', color:'#fff', boxShadow:'0 8px 18px rgba(15,107,63,0.22), inset 0 1px 0 var(--td-subtle)' }}>
         <svg width="23" height="23" viewBox="0 0 32 32" fill="none" stroke="currentColor" strokeWidth="2.7" strokeLinecap="round" strokeLinejoin="round">
           <path d="M6.5 16H20.5" />
           <path d="M7.5 10.5L16.5 16L7.5 21.5" />
@@ -928,20 +927,20 @@ function CommentCard({ log, index, onSave, onDelete }) {
         <div style={{ display:'flex', gap:6, flexShrink:0 }}>
           {editing ? (
             <>
-              <button onClick={()=>{ setDraft(body); setEditing(false); }} style={{ padding:'4px 8px', borderRadius:7, border:'1px solid rgba(255,255,255,0.62)', background:'rgba(255,255,255,0.55)', color:'#5a615b', cursor:'pointer', fontSize:10, fontWeight:800, fontFamily:'inherit' }}>Cancel</button>
-              <button onClick={save} disabled={!draft.trim() || saving} style={{ padding:'4px 8px', borderRadius:7, border:'none', background:'rgba(20,120,72,0.14)', color:'#13733f', cursor:draft.trim() && !saving?'pointer':'not-allowed', opacity:draft.trim() && !saving?1:0.4, fontSize:10, fontWeight:800, fontFamily:'inherit' }}>{saving ? 'Saving...' : 'Save'}</button>
+              <button onClick={()=>{ setDraft(body); setEditing(false); }} style={{ padding:'4px 8px', borderRadius:7, border:'1px solid var(--td-border)', background:'var(--td-subtle)', color:'var(--td-muted)', cursor:'pointer', fontSize:10, fontWeight:800, fontFamily:'inherit' }}>Cancel</button>
+              <button onClick={save} disabled={!draft.trim() || saving} style={{ padding:'4px 8px', borderRadius:7, border:'none', background:'rgba(20,120,72,0.14)', color:'var(--td-accent-text)', cursor:draft.trim() && !saving?'pointer':'not-allowed', opacity:draft.trim() && !saving?1:0.4, fontSize:10, fontWeight:800, fontFamily:'inherit' }}>{saving ? 'Saving...' : 'Save'}</button>
             </>
           ) : (
             <>
-              <button onClick={()=>setEditing(true)} style={{ padding:'4px 8px', borderRadius:7, border:'1px solid rgba(255,255,255,0.62)', background:'rgba(255,255,255,0.55)', color:BRAND_TEXT, cursor:'pointer', fontSize:10, fontWeight:800, fontFamily:'inherit' }}>Edit</button>
-              <button onClick={()=>onDelete(index)} style={{ padding:'4px 8px', borderRadius:7, border:'1px solid rgba(225,91,79,0.2)', background:'rgba(225,91,79,0.08)', color:'#c2533f', cursor:'pointer', fontSize:10, fontWeight:800, fontFamily:'inherit' }}>Delete</button>
+              <button onClick={()=>setEditing(true)} style={{ padding:'4px 8px', borderRadius:7, border:'1px solid var(--td-border)', background:'var(--td-subtle)', color:BRAND_TEXT, cursor:'pointer', fontSize:10, fontWeight:800, fontFamily:'inherit' }}>Edit</button>
+              <button onClick={()=>onDelete(index)} style={{ padding:'4px 8px', borderRadius:7, border:'1px solid rgba(225,91,79,0.2)', background:'rgba(225,91,79,0.08)', color:'var(--td-danger)', cursor:'pointer', fontSize:10, fontWeight:800, fontFamily:'inherit' }}>Delete</button>
             </>
           )}
         </div>
       </div>
       {editing ? (
         <MentionTextarea value={draft} onChange={e=>setDraft(e.target.value)} rows={editRows}
-          style={{ display:'block', width:'100%', minWidth:0, maxWidth:'100%', minHeight:120, maxHeight:360, boxSizing:'border-box', padding:'11px 12px', borderRadius:8, resize:'vertical', background:'rgba(255,255,255,0.55)', border:'1px solid rgba(255,255,255,0.66)', color:'#222a25', fontSize:14, lineHeight:1.55, outline:'none', fontFamily:'inherit', whiteSpace:'pre-wrap', overflowWrap:'anywhere', overflowY:'auto', overflowX:'hidden' }}/>
+          style={{ display:'block', width:'100%', minWidth:0, maxWidth:'100%', minHeight:120, maxHeight:360, boxSizing:'border-box', padding:'11px 12px', borderRadius:8, resize:'vertical', background:'var(--td-subtle)', border:'1px solid var(--td-border)', color:'var(--td-text)', fontSize:14, lineHeight:1.55, outline:'none', fontFamily:'inherit', whiteSpace:'pre-wrap', overflowWrap:'anywhere', overflowY:'auto', overflowX:'hidden' }}/>
       ) : (
         <MarkdownBody>{body}</MarkdownBody>
       )}
@@ -1125,16 +1124,27 @@ async function uniqueDirectoryNameInDir(dir, preferredName) {
 const inputBase = {
   width:'100%', padding:'9px 12px', borderRadius:8,
   background:GLASS_INNER, border:`1px solid ${GLASS_BORDER}`,
-  color:TEXT_PRIMARY, fontSize:14, outline:'none', fontFamily:'inherit', colorScheme:'light',
-  boxShadow:'inset 0 1px 4px rgba(20,40,30,0.05)',
+  color:TEXT_PRIMARY, fontSize:14, outline:'none', fontFamily:'inherit', colorScheme:'normal',
+  boxShadow:'none',
 };
-const labelBase = { fontSize:11, color:TEXT_MUTED, fontWeight:700, letterSpacing:'0.10em', textTransform:'uppercase', display:'block', marginBottom:6, fontFamily:"'JetBrains Mono', monospace" };
+const labelBase = { fontSize:12, color:TEXT_SECONDARY, fontWeight:600, display:'block', marginBottom:6, fontFamily:'var(--font-interface, system-ui)' };
 
 function Field({ label, children, compact = false, id }) {
+  const generatedId = useId();
+  const flatten = items => React.Children.toArray(items).flatMap(child =>
+    React.isValidElement(child) && child.type === Fragment ? flatten(child.props.children) : [child]
+  );
+  const elements = flatten(children);
+  const isControl = child => React.isValidElement(child) && (
+    ['input', 'textarea', 'select'].includes(child.type) ||
+    [ComboInput, SelectInput, ChipMulti, MentionTextarea].includes(child.type)
+  );
+  const control = elements.find(isControl);
+  const controlId = id || control?.props.id || generatedId;
   return (
     <div style={{ marginBottom:compact ? 0 : 11 }}>
-      <label htmlFor={id} style={labelBase}>{label}</label>
-      {children}
+      <label htmlFor={control ? controlId : id} style={labelBase}>{label}</label>
+      {elements.map(child => child === control ? React.cloneElement(child, { id:controlId }) : child)}
     </div>
   );
 }
@@ -1157,10 +1167,10 @@ function daysOpenSince(dateValue) {
 }
 
 function taskAgeTone(days) {
-  if (days === null) return { color:TEXT_MUTED, border:'rgba(90,97,91,0.18)', bg:'rgba(90,97,91,0.06)' };
-  if (days <= 15) return { color:'#13733f', border:'rgba(20,120,72,0.28)', bg:'rgba(20,120,72,0.10)' };
-  if (days <= 31) return { color:'#a9791f', border:'rgba(208,150,52,0.24)', bg:'rgba(208,150,52,0.13)' };
-  return { color:'#c2533f', border:'rgba(225,91,79,0.24)', bg:'rgba(225,91,79,0.10)' };
+  if (days === null) return { color:TEXT_MUTED, border:'var(--td-border)', bg:'var(--td-subtle)' };
+  if (days <= 15) return { color:'var(--td-accent-text)', border:'rgba(20,120,72,0.28)', bg:'rgba(20,120,72,0.10)' };
+  if (days <= 31) return { color:'var(--td-warning)', border:'rgba(208,150,52,0.24)', bg:'rgba(208,150,52,0.13)' };
+  return { color:'var(--td-danger)', border:'rgba(225,91,79,0.24)', bg:'rgba(225,91,79,0.10)' };
 }
 
 function monthLabel(monthStr) {
@@ -1222,10 +1232,10 @@ function rangeBand(minutes, targetMinutes, toleranceMinutes) {
 
 function workBandTone(minutes, targetMinutes = TARGET_WORK_MINUTES, toleranceMinutes = TARGET_WORK_TOLERANCE) {
   const band = rangeBand(minutes, targetMinutes, toleranceMinutes);
-  if (band === 'target') return { band, fill:'linear-gradient(180deg,#28a767,#10623a)', text:'#13733f', glow:'0 10px 22px rgba(20,40,30,0.16)' };
+  if (band === 'target') return { band, fill:'linear-gradient(180deg,#28a767,#10623a)', text:'var(--td-accent-text)', glow:'0 10px 22px rgba(20,40,30,0.16)' };
   if (band === 'empty') return { band, fill:'rgba(40,60,50,0.08)', text:TEXT_MUTED, glow:'none' };
-  if (band === 'below') return { band, fill:'#d8a23c', text:'#a9791f', glow:'0 10px 18px rgba(208,150,52,0.12)' };
-  return { band, fill:'linear-gradient(180deg,#ea8479,#d6493d)', text:'#c2533f', glow:'0 10px 18px rgba(225,91,79,0.14)' };
+  if (band === 'below') return { band, fill:'#d8a23c', text:'var(--td-warning)', glow:'0 10px 18px rgba(208,150,52,0.12)' };
+  return { band, fill:'linear-gradient(180deg,#ea8479,#d6493d)', text:'var(--td-danger)', glow:'0 10px 18px rgba(225,91,79,0.14)' };
 }
 
 function rowsFromTimeDraft(draft) {
@@ -1487,10 +1497,10 @@ function ComboInput({ value, onChange, options = [], placeholder, id }) {
       }}
         placeholder={placeholder || 'Pick or type...'} style={inputBase}/>
       {open && filtered.length > 0 && (
-        <div id={listId} role="listbox" style={{ position:'absolute', top:'calc(100% + 4px)', left:0, right:0, zIndex:80, maxHeight:280, overflowY:'auto', padding:4, borderRadius:9, background:'#f7faf8', border:'1px solid rgba(255,255,255,0.68)', boxShadow:'0 12px 30px rgba(20,40,30,0.14)' }}>
+        <div id={listId} role="listbox" style={{ position:'absolute', top:'calc(100% + 4px)', left:0, right:0, zIndex:80, maxHeight:280, overflowY:'auto', padding:4, borderRadius:9, background:'#f7faf8', border:'1px solid var(--td-border)', boxShadow:'0 12px 30px rgba(20,40,30,0.14)' }}>
           {filtered.map((option,index) => (
             <button key={option} id={`${listId}-option-${index}`} type="button" role="option" aria-selected={index === activeIndex} onMouseDown={e=>e.preventDefault()} onClick={()=>{ setInput(option); onChange(option); inputRef.current?.focus(); setOpen(false); }}
-              style={{ width:'100%', textAlign:'left', padding:'7px 9px', borderRadius:7, border:'none', background:index === activeIndex ? BRAND_SURFACE : 'transparent', color:'#222a25', cursor:'pointer', fontSize:12, fontFamily:'inherit' }}>
+              style={{ width:'100%', textAlign:'left', padding:'7px 9px', borderRadius:7, border:'none', background:index === activeIndex ? BRAND_SURFACE : 'transparent', color:'var(--td-text)', cursor:'pointer', fontSize:12, fontFamily:'inherit' }}>
               {option}
             </button>
           ))}
@@ -1525,12 +1535,12 @@ function SelectInput({ value, onChange, options = [], id }) {
         <span style={{ color:TEXT_MUTED, fontSize:11, lineHeight:1 }}>▾</span>
       </button>
       {open && (
-        <div id={listId} role="listbox" style={{ position:'absolute', top:'calc(100% + 4px)', left:0, right:0, zIndex:90, maxHeight:240, overflowY:'auto', padding:4, borderRadius:9, background:'#f7faf8', border:'1px solid rgba(255,255,255,0.68)', boxShadow:'0 12px 30px rgba(20,40,30,0.14)' }}>
+        <div id={listId} role="listbox" style={{ position:'absolute', top:'calc(100% + 4px)', left:0, right:0, zIndex:90, maxHeight:240, overflowY:'auto', padding:4, borderRadius:9, background:'#f7faf8', border:'1px solid var(--td-border)', boxShadow:'0 12px 30px rgba(20,40,30,0.14)' }}>
           {options.map((option,index) => {
             const active = option.value === value;
             return (
               <button key={option.value} id={`${listId}-option-${index}`} type="button" role="option" aria-selected={active} onMouseEnter={()=>setActiveIndex(index)} onMouseDown={e=>e.preventDefault()} onClick={()=>choose(option)}
-                style={{ width:'100%', textAlign:'left', padding:'8px 9px', borderRadius:7, border:'none', background:index === activeIndex ? BRAND_SURFACE : 'transparent', color:active ? BRAND_TEXT : '#222a25', cursor:'pointer', fontSize:12, fontWeight:active ? 800 : 600, fontFamily:'inherit' }}>
+                style={{ width:'100%', textAlign:'left', padding:'8px 9px', borderRadius:7, border:'none', background:index === activeIndex ? BRAND_SURFACE : 'transparent', color:active ? BRAND_TEXT : 'var(--td-text)', cursor:'pointer', fontSize:12, fontWeight:active ? 800 : 600, fontFamily:'inherit' }}>
                 {option.label}
               </button>
             );
@@ -1579,13 +1589,13 @@ function ChipMulti({ value, onChange, options, placeholder, id }) {
         }}
         onBlur={e=>{ if (!e.currentTarget.parentElement.parentElement.contains(e.relatedTarget)) setTimeout(()=>{ setOpen(false); add(); }, 120); }}
         placeholder={placeholder||'Type and press Enter'}
-        style={{ flex:1, minWidth:120, background:'transparent', border:'none', color:'#222a25', fontSize:13, outline:'none', fontFamily:'inherit', padding:'4px' }}/>
+        style={{ flex:1, minWidth:120, background:'transparent', border:'none', color:'var(--td-text)', fontSize:13, outline:'none', fontFamily:'inherit', padding:'4px' }}/>
     </div>
     {open && filtered.length > 0 && (
-      <div id={listId} role="listbox" style={{ position:'absolute', top:'calc(100% + 4px)', left:0, right:0, zIndex:80, maxHeight:280, overflowY:'auto', padding:4, borderRadius:9, background:'#f7faf8', border:'1px solid rgba(255,255,255,0.68)', boxShadow:'0 12px 30px rgba(20,40,30,0.14)' }}>
+      <div id={listId} role="listbox" style={{ position:'absolute', top:'calc(100% + 4px)', left:0, right:0, zIndex:80, maxHeight:280, overflowY:'auto', padding:4, borderRadius:9, background:'#f7faf8', border:'1px solid var(--td-border)', boxShadow:'0 12px 30px rgba(20,40,30,0.14)' }}>
         {filtered.map((option,index) => (
           <button key={option} id={`${listId}-option-${index}`} type="button" role="option" aria-selected={index === activeIndex} onMouseEnter={()=>setActiveIndex(index)} onMouseDown={e=>e.preventDefault()} onClick={()=>addOption(option)}
-            style={{ width:'100%', textAlign:'left', padding:'7px 9px', borderRadius:7, border:'none', background:index === activeIndex ? BRAND_SURFACE : 'transparent', color:'#222a25', cursor:'pointer', fontSize:12, fontFamily:'inherit' }}>
+            style={{ width:'100%', textAlign:'left', padding:'7px 9px', borderRadius:7, border:'none', background:index === activeIndex ? BRAND_SURFACE : 'transparent', color:'var(--td-text)', cursor:'pointer', fontSize:12, fontFamily:'inherit' }}>
             {option}
           </button>
         ))}
@@ -3395,7 +3405,7 @@ export default function App({ vaultAdapter, onOpenSettings }) {
   }, [task?.id]);
 
   const totalToday = [...tasks.map(t=>t.id),'__email__','__meeting__','__adhoc__'].reduce((a,id)=>a+getTime(id),0);
-  const dueColor  = due => isOver(due)?'#c2533f':isToday(due)?'#a9791f':TEXT_SECONDARY;
+  const dueColor  = due => isOver(due)?'var(--td-danger)':isToday(due)?'var(--td-warning)':TEXT_SECONDARY;
   const isClosedTask = t => t.archived || t.status === 'done';
   const isOpenTask = t => !isClosedTask(t);
   const isOverdueTask = t => isOpenTask(t) && isOver(t.due);
@@ -3574,17 +3584,17 @@ export default function App({ vaultAdapter, onOpenSettings }) {
     const running = timer?.taskId===id, time = getTime(id);
     return (
       <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'7px 10px', marginBottom:4, borderRadius:9, transition:'all 0.2s',
-        background:running?'rgba(20,120,72,0.08)':'rgba(255,255,255,0.50)',
-        border:`1px solid ${running?'rgba(20,120,72,0.25)':'rgba(255,255,255,0.58)'}`,
+        background:running?'rgba(20,120,72,0.08)':'var(--td-subtle)',
+        border:`1px solid ${running?'rgba(20,120,72,0.25)':'var(--td-subtle)'}`,
         boxShadow:running?'0 0 12px rgba(20,120,72,0.15)':'none' }}>
         <div style={{ display:'flex', alignItems:'center', gap:7 }}>
-          <span style={{ fontSize:12, fontWeight:600, color:running?'#13733f':'#222a25' }}>{label}</span>
-          {time>0 && <span style={{ fontSize:11, fontWeight:700, fontVariantNumeric:'tabular-nums', color:running?'#13733f':'#5b57b0' }}>{fmt(time)}</span>}
-          {running && <span style={{ fontSize:9, padding:'1px 5px', borderRadius:20, background:'rgba(20,120,72,0.12)', color:'#13733f', fontWeight:700 }}>● LIVE</span>}
+          <span style={{ fontSize:12, fontWeight:600, color:running?'var(--td-accent-text)':'var(--td-text)' }}>{label}</span>
+          {time>0 && <span style={{ fontSize:11, fontWeight:700, fontVariantNumeric:'tabular-nums', color:running?'var(--td-accent-text)':'#5b57b0' }}>{fmt(time)}</span>}
+          {running && <span style={{ fontSize:9, padding:'1px 5px', borderRadius:20, background:'rgba(20,120,72,0.12)', color:'var(--td-accent-text)', fontWeight:700 }}>● LIVE</span>}
         </div>
         <button onClick={running?onStop:onStart} style={{ padding:'4px 12px', borderRadius:6, border:'none', cursor:'pointer', fontWeight:700, fontSize:11, fontFamily:'inherit',
           background:running?'rgba(225,91,79,0.1)':BRAND_GRADIENT,
-          color:running?'#c2533f':'#fff', outline:running?'1px solid rgba(225,91,79,0.25)':'none' }}>
+          color:running?'var(--td-danger)':'#fff', outline:running?'1px solid rgba(225,91,79,0.25)':'none' }}>
           {running?'Stop':'Start'}
         </button>
       </div>
@@ -3595,10 +3605,10 @@ export default function App({ vaultAdapter, onOpenSettings }) {
   const showSetup = bootDone && !dirs.tasks && !folderIssues.tasks;
 
   if (showSetup) return (
-    <div style={{ position:'relative', height:'100%', overflowY:'auto', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', padding:'36px 24px', gap:16, color:'#222a25' }}>
+    <div style={{ position:'relative', height:'100%', overflowY:'auto', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', padding:'36px 24px', gap:16, color:'var(--td-text)' }}>
       <div className="td-setup-mark" aria-hidden="true">+</div>
       <h1 style={{ margin:0, fontSize:24, fontWeight:800, color:BRAND_TEXT }}>TaskDash</h1>
-      <p style={{ margin:0, color:'#5a615b', fontSize:14, textAlign:'center', maxWidth:400, lineHeight:1.5 }}>
+      <p style={{ margin:0, color:'var(--td-muted)', fontSize:14, textAlign:'center', maxWidth:400, lineHeight:1.5 }}>
         No tasks folder is configured yet. Point TaskDash at your vault folders in settings to get started.
       </p>
       <button onClick={()=>onOpenSettings?.()} style={btnPrimary}>Open TaskDash settings</button>
@@ -3606,7 +3616,7 @@ export default function App({ vaultAdapter, onOpenSettings }) {
     </div>
   );
 
-  if (!bootDone) return <div style={{ height:'100vh', display:'flex', alignItems:'center', justifyContent:'center', background:'#e1e7e3', color:'#5a615b' }}>Loading…</div>;
+  if (!bootDone) return <div style={{ height:'100vh', display:'flex', alignItems:'center', justifyContent:'center', background:'#e1e7e3', color:'var(--td-muted)' }}>Loading…</div>;
 
   // ── Main UI ──
   return (
@@ -3646,38 +3656,38 @@ export default function App({ vaultAdapter, onOpenSettings }) {
 
       {/* ─── Sidebar ─── */}
       <div className={`pane glass-strong td-pane-list${mobileListOpen ? ' mobile-list-open' : ''}`} style={{ flexShrink:0, display:'flex', flexDirection:'column' }}>
-        <div style={{ padding:'18px 14px 12px', borderBottom:'1px solid rgba(255,255,255,0.60)' }}>
+        <div style={{ padding:'18px 14px 12px', borderBottom:'1px solid var(--td-border)' }}>
           <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:4 }}>
             <div style={{ display:'flex', alignItems:'center', gap:7 }}>
               <span className="td-vault-mark" aria-hidden="true">+</span>
               <span style={{ fontWeight:700, fontSize:13, maxWidth:155, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{dirs.tasks?.name}</span>
             </div>
             <div style={{ display:'flex', gap:5, alignItems:'center' }}>
-              {isNarrow && mobileListOpen && <button onClick={()=>setMobileListOpen(false)} style={{ padding:'4px 8px', borderRadius:7, border:'1px solid rgba(255,255,255,0.62)', background:'rgba(255,255,255,0.55)', color:'#5a615b', cursor:'pointer', fontSize:10, fontWeight:700, fontFamily:'inherit' }}>Close</button>}
+              {isNarrow && mobileListOpen && <button onClick={()=>setMobileListOpen(false)} style={{ padding:'4px 8px', borderRadius:7, border:'1px solid var(--td-border)', background:'var(--td-subtle)', color:'var(--td-muted)', cursor:'pointer', fontSize:10, fontWeight:700, fontFamily:'inherit' }}>Close</button>}
               <button onClick={forceSyncAll} disabled={syncBusy} title="Force rescan all configured folders" style={{ padding:'4px 10px', borderRadius:7, border:'none', cursor:syncBusy?'wait':'pointer', fontSize:11, fontWeight:600, fontFamily:'inherit',
                 background:needsRefresh?'rgba(208,150,52,0.2)':BRAND_SURFACE_STRONG,
-                color:needsRefresh?'#a9791f':BRAND_TEXT, boxShadow:needsRefresh?'0 0 10px rgba(208,150,52,0.3)':'none', transition:'all 0.3s', opacity:syncBusy?0.6:1 }}>
+                color:needsRefresh?'var(--td-warning)':BRAND_TEXT, boxShadow:needsRefresh?'0 0 10px rgba(208,150,52,0.3)':'none', transition:'all 0.3s', opacity:syncBusy?0.6:1 }}>
                 ↺ {syncBusy?'Syncing':needsRefresh?'Stale':'Force Sync'}
               </button>
             </div>
           </div>
           <div style={{ display:'flex', alignItems:'center', gap:5, marginBottom:10 }}>
-            <div style={{ width:6, height:6, borderRadius:3, background:'#13733f', boxShadow:'0 0 6px rgba(20,120,72,0.6)' }}/>
-            <span style={{ fontSize:10, color:'#13733f' }}>{syncLabel} · auto while open every 5 min</span>
+            <div style={{ width:6, height:6, borderRadius:3, background:'var(--td-accent-text)', boxShadow:'0 0 6px rgba(20,120,72,0.6)' }}/>
+            <span style={{ fontSize:10, color:'var(--td-accent-text)' }}>{syncLabel} · auto while open every 5 min</span>
           </div>
           {view !== 'mission' && (
             <div style={{ padding:'11px 13px', borderRadius:10, background:BRAND_SURFACE, border:`1px solid ${BRAND_BORDER}` }}>
               <div style={{ fontSize:9, color:BRAND_LABEL, fontWeight:800, letterSpacing:'0.1em', marginBottom:3 }}>{headerLabel}</div>
               <div style={{ fontWeight:800, fontSize:23, letterSpacing:0, fontVariantNumeric:'tabular-nums' }}>{headerMetric}</div>
-              <div style={{ fontSize:10, color:'#5a615b', marginTop:2 }}>{headerDetail}</div>
+              <div style={{ fontSize:10, color:'var(--td-muted)', marginTop:2 }}>{headerDetail}</div>
             </div>
           )}
         </div>
 
         {['tasks','bd','review','waiting'].includes(view) ? (
           <>
-            {(view === 'tasks' || view === 'bd') && <div style={{ padding:'8px 10px', borderBottom:'1px solid rgba(255,255,255,0.60)' }}>
-              <button onClick={()=>setShowQuickTrack(value => !value)} aria-expanded={showQuickTrack} style={{ width:'100%', display:'flex', justifyContent:'space-between', padding:'4px 0 7px', border:0, background:'transparent', color:'#5a615b', cursor:'pointer', fontFamily:'inherit', fontSize:9, fontWeight:700, letterSpacing:'0.1em', textTransform:'uppercase' }}>
+            {(view === 'tasks' || view === 'bd') && <div style={{ padding:'8px 10px', borderBottom:'1px solid var(--td-border)' }}>
+              <button onClick={()=>setShowQuickTrack(value => !value)} aria-expanded={showQuickTrack} style={{ width:'100%', display:'flex', justifyContent:'space-between', padding:'4px 0 7px', border:0, background:'transparent', color:'var(--td-muted)', cursor:'pointer', fontFamily:'inherit', fontSize:9, fontWeight:700, letterSpacing:'0.1em', textTransform:'uppercase' }}>
                 <span>Quick Track</span><span aria-hidden="true">{showQuickTrack ? '−' : '+'}</span>
               </button>
               {showQuickTrack && <div>
@@ -3686,24 +3696,24 @@ export default function App({ vaultAdapter, onOpenSettings }) {
               {timer?.taskId==='__adhoc__' ? (
                 <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'7px 10px', borderRadius:9, background:'rgba(20,120,72,0.08)', border:'1px solid rgba(20,120,72,0.25)', boxShadow:'0 0 12px rgba(20,120,72,0.15)' }}>
                   <div style={{ display:'flex', alignItems:'center', gap:7 }}>
-                    <span style={{ fontSize:12, fontWeight:600, color:'#13733f', maxWidth:100, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{adHocName||'Ad-hoc'}</span>
-                    <span style={{ fontSize:11, fontWeight:700, fontVariantNumeric:'tabular-nums', color:'#13733f' }}>{fmt(getTime('__adhoc__'))}</span>
-                    <span style={{ fontSize:9, padding:'1px 5px', borderRadius:20, background:'rgba(20,120,72,0.12)', color:'#13733f', fontWeight:700 }}>● LIVE</span>
+                    <span style={{ fontSize:12, fontWeight:600, color:'var(--td-accent-text)', maxWidth:100, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{adHocName||'Ad-hoc'}</span>
+                    <span style={{ fontSize:11, fontWeight:700, fontVariantNumeric:'tabular-nums', color:'var(--td-accent-text)' }}>{fmt(getTime('__adhoc__'))}</span>
+                    <span style={{ fontSize:9, padding:'1px 5px', borderRadius:20, background:'rgba(20,120,72,0.12)', color:'var(--td-accent-text)', fontWeight:700 }}>● LIVE</span>
                   </div>
-                  <button onClick={stop} style={{ padding:'4px 12px', borderRadius:6, border:'none', cursor:'pointer', fontWeight:700, fontSize:11, fontFamily:'inherit', background:'rgba(225,91,79,0.1)', color:'#c2533f', outline:'1px solid rgba(225,91,79,0.25)' }}>Stop</button>
+                  <button onClick={stop} style={{ padding:'4px 12px', borderRadius:6, border:'none', cursor:'pointer', fontWeight:700, fontSize:11, fontFamily:'inherit', background:'rgba(225,91,79,0.1)', color:'var(--td-danger)', outline:'1px solid rgba(225,91,79,0.25)' }}>Stop</button>
                 </div>
               ) : showAdHoc ? (
-                <div style={{ padding:'8px 10px', borderRadius:9, background:'rgba(255,255,255,0.55)', border:'1px solid rgba(255,255,255,0.62)' }}>
-                  <div style={{ fontSize:11, color:'#5a615b', marginBottom:6 }}>What are you working on?</div>
+                <div style={{ padding:'8px 10px', borderRadius:9, background:'var(--td-subtle)', border:'1px solid var(--td-border)' }}>
+                  <div style={{ fontSize:11, color:'var(--td-muted)', marginBottom:6 }}>What are you working on?</div>
                   <div style={{ display:'flex', gap:6 }}>
                     <input value={adHocInput} onChange={e=>setAdHocInput(e.target.value)} onKeyDown={e=>e.key==='Enter'&&startAdHoc()} autoFocus placeholder="e.g. Proposal draft…"
-                      style={{ flex:1, padding:'6px 10px', borderRadius:7, background:'rgba(255,255,255,0.58)', border:'1px solid rgba(255,255,255,0.68)', color:'#222a25', fontSize:12, outline:'none', fontFamily:'inherit' }}/>
-                    <button onClick={startAdHoc} disabled={!adHocInput.trim()} style={{ padding:'6px 10px', borderRadius:7, border:'none', cursor:'pointer', fontWeight:700, fontSize:11, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff', opacity:adHocInput.trim()?1:0.4 }}>Start</button>
-                    <button onClick={()=>{setShowAdHoc(false);setAdHocInput('');}} style={{ padding:'6px 8px', borderRadius:7, border:'none', cursor:'pointer', background:'rgba(255,255,255,0.58)', color:'#5a615b', fontSize:11, fontWeight:700 }}>Cancel</button>
+                      style={{ flex:1, padding:'6px 10px', borderRadius:7, background:'var(--td-subtle)', border:'1px solid var(--td-border)', color:'var(--td-text)', fontSize:12, outline:'none', fontFamily:'inherit' }}/>
+                    <button className="td-primary" onClick={startAdHoc} disabled={!adHocInput.trim()} style={{ padding:'6px 10px', borderRadius:7, border:'none', cursor:'pointer', fontWeight:700, fontSize:11, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff', opacity:adHocInput.trim()?1:0.4 }}>Start</button>
+                    <button onClick={()=>{setShowAdHoc(false);setAdHocInput('');}} style={{ padding:'6px 8px', borderRadius:7, border:'none', cursor:'pointer', background:'var(--td-subtle)', color:'var(--td-muted)', fontSize:11, fontWeight:700 }}>Cancel</button>
                   </div>
                 </div>
               ) : (
-                <button onClick={()=>setShowAdHoc(true)} style={{ width:'100%', padding:'7px 10px', borderRadius:9, border:'1px dashed rgba(255,255,255,0.68)', background:'transparent', color:'#5a615b', fontSize:12, fontWeight:600, cursor:'pointer', textAlign:'left', fontFamily:'inherit' }}>
+                <button onClick={()=>setShowAdHoc(true)} style={{ width:'100%', padding:'7px 10px', borderRadius:9, border:'1px dashed var(--td-subtle)', background:'transparent', color:'var(--td-muted)', fontSize:12, fontWeight:600, cursor:'pointer', textAlign:'left', fontFamily:'inherit' }}>
                   + Ad-hoc task…
                 </button>
               )}
@@ -3711,43 +3721,43 @@ export default function App({ vaultAdapter, onOpenSettings }) {
             </div>}
 
             {(view === 'tasks' || view === 'bd') && <div style={{ padding:'8px 10px 4px', display:'flex', gap:6, alignItems:'center' }}>
-              <button onClick={()=>{ setNewPersonOpen(false); setNewTaskInitialDue(''); setNewTaskOpen(true); }} disabled={!dirs.tasks} style={{ flex:1, padding:'8px 10px', borderRadius:9, border:'none', cursor:dirs.tasks?'pointer':'not-allowed', fontWeight:700, fontSize:12, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff', boxShadow:BRAND_SHADOW, opacity:dirs.tasks?1:0.35 }}>
+              <button className="td-primary" onClick={()=>{ setNewPersonOpen(false); setNewTaskInitialDue(''); setNewTaskOpen(true); }} disabled={!dirs.tasks} style={{ flex:1, padding:'8px 10px', borderRadius:9, border:'none', cursor:dirs.tasks?'pointer':'not-allowed', fontWeight:700, fontSize:12, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff', boxShadow:BRAND_SHADOW, opacity:dirs.tasks?1:0.35 }}>
                 +  New Task
               </button>
-              <button onClick={()=>{ setNewTaskOpen(false); setNewPersonOpen(true); }} title={dirs.people ? 'Add a person note' : 'Configure the People folder first'} style={{ padding:'8px 10px', borderRadius:9, border:'1px solid rgba(255,255,255,0.62)', cursor:'pointer', fontWeight:700, fontSize:12, fontFamily:'inherit', background:'rgba(255,255,255,0.55)', color:BRAND_TEXT, opacity:dirs.people?1:0.65 }}>
+              <button onClick={()=>{ setNewTaskOpen(false); setNewPersonOpen(true); }} title={dirs.people ? 'Add a person note' : 'Configure the People folder first'} style={{ padding:'8px 10px', borderRadius:9, border:'1px solid var(--td-border)', cursor:'pointer', fontWeight:700, fontSize:12, fontFamily:'inherit', background:'var(--td-subtle)', color:BRAND_TEXT, opacity:dirs.people?1:0.65 }}>
                 + Person
               </button>
             </div>}
 
 
-            <div style={{ padding:'6px 10px 8px', borderBottom:'1px solid rgba(255,255,255,0.60)' }}>
+            <div style={{ padding:'6px 10px 8px', borderBottom:'1px solid var(--td-border)' }}>
               <input value={taskSearch} onChange={e=>setTaskSearch(e.target.value)} placeholder={view === 'bd' ? 'Search BD tasks...' : view === 'review' ? 'Search review queue...' : view === 'waiting' ? 'Search waiting-for...' : 'Search tasks...'} style={{ ...inputBase, padding:'8px 10px', fontSize:12 }}/>
             </div>
 
-            <div style={{ display:'flex', gap:3, padding:'4px 10px 8px', borderBottom:'1px solid rgba(255,255,255,0.60)' }}>
+            <div style={{ display:'flex', gap:3, padding:'4px 10px 8px', borderBottom:'1px solid var(--td-border)' }}>
               {(view === 'review' || view === 'waiting' ? ['all','today','overdue'] : ['all','today','overdue','done']).map(f => (
-                <button key={f} onClick={()=>setFilt(f)} style={{ flex:1, padding:'5px 0', borderRadius:7, border:'none', cursor:'pointer', fontSize:10, fontWeight:600, textTransform:'capitalize', fontFamily:'inherit', background:filt===f?BRAND_SURFACE:'transparent', color:filt===f?BRAND_TEXT:'#5a615b' }}>{f}</button>
+                <button key={f} onClick={()=>setFilt(f)} style={{ flex:1, padding:'5px 0', borderRadius:7, border:'none', cursor:'pointer', fontSize:10, fontWeight:600, textTransform:'capitalize', fontFamily:'inherit', background:filt===f?BRAND_SURFACE:'transparent', color:filt===f?BRAND_TEXT:'var(--td-muted)' }}>{f}</button>
               ))}
             </div>
             {(filt !== 'all' || taskSearch.trim()) && (
-              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:8, padding:'6px 10px', borderBottom:'1px solid rgba(255,255,255,0.60)', color:'#5a615b', fontSize:10 }}>
+              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:8, padding:'6px 10px', borderBottom:'1px solid var(--td-border)', color:'var(--td-muted)', fontSize:10 }}>
                 <span style={{ minWidth:0, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>Active: {filt !== 'all' ? filt : ''}{filt !== 'all' && taskSearch.trim() ? ' · ' : ''}{taskSearch.trim() ? `"${taskSearch.trim()}"` : ''}</span>
-                <button onClick={()=>{ setFilt('all'); setTaskSearch(''); }} style={{ flexShrink:0, padding:'4px 7px', borderRadius:7, border:'none', background:'rgba(225,91,79,0.08)', color:'#c2533f', cursor:'pointer', fontFamily:'inherit', fontSize:10, fontWeight:800 }}>Clear</button>
+                <button onClick={()=>{ setFilt('all'); setTaskSearch(''); }} style={{ flexShrink:0, padding:'4px 7px', borderRadius:7, border:'none', background:'rgba(225,91,79,0.08)', color:'var(--td-danger)', cursor:'pointer', fontFamily:'inherit', fontSize:10, fontWeight:800 }}>Clear</button>
               </div>
             )}
-            {(view === 'tasks' || view === 'bd') && <div style={{ padding:'7px 10px 8px', borderBottom:'1px solid rgba(255,255,255,0.60)' }}>
-              <button onClick={()=>setShowSavedFilters(value => !value)} aria-expanded={showSavedFilters} style={{ width:'100%', display:'flex', justifyContent:'space-between', alignItems:'center', padding:'6px 2px', border:0, background:'transparent', color:'#5a615b', cursor:'pointer', fontFamily:'inherit', fontSize:10, fontWeight:800 }}>
+            {(view === 'tasks' || view === 'bd') && <div style={{ padding:'7px 10px 8px', borderBottom:'1px solid var(--td-border)' }}>
+              <button onClick={()=>setShowSavedFilters(value => !value)} aria-expanded={showSavedFilters} style={{ width:'100%', display:'flex', justifyContent:'space-between', alignItems:'center', padding:'6px 2px', border:0, background:'transparent', color:'var(--td-muted)', cursor:'pointer', fontFamily:'inherit', fontSize:10, fontWeight:800 }}>
                 <span>Saved filters{savedFilters.length ? ` · ${savedFilters.length}` : ''}</span><span aria-hidden="true">{showSavedFilters ? '−' : '+'}</span>
               </button>
               {showSavedFilters && <div style={{ paddingTop:5 }}>
               <div style={{ display:'flex', gap:5, marginBottom:savedFilters.length?6:0 }}>
-                <input value={filterName} onChange={e=>setFilterName(e.target.value)} placeholder="Filter name" style={{ flex:1, minWidth:0, padding:'6px 8px', borderRadius:7, background:'rgba(255,255,255,0.55)', border:'1px solid rgba(255,255,255,0.60)', color:'#222a25', fontSize:11, outline:'none', fontFamily:'inherit' }}/>
+                <input value={filterName} onChange={e=>setFilterName(e.target.value)} placeholder="Filter name" style={{ flex:1, minWidth:0, padding:'6px 8px', borderRadius:7, background:'var(--td-subtle)', border:'1px solid var(--td-border)', color:'var(--td-text)', fontSize:11, outline:'none', fontFamily:'inherit' }}/>
                 <button onClick={saveCurrentFilter} style={{ padding:'6px 8px', borderRadius:7, border:'none', cursor:'pointer', fontWeight:800, fontSize:10, fontFamily:'inherit', background:BRAND_SURFACE_STRONG, color:BRAND_TEXT }}>Save</button>
               </div>
               {savedFilters.map(sf => (
                 <div key={sf.name} style={{ display:'flex', gap:5, alignItems:'center', marginTop:4 }}>
-                  <button onClick={()=>applySavedFilter(sf)} style={{ flex:1, minWidth:0, textAlign:'left', padding:'5px 7px', borderRadius:7, border:'1px solid rgba(255,255,255,0.58)', background:'rgba(255,255,255,0.50)', color:'#5a615b', cursor:'pointer', fontSize:10, fontFamily:'inherit', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{sf.name}</button>
-                  <button onClick={()=>deleteSavedFilter(sf.name)} style={{ width:22, height:22, borderRadius:7, border:'none', background:'rgba(225,91,79,0.08)', color:'#c2533f', cursor:'pointer', fontSize:11 }}>x</button>
+                  <button onClick={()=>applySavedFilter(sf)} style={{ flex:1, minWidth:0, textAlign:'left', padding:'5px 7px', borderRadius:7, border:'1px solid var(--td-border)', background:'var(--td-subtle)', color:'var(--td-muted)', cursor:'pointer', fontSize:10, fontFamily:'inherit', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{sf.name}</button>
+                  <button onClick={()=>deleteSavedFilter(sf.name)} style={{ width:22, height:22, borderRadius:7, border:'none', background:'rgba(225,91,79,0.08)', color:'var(--td-danger)', cursor:'pointer', fontSize:11 }}>x</button>
                 </div>
               ))}
               </div>}
@@ -3781,13 +3791,13 @@ export default function App({ vaultAdapter, onOpenSettings }) {
                 return (
                   <Fragment key={t.id}>
                   {startsGroup && <div className="td-task-list-group"><span>{group}</span><span>{visibleTasks.filter(item => taskListGroup(item) === group).length}</span></div>}
-                  <div className={`td-task-list-row${active ? ' is-selected' : ''}${running ? ' is-running' : ''}`} role="button" tabIndex={0} onClick={()=>requestNavigation({ taskId:t.id, closeList:true })} onKeyDown={event=>{ if (event.target !== event.currentTarget) return; if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); requestNavigation({ taskId:t.id, closeList:true }); }}} style={{ padding:'10px', marginBottom:4, borderRadius:10, cursor:'pointer', background:active?BRAND_SURFACE:'rgba(255,255,255,0.50)', border:`1px solid ${active?BRAND_BORDER:'rgba(255,255,255,0.55)'}`, boxShadow:running?'0 0 14px rgba(20,120,72,0.18)':'none', transition:'all 0.15s' }}>
+                  <div className={`td-task-list-row${active ? ' is-selected' : ''}${running ? ' is-running' : ''}`} role="button" tabIndex={0} onClick={()=>requestNavigation({ taskId:t.id, closeList:true })} onKeyDown={event=>{ if (event.target !== event.currentTarget) return; if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); requestNavigation({ taskId:t.id, closeList:true }); }}} style={{ padding:'10px', marginBottom:4, borderRadius:10, cursor:'pointer', background:active?BRAND_SURFACE:'var(--td-subtle)', border:`1px solid ${active?BRAND_BORDER:'var(--td-subtle)'}`, boxShadow:running?'0 0 14px rgba(20,120,72,0.18)':'none', transition:'all 0.15s' }}>
                     <div style={{ display:'flex', justifyContent:'space-between', gap:6, marginBottom:5 }}>
                       {view === 'review' && (
                         <input type="checkbox" checked={batchSelectedIds.includes(t.id)} onClick={event=>event.stopPropagation()} onChange={event=>setBatchSelectedIds(previous=>event.target.checked ? [...new Set([...previous,t.id])] : previous.filter(id=>id!==t.id))} aria-label={`Select ${t.title} for batch rescheduling`}/>
                       )}
                       <span style={{ fontSize:12, fontWeight:500, lineHeight:1.35, flex:1 }}>{t.title}</span>
-                      {running && <span style={{ fontSize:9, padding:'2px 6px', borderRadius:20, background:'rgba(20,120,72,0.12)', color:'#13733f', fontWeight:700, flexShrink:0 }}>● LIVE</span>}
+                      {running && <span style={{ fontSize:9, padding:'2px 6px', borderRadius:20, background:'rgba(20,120,72,0.12)', color:'var(--td-accent-text)', fontWeight:700, flexShrink:0 }}>● LIVE</span>}
                     </div>
                     {duplicateTitle && (
                       <div title={t.id} style={{ fontSize:10, color:'#5b57b0', marginBottom:5, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
@@ -3809,29 +3819,29 @@ export default function App({ vaultAdapter, onOpenSettings }) {
           </>
         ) : view === 'calendar' ? (
           <>
-            <div style={{ padding:'12px 10px', borderBottom:'1px solid rgba(255,255,255,0.60)' }}>
-              <div style={{ fontSize:9, color:'#5a615b', fontWeight:800, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:8 }}>Week</div>
+            <div style={{ padding:'12px 10px', borderBottom:'1px solid var(--td-border)' }}>
+              <div style={{ fontSize:9, color:'var(--td-muted)', fontWeight:800, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:8 }}>Week</div>
               <div style={{ display:'grid', gridTemplateColumns:'32px 1fr 32px', gap:6, marginBottom:8 }}>
-                <button onClick={()=>setCalendarDate(addDays(taskCalendarDates[0], -7))} aria-label="Previous week" style={{ height:32, borderRadius:9, border:'1px solid rgba(255,255,255,0.62)', background:'rgba(255,255,255,0.55)', color:'#5a615b', cursor:'pointer', fontWeight:900, fontFamily:'inherit' }}>‹</button>
-                <button onClick={()=>setCalendarDate(tod())} style={{ borderRadius:9, border:'none', background:BRAND_GRADIENT, color:'#fff', cursor:'pointer', fontSize:12, fontWeight:800, fontFamily:'inherit', boxShadow:BRAND_SHADOW }}>This week</button>
-                <button onClick={()=>setCalendarDate(addDays(taskCalendarDates[0], 7))} aria-label="Next week" style={{ height:32, borderRadius:9, border:'1px solid rgba(255,255,255,0.62)', background:'rgba(255,255,255,0.55)', color:'#5a615b', cursor:'pointer', fontWeight:900, fontFamily:'inherit' }}>›</button>
+                <button onClick={()=>setCalendarDate(addDays(taskCalendarDates[0], -7))} aria-label="Previous week" style={{ height:32, borderRadius:9, border:'1px solid var(--td-border)', background:'var(--td-subtle)', color:'var(--td-muted)', cursor:'pointer', fontWeight:900, fontFamily:'inherit' }}>‹</button>
+                <button className="td-primary" onClick={()=>setCalendarDate(tod())} style={{ borderRadius:9, border:'none', background:BRAND_GRADIENT, color:'#fff', cursor:'pointer', fontSize:12, fontWeight:800, fontFamily:'inherit', boxShadow:BRAND_SHADOW }}>This week</button>
+                <button onClick={()=>setCalendarDate(addDays(taskCalendarDates[0], 7))} aria-label="Next week" style={{ height:32, borderRadius:9, border:'1px solid var(--td-border)', background:'var(--td-subtle)', color:'var(--td-muted)', cursor:'pointer', fontWeight:900, fontFamily:'inherit' }}>›</button>
               </div>
               <input type="date" value={calendarDate} onChange={e=>e.target.value && setCalendarDate(e.target.value)} style={{ ...inputBase, padding:'8px 10px', fontSize:12 }}/>
             </div>
 
             <div style={{ flex:1, overflowY:'auto', padding:'8px' }}>
-              <div style={{ padding:'4px 6px 8px', color:'#5a615b', fontSize:10, fontWeight:800, textTransform:'uppercase', letterSpacing:'0.1em' }}>{taskCalendarWeekLabel}</div>
+              <div style={{ padding:'4px 6px 8px', color:'var(--td-muted)', fontSize:10, fontWeight:800, textTransform:'uppercase', letterSpacing:'0.1em' }}>{taskCalendarWeekLabel}</div>
               {taskCalendarDates.map(dateStr => {
                 const date = dateFromStr(dateStr);
                 const active = dateStr === calendarDate;
                 const count = taskCalendarByDate[dateStr]?.length || 0;
                 return (
-                  <button key={dateStr} onClick={()=>setCalendarDate(dateStr)} style={{ width:'100%', textAlign:'left', padding:'9px 10px', marginBottom:4, borderRadius:10, cursor:'pointer', fontFamily:'inherit', background:active?BRAND_SURFACE:'rgba(255,255,255,0.50)', border:`1px solid ${active?BRAND_BORDER:'rgba(255,255,255,0.55)'}` }}>
+                  <button key={dateStr} onClick={()=>setCalendarDate(dateStr)} style={{ width:'100%', textAlign:'left', padding:'9px 10px', marginBottom:4, borderRadius:10, cursor:'pointer', fontFamily:'inherit', background:active?BRAND_SURFACE:'var(--td-subtle)', border:`1px solid ${active?BRAND_BORDER:'var(--td-subtle)'}` }}>
                     <div style={{ display:'flex', justifyContent:'space-between', gap:8, alignItems:'center' }}>
-                      <span style={{ fontSize:12, color:'#222a25', fontWeight:800 }}>{date.toLocaleDateString('en-US', { weekday:'short' })}</span>
-                      <span style={{ fontSize:11, color:count ? BRAND_TEXT : '#8a928d', fontWeight:850, fontVariantNumeric:'tabular-nums' }}>{count}</span>
+                      <span style={{ fontSize:12, color:'var(--td-text)', fontWeight:800 }}>{date.toLocaleDateString('en-US', { weekday:'short' })}</span>
+                      <span style={{ fontSize:11, color:count ? BRAND_TEXT : 'var(--td-muted)', fontWeight:850, fontVariantNumeric:'tabular-nums' }}>{count}</span>
                     </div>
-                    <div style={{ fontSize:10, color:'#5a615b', marginTop:2 }}>{date.toLocaleDateString('en-US', { month:'short', day:'numeric' })}</div>
+                    <div style={{ fontSize:10, color:'var(--td-muted)', marginTop:2 }}>{date.toLocaleDateString('en-US', { month:'short', day:'numeric' })}</div>
                   </button>
                 );
               })}
@@ -3839,25 +3849,25 @@ export default function App({ vaultAdapter, onOpenSettings }) {
           </>
         ) : view === 'meetings' ? (
           <>
-            <div style={{ padding:'10px', borderBottom:'1px solid rgba(255,255,255,0.60)' }}>
-              <button onClick={meetingOpen ? stopMeeting : startMeeting} disabled={!dirs.meetings && !meetingOpen} style={{ width:'100%', padding:'9px 12px', borderRadius:9, border:'none', cursor:dirs.meetings || meetingOpen ? 'pointer' : 'not-allowed', fontWeight:800, fontSize:12, fontFamily:'inherit', background:meetingOpen ? 'rgba(225,91,79,0.1)' : BRAND_GRADIENT, color:meetingOpen ? '#c2533f' : '#fff', opacity:dirs.meetings || meetingOpen ? 1 : 0.4 }}>
+            <div style={{ padding:'10px', borderBottom:'1px solid var(--td-border)' }}>
+              <button onClick={meetingOpen ? stopMeeting : startMeeting} disabled={!dirs.meetings && !meetingOpen} style={{ width:'100%', padding:'9px 12px', borderRadius:9, border:'none', cursor:dirs.meetings || meetingOpen ? 'pointer' : 'not-allowed', fontWeight:800, fontSize:12, fontFamily:'inherit', background:meetingOpen ? 'rgba(225,91,79,0.1)' : BRAND_GRADIENT, color:meetingOpen ? 'var(--td-danger)' : '#fff', opacity:dirs.meetings || meetingOpen ? 1 : 0.4 }}>
                 {meetingOpen ? 'Save & Stop Meeting' : '+ Start Meeting'}
               </button>
             </div>
-            <div style={{ padding:'12px 14px', borderBottom:'1px solid rgba(255,255,255,0.60)' }}>
-              <div style={{ fontSize:9, color:'#5a615b', fontWeight:800, textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:7 }}>Meeting folder</div>
-              <div style={{ fontSize:12, color:dirs.meetings ? '#5a615b' : '#a9791f', lineHeight:1.45 }}>{dirs.meetings ? dirs.meetings.name : 'Pick a Meetings folder before saving notes.'}</div>
+            <div style={{ padding:'12px 14px', borderBottom:'1px solid var(--td-border)' }}>
+              <div style={{ fontSize:9, color:'var(--td-muted)', fontWeight:800, textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:7 }}>Meeting folder</div>
+              <div style={{ fontSize:12, color:dirs.meetings ? 'var(--td-muted)' : 'var(--td-warning)', lineHeight:1.45 }}>{dirs.meetings ? dirs.meetings.name : 'Pick a Meetings folder before saving notes.'}</div>
             </div>
             <div style={{ flex:1, overflowY:'auto', padding:'8px' }}>
-              <div style={{ padding:'4px 6px 8px', color:'#5a615b', fontSize:10, fontWeight:800, textTransform:'uppercase', letterSpacing:'0.1em' }}>Saved meetings</div>
+              <div style={{ padding:'4px 6px 8px', color:'var(--td-muted)', fontSize:10, fontWeight:800, textTransform:'uppercase', letterSpacing:'0.1em' }}>Saved meetings</div>
               {!dirs.meetings && <EmptyState title="Meetings are not connected" detail="Choose a Meetings folder before saving notes." actionLabel="Configure folders" onAction={()=>setFolderSetupOpen(true)}/>}
               {dirs.meetings && !meetings.length && <EmptyState title="No saved meetings yet" detail="Start a meeting to create the first note." actionLabel="Start meeting" onAction={startMeeting}/>}
               {meetings.map(m => {
                 const active = meetingSel === m.id && !meetingOpen;
                 return (
-                  <div className="td-library-row" aria-selected={active} key={m.id} role="button" tabIndex={0} onClick={()=>setMeetingSel(m.id)} onKeyDown={event=>{ if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setMeetingSel(m.id); }}} style={{ padding:'10px', marginBottom:4, borderRadius:10, cursor:'pointer', background:active?BRAND_SURFACE:'rgba(255,255,255,0.50)', border:`1px solid ${active?BRAND_BORDER:'rgba(255,255,255,0.55)'}` }}>
-                    <div style={{ fontSize:12, fontWeight:700, lineHeight:1.35, color:'#222a25' }}>{m.title}</div>
-                    <div style={{ fontSize:10, color:'#5a615b', marginTop:3 }}>{m.date || m.filename}</div>
+                  <div className="td-library-row" aria-selected={active} key={m.id} role="button" tabIndex={0} onClick={()=>setMeetingSel(m.id)} onKeyDown={event=>{ if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setMeetingSel(m.id); }}} style={{ padding:'10px', marginBottom:4, borderRadius:10, cursor:'pointer', background:active?BRAND_SURFACE:'var(--td-subtle)', border:`1px solid ${active?BRAND_BORDER:'var(--td-subtle)'}` }}>
+                    <div style={{ fontSize:12, fontWeight:700, lineHeight:1.35, color:'var(--td-text)' }}>{m.title}</div>
+                    <div style={{ fontSize:10, color:'var(--td-muted)', marginTop:3 }}>{m.date || m.filename}</div>
                   </div>
                 );
               })}
@@ -3866,11 +3876,11 @@ export default function App({ vaultAdapter, onOpenSettings }) {
         ) : view === 'projects' || view === 'projects-personal' ? (
           <>
             <div style={{ padding:'8px 10px 4px', display:'flex', gap:6, alignItems:'center' }}>
-              <button onClick={()=>setNewProjectOpen(true)} disabled={!dirs.projects} style={{ flex:1, padding:'8px 10px', borderRadius:9, border:'none', cursor:dirs.projects?'pointer':'not-allowed', fontWeight:700, fontSize:12, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff', boxShadow:BRAND_SHADOW, opacity:dirs.projects?1:0.35 }}>
+              <button className="td-primary" onClick={()=>setNewProjectOpen(true)} disabled={!dirs.projects} style={{ flex:1, padding:'8px 10px', borderRadius:9, border:'none', cursor:dirs.projects?'pointer':'not-allowed', fontWeight:700, fontSize:12, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff', boxShadow:BRAND_SHADOW, opacity:dirs.projects?1:0.35 }}>
                 +  New Project
               </button>
             </div>
-            <div style={{ padding:'10px', borderBottom:'1px solid rgba(255,255,255,0.60)' }}>
+            <div style={{ padding:'10px', borderBottom:'1px solid var(--td-border)' }}>
               <input value={projectSearch} onChange={e=>setProjectSearch(e.target.value)} placeholder="Search projects..." style={{ ...inputBase, padding:'8px 10px', fontSize:12 }}/>
             </div>
             <div style={{ flex:1, overflowY:'auto', padding:'6px 8px' }}>
@@ -3878,15 +3888,15 @@ export default function App({ vaultAdapter, onOpenSettings }) {
               {(view === 'projects' ? filteredProjects : filteredPersonalProjects).map(p => {
                 const active = projectSel === p.id;
                 return (
-                  <div className="td-library-row" aria-selected={active} key={p.id} role="button" tabIndex={0} onClick={()=>setProjectSel(p.id)} onKeyDown={event=>{ if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setProjectSel(p.id); }}} style={{ padding:'10px', marginBottom:4, borderRadius:10, cursor:'pointer', background:active?BRAND_SURFACE:'rgba(255,255,255,0.50)', border:`1px solid ${active?BRAND_BORDER:'rgba(255,255,255,0.55)'}` }}>
-                    <div style={{ fontSize:12, fontWeight:700, lineHeight:1.35, color:'#222a25' }}>{p.title}</div>
-                    <div style={{ fontSize:10, color:'#5a615b', marginTop:3 }}>{p.status || p.filename}</div>
+                  <div className="td-library-row" aria-selected={active} key={p.id} role="button" tabIndex={0} onClick={()=>setProjectSel(p.id)} onKeyDown={event=>{ if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setProjectSel(p.id); }}} style={{ padding:'10px', marginBottom:4, borderRadius:10, cursor:'pointer', background:active?BRAND_SURFACE:'var(--td-subtle)', border:`1px solid ${active?BRAND_BORDER:'var(--td-subtle)'}` }}>
+                    <div style={{ fontSize:12, fontWeight:700, lineHeight:1.35, color:'var(--td-text)' }}>{p.title}</div>
+                    <div style={{ fontSize:10, color:'var(--td-muted)', marginTop:3 }}>{p.status || p.filename}</div>
                   </div>
                 );
               })}
             </div>
-            <div style={{ padding:'8px 10px', borderTop:'1px solid rgba(255,255,255,0.55)' }}>
-              <button onClick={()=>setFolderSetupOpen(true)} style={{ width:'100%', padding:'7px 10px', borderRadius:8, border:'1px solid rgba(255,255,255,0.60)', background:'rgba(255,255,255,0.50)', color:'#5a615b', fontSize:11, cursor:'pointer', fontFamily:'inherit' }}>
+            <div style={{ padding:'8px 10px', borderTop:'1px solid var(--td-border)' }}>
+              <button onClick={()=>setFolderSetupOpen(true)} style={{ width:'100%', padding:'7px 10px', borderRadius:8, border:'1px solid var(--td-border)', background:'var(--td-subtle)', color:'var(--td-muted)', fontSize:11, cursor:'pointer', fontFamily:'inherit' }}>
                 Configure project folders
               </button>
             </div>
@@ -3894,11 +3904,11 @@ export default function App({ vaultAdapter, onOpenSettings }) {
         ) : view === 'properties' ? (
           <>
             <div style={{ padding:'8px 10px 4px', display:'flex', gap:6, alignItems:'center' }}>
-              <button onClick={()=>setNewPropertyOpen(true)} disabled={!dirs.properties} style={{ flex:1, padding:'9px 11px', borderRadius:9, border:'none', cursor:dirs.properties?'pointer':'not-allowed', fontWeight:800, fontSize:13, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff', boxShadow:BRAND_SHADOW, opacity:dirs.properties?1:0.35 }}>
+              <button className="td-primary" onClick={()=>setNewPropertyOpen(true)} disabled={!dirs.properties} style={{ flex:1, padding:'9px 11px', borderRadius:9, border:'none', cursor:dirs.properties?'pointer':'not-allowed', fontWeight:800, fontSize:13, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff', boxShadow:BRAND_SHADOW, opacity:dirs.properties?1:0.35 }}>
                 +  New Property
               </button>
             </div>
-            <div style={{ padding:'10px', borderBottom:'1px solid rgba(255,255,255,0.60)' }}>
+            <div style={{ padding:'10px', borderBottom:'1px solid var(--td-border)' }}>
               <input value={propertySearch} onChange={e=>setPropertySearch(e.target.value)} placeholder="Search properties…" style={{ ...inputBase, padding:'9px 11px', fontSize:14 }}/>
             </div>
             <div style={{ flex:1, overflowY:'auto', padding:'6px 8px' }}>
@@ -3906,16 +3916,16 @@ export default function App({ vaultAdapter, onOpenSettings }) {
               {filteredProperties.map(p => {
                 const active = propertySel === p.id;
                 return (
-                  <div className="td-library-row" aria-selected={active} key={p.id} role="button" tabIndex={0} onClick={()=>setPropertySel(p.id)} onKeyDown={event=>{ if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setPropertySel(p.id); }}} style={{ padding:'11px', marginBottom:5, borderRadius:10, cursor:'pointer', background:active?'rgba(255,255,255,0.60)':'rgba(255,255,255,0.55)', border:`1px solid ${active?'rgba(13,138,91,0.4)':'rgba(255,255,255,0.60)'}` }}>
-                    <div style={{ fontSize:14, fontWeight:800, lineHeight:1.35, color:'#5a615b' }}>{p.title}</div>
-                    <div style={{ fontSize:12, color:'#5a615b', marginTop:4 }}>{p.client || p.filename}</div>
-                    {p.comments.length > 0 && <div style={{ fontSize:12, color:'#5a615b', marginTop:5, fontWeight:700 }}>{p.comments.length} comment{p.comments.length===1?'':'s'}</div>}
+                  <div className="td-library-row" aria-selected={active} key={p.id} role="button" tabIndex={0} onClick={()=>setPropertySel(p.id)} onKeyDown={event=>{ if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setPropertySel(p.id); }}} style={{ padding:'11px', marginBottom:5, borderRadius:10, cursor:'pointer', background:active?'var(--td-subtle)':'var(--td-subtle)', border:`1px solid ${active?'rgba(13,138,91,0.4)':'var(--td-subtle)'}` }}>
+                    <div style={{ fontSize:14, fontWeight:800, lineHeight:1.35, color:'var(--td-muted)' }}>{p.title}</div>
+                    <div style={{ fontSize:12, color:'var(--td-muted)', marginTop:4 }}>{p.client || p.filename}</div>
+                    {p.comments.length > 0 && <div style={{ fontSize:12, color:'var(--td-muted)', marginTop:5, fontWeight:700 }}>{p.comments.length} comment{p.comments.length===1?'':'s'}</div>}
                   </div>
                 );
               })}
             </div>
-            <div style={{ padding:'8px 10px', borderTop:'1px solid rgba(255,255,255,0.55)' }}>
-              <button onClick={()=>setFolderSetupOpen(true)} style={{ width:'100%', padding:'8px 10px', borderRadius:8, border:'1px solid rgba(255,255,255,0.60)', background:'rgba(255,255,255,0.55)', color:'#5a615b', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>
+            <div style={{ padding:'8px 10px', borderTop:'1px solid var(--td-border)' }}>
+              <button onClick={()=>setFolderSetupOpen(true)} style={{ width:'100%', padding:'8px 10px', borderRadius:8, border:'1px solid var(--td-border)', background:'var(--td-subtle)', color:'var(--td-muted)', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>
                 Configure property folders
               </button>
             </div>
@@ -3923,24 +3933,24 @@ export default function App({ vaultAdapter, onOpenSettings }) {
         ) : view === 'people' ? (
           <>
             <div style={{ padding:'8px 10px 4px', display:'flex', gap:6, alignItems:'center' }}>
-              <button onClick={()=>setNewPersonOpen(true)} style={{ flex:1, padding:'8px 10px', borderRadius:9, border:'none', cursor:'pointer', fontWeight:700, fontSize:12, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff', boxShadow:BRAND_SHADOW }}>
+              <button className="td-primary" onClick={()=>setNewPersonOpen(true)} style={{ flex:1, padding:'8px 10px', borderRadius:9, border:'none', cursor:'pointer', fontWeight:700, fontSize:12, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff', boxShadow:BRAND_SHADOW }}>
                 + New Person
               </button>
             </div>
-            <div style={{ padding:'10px', borderBottom:'1px solid rgba(255,255,255,0.60)' }}>
+            <div style={{ padding:'10px', borderBottom:'1px solid var(--td-border)' }}>
               <input value={peopleSearch} onChange={e=>setPeopleSearch(e.target.value)} placeholder="Search people..." style={{ ...inputBase, padding:'8px 10px', fontSize:12 }}/>
             </div>
             <div style={{ flex:1, overflowY:'auto', padding:'6px 8px' }}>
               {!dirs.people && <EmptyState title="People are not connected" detail="Choose a People folder for waiting-for links and meetings." actionLabel="Configure folders" onAction={()=>setFolderSetupOpen(true)}/>}
               {filteredPeople.map(p => (
-                <div className="td-library-row" aria-selected={personSel===p.id} key={p.id} role="button" tabIndex={0} onClick={()=>setPersonSel(p.id)} onKeyDown={event=>{ if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setPersonSel(p.id); }}} style={{ padding:'10px', marginBottom:4, borderRadius:10, cursor:'pointer', background:personSel===p.id?BRAND_SURFACE:'rgba(255,255,255,0.50)', border:`1px solid ${personSel===p.id?BRAND_BORDER:'rgba(255,255,255,0.55)'}` }}>
-                  <div style={{ fontSize:12, fontWeight:700, lineHeight:1.35, color:'#222a25' }}>{p.title}</div>
-                  <div style={{ fontSize:10, color:'#5a615b', marginTop:3 }}>{p.company || p.role || p.filename}</div>
+                <div className="td-library-row" aria-selected={personSel===p.id} key={p.id} role="button" tabIndex={0} onClick={()=>setPersonSel(p.id)} onKeyDown={event=>{ if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setPersonSel(p.id); }}} style={{ padding:'10px', marginBottom:4, borderRadius:10, cursor:'pointer', background:personSel===p.id?BRAND_SURFACE:'var(--td-subtle)', border:`1px solid ${personSel===p.id?BRAND_BORDER:'var(--td-subtle)'}` }}>
+                  <div style={{ fontSize:12, fontWeight:700, lineHeight:1.35, color:'var(--td-text)' }}>{p.title}</div>
+                  <div style={{ fontSize:10, color:'var(--td-muted)', marginTop:3 }}>{p.company || p.role || p.filename}</div>
                 </div>
               ))}
             </div>
-            <div style={{ padding:'8px 10px', borderTop:'1px solid rgba(255,255,255,0.55)' }}>
-              <button onClick={()=>setFolderSetupOpen(true)} style={{ width:'100%', padding:'7px 10px', borderRadius:8, border:'1px solid rgba(255,255,255,0.60)', background:'rgba(255,255,255,0.50)', color:'#5a615b', fontSize:11, cursor:'pointer', fontFamily:'inherit' }}>
+            <div style={{ padding:'8px 10px', borderTop:'1px solid var(--td-border)' }}>
+              <button onClick={()=>setFolderSetupOpen(true)} style={{ width:'100%', padding:'7px 10px', borderRadius:8, border:'1px solid var(--td-border)', background:'var(--td-subtle)', color:'var(--td-muted)', fontSize:11, cursor:'pointer', fontFamily:'inherit' }}>
                 Configure people folder
               </button>
             </div>
@@ -3948,72 +3958,72 @@ export default function App({ vaultAdapter, onOpenSettings }) {
         ) : view === 'organizations' ? (
           <>
             <div style={{ padding:'8px 10px 4px', display:'flex', gap:6, alignItems:'center' }}>
-              <button onClick={()=>setNewOrgOpen(true)} style={{ flex:1, padding:'8px 10px', borderRadius:9, border:'none', cursor:'pointer', fontWeight:700, fontSize:12, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff', boxShadow:BRAND_SHADOW }}>
+              <button className="td-primary" onClick={()=>setNewOrgOpen(true)} style={{ flex:1, padding:'8px 10px', borderRadius:9, border:'none', cursor:'pointer', fontWeight:700, fontSize:12, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff', boxShadow:BRAND_SHADOW }}>
                 + New Organization
               </button>
             </div>
-            <div style={{ padding:'10px', borderBottom:'1px solid rgba(255,255,255,0.60)' }}>
+            <div style={{ padding:'10px', borderBottom:'1px solid var(--td-border)' }}>
               <input value={orgSearch} onChange={e=>setOrgSearch(e.target.value)} placeholder="Search organizations..." style={{ ...inputBase, padding:'8px 10px', fontSize:12 }}/>
             </div>
             <div style={{ flex:1, overflowY:'auto', padding:'6px 8px' }}>
               {!dirs.organizations && <EmptyState title="Organizations are not connected" detail="Choose an Organizations folder to browse company notes." actionLabel="Configure folders" onAction={()=>setFolderSetupOpen(true)}/>}
               {filteredOrgs.map(o => (
-                <div className="td-library-row" aria-selected={orgSel===o.id} key={o.id} role="button" tabIndex={0} onClick={()=>setOrgSel(o.id)} onKeyDown={event=>{ if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setOrgSel(o.id); }}} style={{ padding:'10px', marginBottom:4, borderRadius:10, cursor:'pointer', background:orgSel===o.id?BRAND_SURFACE:'rgba(255,255,255,0.50)', border:`1px solid ${orgSel===o.id?BRAND_BORDER:'rgba(255,255,255,0.55)'}` }}>
-                  <div style={{ fontSize:12, fontWeight:700, lineHeight:1.35, color:'#222a25' }}>{o.title}</div>
-                  <div style={{ fontSize:10, color:'#5a615b', marginTop:3 }}>{o.industry || o.website || o.filename}</div>
+                <div className="td-library-row" aria-selected={orgSel===o.id} key={o.id} role="button" tabIndex={0} onClick={()=>setOrgSel(o.id)} onKeyDown={event=>{ if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setOrgSel(o.id); }}} style={{ padding:'10px', marginBottom:4, borderRadius:10, cursor:'pointer', background:orgSel===o.id?BRAND_SURFACE:'var(--td-subtle)', border:`1px solid ${orgSel===o.id?BRAND_BORDER:'var(--td-subtle)'}` }}>
+                  <div style={{ fontSize:12, fontWeight:700, lineHeight:1.35, color:'var(--td-text)' }}>{o.title}</div>
+                  <div style={{ fontSize:10, color:'var(--td-muted)', marginTop:3 }}>{o.industry || o.website || o.filename}</div>
                 </div>
               ))}
             </div>
-            <div style={{ padding:'8px 10px', borderTop:'1px solid rgba(255,255,255,0.55)' }}>
-              <button onClick={()=>setFolderSetupOpen(true)} style={{ width:'100%', padding:'7px 10px', borderRadius:8, border:'1px solid rgba(255,255,255,0.60)', background:'rgba(255,255,255,0.50)', color:'#5a615b', fontSize:11, cursor:'pointer', fontFamily:'inherit' }}>
+            <div style={{ padding:'8px 10px', borderTop:'1px solid var(--td-border)' }}>
+              <button onClick={()=>setFolderSetupOpen(true)} style={{ width:'100%', padding:'7px 10px', borderRadius:8, border:'1px solid var(--td-border)', background:'var(--td-subtle)', color:'var(--td-muted)', fontSize:11, cursor:'pointer', fontFamily:'inherit' }}>
                 Configure organizations folder
               </button>
             </div>
           </>
         ) : view === 'hours' ? (
           <div style={{ flex:1, overflowY:'auto', padding:'14px 12px' }}>
-            <div style={{ fontSize:9, color:'#5a615b', fontWeight:800, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:9 }}>Time clock</div>
+            <div style={{ fontSize:9, color:'var(--td-muted)', fontWeight:800, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:9 }}>Time clock</div>
             {[
               { label:'Today', value:formatHoursMinutes(todayWorkStats.totalMinutes), detail:todayWorkStats.label },
               { label:'This week', value:formatHoursMinutes(selectedWeekTotal), detail:`${selectedWeekDates.length} working days in view` },
               { label:workDate === tod() ? 'Selected day' : workDate, value:formatHoursMinutes(selectedWorkStats.totalMinutes), detail:selectedWorkStats.creditedDay ? 'credited day' : selectedWorkStats.complete ? 'clock complete' : 'needs times' },
             ].map(card => (
-              <div key={card.label} style={{ padding:'12px', borderRadius:14, background:'rgba(255,255,255,0.50)', border:'1px solid rgba(255,255,255,0.60)', marginBottom:9 }}>
+              <div key={card.label} style={{ padding:'12px', borderRadius:14, background:'var(--td-subtle)', border:'1px solid var(--td-border)', marginBottom:9 }}>
                 <div style={{ fontSize:9, color:BRAND_LABEL, fontWeight:800, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:6 }}>{card.label}</div>
-                <div style={{ fontSize:24, fontWeight:850, color:'#13733f', fontVariantNumeric:'tabular-nums' }}>{card.value}</div>
-                <div style={{ fontSize:11, color:'#5a615b', marginTop:4 }}>{card.detail}</div>
+                <div style={{ fontSize:24, fontWeight:850, color:'var(--td-accent-text)', fontVariantNumeric:'tabular-nums' }}>{card.value}</div>
+                <div style={{ fontSize:11, color:'var(--td-muted)', marginTop:4 }}>{card.detail}</div>
               </div>
             ))}
-            <div style={{ padding:'12px', borderRadius:14, background:'rgba(255,255,255,0.50)', border:'1px solid rgba(255,255,255,0.60)', color:'#5a615b', fontSize:12, lineHeight:1.55 }}>
+            <div style={{ padding:'12px', borderRadius:14, background:'var(--td-subtle)', border:'1px solid var(--td-border)', color:'var(--td-muted)', fontSize:12, lineHeight:1.55 }}>
               Use this tab to punch in/out for today, correct past entries, and review the month from the calendar.
             </div>
           </div>
         ) : view === 'time' ? (
           <div style={{ flex:1, overflowY:'auto', padding:'14px 12px' }}>
-            <div style={{ fontSize:9, color:'#5a615b', fontWeight:800, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:9 }}>Time dashboard</div>
+            <div style={{ fontSize:9, color:'var(--td-muted)', fontWeight:800, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:9 }}>Time dashboard</div>
             {[
               { label:'Today', value:formatHoursMinutes(todayWorkStats.totalMinutes), detail:todayWorkStats.totalMinutes ? 'clocked so far' : 'no time logged yet' },
               { label:'This week', value:formatHoursMinutes(trailingWeekStats.summary.totalMinutes), detail:`last 7 days · ${trailingWeekStats.summary.totalDays} counted days` },
               { label:'Goal-hit days', value:`${trailingWeekStats.summary.goalMet}/${Math.max(trailingWeekStats.summary.totalDays, 1)}`, detail:'within the target band' },
             ].map(card => (
-              <div key={card.label} style={{ padding:'12px', borderRadius:14, background:'rgba(255,255,255,0.50)', border:'1px solid rgba(255,255,255,0.60)', marginBottom:9 }}>
+              <div key={card.label} style={{ padding:'12px', borderRadius:14, background:'var(--td-subtle)', border:'1px solid var(--td-border)', marginBottom:9 }}>
                 <div style={{ fontSize:9, color:BRAND_LABEL, fontWeight:800, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:6 }}>{card.label}</div>
-                <div style={{ fontSize:24, fontWeight:850, color:'#13733f', fontVariantNumeric:'tabular-nums' }}>{card.value}</div>
-                <div style={{ fontSize:11, color:'#5a615b', marginTop:4 }}>{card.detail}</div>
+                <div style={{ fontSize:24, fontWeight:850, color:'var(--td-accent-text)', fontVariantNumeric:'tabular-nums' }}>{card.value}</div>
+                <div style={{ fontSize:11, color:'var(--td-muted)', marginTop:4 }}>{card.detail}</div>
               </div>
             ))}
-            <div style={{ padding:'12px', borderRadius:14, background:'rgba(255,255,255,0.50)', border:'1px solid rgba(255,255,255,0.60)' }}>
+            <div style={{ padding:'12px', borderRadius:14, background:'var(--td-subtle)', border:'1px solid var(--td-border)' }}>
               <div style={{ fontSize:9, color:BRAND_LABEL, fontWeight:800, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:8 }}>Weekday averages</div>
               <div style={{ display:'grid', gap:5 }}>
                 {historicalTimeStats.weekdays.map(day => {
                   const tone = workBandTone(day.averageMinutes);
                   return (
                     <div key={day.label} style={{ display:'grid', gridTemplateColumns:'28px 1fr 34px', alignItems:'center', gap:7, fontSize:10 }}>
-                      <span style={{ color:'rgba(90,97,91,0.70)', fontWeight:800 }}>{day.label}</span>
-                      <div style={{ height:5, borderRadius:999, background:'rgba(255,255,255,0.58)', overflow:'hidden' }}>
+                      <span style={{ color:'var(--td-muted)', fontWeight:800 }}>{day.label}</span>
+                      <div style={{ height:5, borderRadius:999, background:'var(--td-subtle)', overflow:'hidden' }}>
                         <div style={{ width:`${Math.min(100, (day.averageMinutes / WORK_CHART_MAX_MINUTES) * 100)}%`, height:'100%', borderRadius:999, background:day.averageMinutes ? tone.fill : 'transparent' }} />
                       </div>
-                      <span style={{ color:day.averageMinutes ? tone.text : 'rgba(90,97,91,0.40)', fontWeight:850, textAlign:'right', fontVariantNumeric:'tabular-nums' }}>{day.averageMinutes ? formatHoursMinutes(day.averageMinutes).replace('h ', ':').replace('m', '') : '-'}</span>
+                      <span style={{ color:day.averageMinutes ? tone.text : 'var(--td-muted)', fontWeight:850, textAlign:'right', fontVariantNumeric:'tabular-nums' }}>{day.averageMinutes ? formatHoursMinutes(day.averageMinutes).replace('h ', ':').replace('m', '') : '-'}</span>
                     </div>
                   );
                 })}
@@ -4022,21 +4032,21 @@ export default function App({ vaultAdapter, onOpenSettings }) {
           </div>
         ) : (
           <div style={{ flex:1, overflowY:'auto', padding:'10px' }}>
-            <div style={{ fontSize:9, color:'#5a615b', fontWeight:700, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:8 }}>Mission queues</div>
+            <div style={{ fontSize:9, color:'var(--td-muted)', fontWeight:700, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:8 }}>Mission queues</div>
             {[
-              ['Overdue', missionOverdue, '#c2533f'],
-              ['Today', missionToday, '#a9791f'],
+              ['Overdue', missionOverdue, 'var(--td-danger)'],
+              ['Today', missionToday, 'var(--td-warning)'],
               ['Recurrent', missionRecurrent, '#5b57b0'],
             ].map(([label, list, color]) => (
               <div key={label} style={{ marginBottom:12 }}>
                 <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:5 }}>
                   <span style={{ fontSize:11, color, fontWeight:800 }}>{label}</span>
-                  <span style={{ fontSize:10, color:'#5a615b', fontWeight:700 }}>{list.length}</span>
+                  <span style={{ fontSize:10, color:'var(--td-muted)', fontWeight:700 }}>{list.length}</span>
                 </div>
                 {list.slice(0, 4).map(t => (
-                  <div key={t.id} role="button" tabIndex={0} onClick={()=>requestNavigation({ view:'tasks', taskId:t.id })} onKeyDown={event=>{ if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); requestNavigation({ view:'tasks', taskId:t.id }); }}} style={{ padding:'8px 9px', marginBottom:4, borderRadius:9, cursor:'pointer', background:'rgba(255,255,255,0.50)', border:'1px solid rgba(255,255,255,0.55)' }}>
+                  <div key={t.id} role="button" tabIndex={0} onClick={()=>requestNavigation({ view:'tasks', taskId:t.id })} onKeyDown={event=>{ if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); requestNavigation({ view:'tasks', taskId:t.id }); }}} style={{ padding:'8px 9px', marginBottom:4, borderRadius:9, cursor:'pointer', background:'var(--td-subtle)', border:'1px solid var(--td-border)' }}>
                     <div style={{ fontSize:12, fontWeight:650, lineHeight:1.3 }}>{t.title}</div>
-                    <div style={{ fontSize:10, color:'#5a615b', marginTop:3 }}>{t.dateCreated ? `created ${t.dateCreated.slice(0,10)}` : 'created date unknown'}</div>
+                    <div style={{ fontSize:10, color:'var(--td-muted)', marginTop:3 }}>{t.dateCreated ? `created ${t.dateCreated.slice(0,10)}` : 'created date unknown'}</div>
                   </div>
                 ))}
               </div>
@@ -4045,8 +4055,8 @@ export default function App({ vaultAdapter, onOpenSettings }) {
         )}
 
         {(view === 'tasks' || view === 'review' || view === 'waiting' || view === 'calendar' || view === 'bd' || view === 'mission' || view === 'hours' || view === 'time' || view === 'meetings' || view === 'people' || view === 'health') && (
-          <div style={{ padding:'6px 10px 9px', borderTop:'1px solid rgba(255,255,255,0.55)' }}>
-            <button onClick={()=>setFolderSetupOpen(true)} style={{ width:'100%', padding:'5px 10px', background:'transparent', border:'none', color:'#5a615b', fontSize:10, cursor:'pointer', fontFamily:'inherit', textAlign:'center' }}>
+          <div style={{ padding:'6px 10px 9px', borderTop:'1px solid var(--td-border)' }}>
+            <button onClick={()=>setFolderSetupOpen(true)} style={{ width:'100%', padding:'5px 10px', background:'transparent', border:'none', color:'var(--td-muted)', fontSize:10, cursor:'pointer', fontFamily:'inherit', textAlign:'center' }}>
               ⚙  Configure folders
             </button>
           </div>
@@ -4248,24 +4258,24 @@ export default function App({ vaultAdapter, onOpenSettings }) {
         />
 
       ) : !task ? (
-        <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', color:'#5a615b', fontSize:13 }}>← Select a task</div>
+        <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', color:'var(--td-muted)', fontSize:13 }}>← Select a task</div>
 
       ) : (
         <div className="td-task-detail" style={{ flex:1, display:'flex', flexDirection:'column', overflow:'hidden' }}>
-          <div className="td-task-detail-header" style={{ padding:'22px 30px 18px', borderBottom:'1px solid rgba(255,255,255,0.60)', flexShrink:0 }}>
+          <div className="td-task-detail-header td-view-header" style={{ padding:'22px 30px 18px', borderBottom:'1px solid var(--td-border)', flexShrink:0 }}>
             <div style={{ display:'flex', flexWrap:'wrap', justifyContent:'space-between', alignItems:'flex-start', gap:24 }}>
               <div style={{ flex:'1 1 420px', minWidth:0 }}>
                 <div style={{ display:'flex', gap:7, alignItems:'center', marginBottom:9, flexWrap:'wrap' }}>
-                  {isNarrow && <button onClick={()=>setMobileListOpen(true)} style={{ padding:'5px 9px', borderRadius:8, border:'1px solid rgba(255,255,255,0.62)', background:'rgba(255,255,255,0.55)', color:BRAND_TEXT, cursor:'pointer', fontSize:10, fontWeight:800, fontFamily:'inherit' }}>Task list</button>}
+                  {isNarrow && <button onClick={()=>setMobileListOpen(true)} style={{ padding:'5px 9px', borderRadius:8, border:'1px solid var(--td-border)', background:'var(--td-subtle)', color:BRAND_TEXT, cursor:'pointer', fontSize:10, fontWeight:800, fontFamily:'inherit' }}>Task list</button>}
                   <PBadge p={task.priority}/><SBadge s={task.status}/>
                   {task.due && <span style={{ fontSize:12, color:dueColor(task.due) }}>{isToday(task.due)?'Due Today':isOver(task.due)?`Overdue · ${task.due}`:task.due}</span>}
-                  {task.client && <span style={{ fontSize:12, color:'#5a615b' }}>· Client: {task.client}</span>}
-                  {task.building && <span style={{ fontSize:12, color:'#5a615b' }}>· Building: {task.building}</span>}
-                  {task.projects?.[0] && <span style={{ fontSize:12, color:'#5a615b' }}>· Project: {task.projects[0]}</span>}
-                  {task.waitingfor && <span style={{ fontSize:12, color:'#5a615b' }}>· Waiting for: {task.waitingfor}</span>}
-                  {task.contexts?.length > 0 && <span style={{ fontSize:12, color:'#5a615b' }}>· {task.contexts.slice(0,2).join(' · ')}</span>}
+                  {task.client && <span style={{ fontSize:12, color:'var(--td-muted)' }}>· Client: {task.client}</span>}
+                  {task.building && <span style={{ fontSize:12, color:'var(--td-muted)' }}>· Building: {task.building}</span>}
+                  {task.projects?.[0] && <span style={{ fontSize:12, color:'var(--td-muted)' }}>· Project: {task.projects[0]}</span>}
+                  {task.waitingfor && <span style={{ fontSize:12, color:'var(--td-muted)' }}>· Waiting for: {task.waitingfor}</span>}
+                  {task.contexts?.length > 0 && <span style={{ fontSize:12, color:'var(--td-muted)' }}>· {task.contexts.slice(0,2).join(' · ')}</span>}
                 </div>
-                <h2 style={{ margin:0, fontSize:19, fontWeight:700, lineHeight:1.35, color:'#1d2421' }}>{task.title}</h2>
+                <h2 style={{ margin:0, fontSize:19, fontWeight:700, lineHeight:1.35, color:'var(--td-text)' }}>{task.title}</h2>
                 <div className="td-task-subject" style={{ marginTop:9, display:'flex', alignItems:'end', gap:8, width:'min(100%, 620px)' }}>
                   <label style={{ flex:1, minWidth:0, display:'flex', flexDirection:'column', gap:4 }}>
                     <span style={{ fontSize:9, color:BRAND_LABEL, fontWeight:800, letterSpacing:'0.08em', textTransform:'uppercase' }}>Thread subject</span>
@@ -4279,7 +4289,7 @@ export default function App({ vaultAdapter, onOpenSettings }) {
                     />
                   </label>
                   {threadSubjectDraft.trim() !== (task.threadSubject || '') && (
-                    <button onMouseDown={e=>e.preventDefault()} onClick={()=>saveThreadSubject(task.id)}
+                    <button className="td-primary" onMouseDown={e=>e.preventDefault()} onClick={()=>saveThreadSubject(task.id)}
                       style={{ padding:'8px 12px', borderRadius:9, border:'none', cursor:'pointer', fontWeight:800, fontSize:12, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff', boxShadow:BRAND_SHADOW }}>
                       Save
                     </button>
@@ -4290,45 +4300,45 @@ export default function App({ vaultAdapter, onOpenSettings }) {
                 </div>
                 <div className="td-task-dates" style={{ display:'flex', gap:10, alignItems:'end', flexWrap:'wrap', marginTop:15, maxWidth:760 }}>
                   <label style={{ display:'flex', flexDirection:'column', gap:5, minWidth:182 }}>
-                    <span style={{ fontSize:9, color:'#5a615b', fontWeight:800, letterSpacing:'0.08em', textTransform:'uppercase' }}>Due</span>
+                    <span style={{ fontSize:9, color:'var(--td-muted)', fontWeight:800, letterSpacing:'0.08em', textTransform:'uppercase' }}>Due</span>
                     <input type="date" value={task.due || ''} onChange={e=>changeTaskDates(task.id, { due:e.target.value })} style={{ ...inputBase, minHeight:38, padding:'9px 34px 9px 28px', fontSize:13 }}/>
                   </label>
-                  <button onClick={()=>setTaskDatesToToday(task.id)} title="Set active task date fields to today" style={{ minHeight:38, padding:'9px 14px', borderRadius:9, border:'none', cursor:'pointer', fontWeight:800, fontSize:12, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff', boxShadow:BRAND_SHADOW }}>
+                  <button className="td-primary" onClick={()=>setTaskDatesToToday(task.id)} title="Set active task date fields to today" style={{ minHeight:38, padding:'9px 14px', borderRadius:9, border:'none', cursor:'pointer', fontWeight:800, fontSize:12, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff', boxShadow:BRAND_SHADOW }}>
                     Today
                   </button>
-                  <button onClick={()=>setTaskDatesToTomorrow(task.id)} title="Set active task date fields to tomorrow" style={{ minHeight:38, padding:'9px 14px', borderRadius:9, border:'none', cursor:'pointer', fontWeight:800, fontSize:12, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff', boxShadow:BRAND_SHADOW }}>
+                  <button className="td-primary" onClick={()=>setTaskDatesToTomorrow(task.id)} title="Set active task date fields to tomorrow" style={{ minHeight:38, padding:'9px 14px', borderRadius:9, border:'none', cursor:'pointer', fontWeight:800, fontSize:12, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff', boxShadow:BRAND_SHADOW }}>
                     Tomorrow
                   </button>
-                  <button onClick={()=>postponeTaskByWeek(task.id)} title="Move due date forward by 7 days" style={{ minHeight:38, padding:'9px 14px', borderRadius:9, border:'none', cursor:'pointer', fontWeight:800, fontSize:12, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff', boxShadow:BRAND_SHADOW }}>
+                  <button className="td-primary" onClick={()=>postponeTaskByWeek(task.id)} title="Move due date forward by 7 days" style={{ minHeight:38, padding:'9px 14px', borderRadius:9, border:'none', cursor:'pointer', fontWeight:800, fontSize:12, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff', boxShadow:BRAND_SHADOW }}>
                     Postpone 1w
                   </button>
-                  <button onClick={()=>postponeTaskByMonth(task.id)} title="Move due date forward by 1 calendar month" style={{ minHeight:38, padding:'9px 14px', borderRadius:9, border:'none', cursor:'pointer', fontWeight:800, fontSize:12, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff', boxShadow:BRAND_SHADOW }}>
+                  <button className="td-primary" onClick={()=>postponeTaskByMonth(task.id)} title="Move due date forward by 1 calendar month" style={{ minHeight:38, padding:'9px 14px', borderRadius:9, border:'none', cursor:'pointer', fontWeight:800, fontSize:12, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff', boxShadow:BRAND_SHADOW }}>
                     1 month
                   </button>
                 </div>
               </div>
               <div className="td-task-timer" style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:10, flexShrink:0, maxWidth:'100%' }}>
-                <div style={{ fontSize:31, fontWeight:800, letterSpacing:0, fontVariantNumeric:'tabular-nums', color:live?'#13733f':'#222a25', textShadow:live?'0 0 28px rgba(20,120,72,0.55)':'none', transition:'color 0.3s,text-shadow 0.3s' }}>{fmt(selTime)}</div>
+                <div style={{ fontSize:31, fontWeight:800, letterSpacing:0, fontVariantNumeric:'tabular-nums', color:live?'var(--td-accent-text)':'var(--td-text)', textShadow:live?'0 0 28px rgba(20,120,72,0.55)':'none', transition:'color 0.3s,text-shadow 0.3s' }}>{fmt(selTime)}</div>
                 <div style={{ display:'flex', flexWrap:'wrap', gap:7 }}>
                   <button type="button" className="td-task-properties-trigger" onClick={openTaskProperties}>
                     Properties
                   </button>
-                  <button className={live ? 'td-task-stop' : 'td-task-start'} onClick={live?stop:()=>start(task.id)} style={{ padding:'9px 22px', borderRadius:10, border:'none', cursor:'pointer', fontWeight:700, fontSize:13, fontFamily:'inherit', background:live?'rgba(225,91,79,0.1)':BRAND_GRADIENT, color:live?'#c2533f':'#fff', boxShadow:live?'inset 0 0 0 1px rgba(225,91,79,0.3)':BRAND_SHADOW, transition:'all 0.2s' }}>{live?'Stop':'Start'}</button>
+                  <button className={live ? 'td-task-stop' : 'td-task-start'} onClick={live?stop:()=>start(task.id)} style={{ padding:'9px 22px', borderRadius:10, border:'none', cursor:'pointer', fontWeight:700, fontSize:13, fontFamily:'inherit', background:live?'rgba(225,91,79,0.1)':BRAND_GRADIENT, color:live?'var(--td-danger)':'#fff', boxShadow:live?'inset 0 0 0 1px rgba(225,91,79,0.3)':BRAND_SHADOW, transition:'all 0.2s' }}>{live?'Stop':'Start'}</button>
                   {!task.archived && (
                     task.recurrent ? (
                       <>
                         <button onClick={()=>finishRecurrentInstance(task.id)} title="Complete this recurrence only and move to the next run"
-                          style={{ padding:'9px 14px', borderRadius:10, border:'1px solid rgba(20,120,72,0.3)', cursor:'pointer', fontWeight:700, fontSize:13, fontFamily:'inherit', background:'rgba(20,120,72,0.08)', color:'#13733f' }}>
+                          style={{ padding:'9px 14px', borderRadius:10, border:'1px solid rgba(20,120,72,0.3)', cursor:'pointer', fontWeight:700, fontSize:13, fontFamily:'inherit', background:'rgba(20,120,72,0.08)', color:'var(--td-accent-text)' }}>
                           Finish instance
                         </button>
                         <button onClick={()=>closeTask(task.id)} title="Archive the whole recurring series"
-                          style={{ padding:'9px 12px', borderRadius:10, border:'1px solid rgba(225,91,79,0.26)', cursor:'pointer', fontWeight:700, fontSize:12, fontFamily:'inherit', background:'rgba(225,91,79,0.08)', color:'#c2533f' }}>
+                          style={{ padding:'9px 12px', borderRadius:10, border:'1px solid rgba(225,91,79,0.26)', cursor:'pointer', fontWeight:700, fontSize:12, fontFamily:'inherit', background:'rgba(225,91,79,0.08)', color:'var(--td-danger)' }}>
                           Archive series
                         </button>
                       </>
                     ) : (
                     <button onClick={()=>closeTask(task.id)} title="Mark done & archived"
-                      style={{ padding:'9px 14px', borderRadius:10, border:'1px solid rgba(20,120,72,0.3)', cursor:'pointer', fontWeight:700, fontSize:13, fontFamily:'inherit', background:'rgba(20,120,72,0.08)', color:'#13733f' }}>
+                      style={{ padding:'9px 14px', borderRadius:10, border:'1px solid rgba(20,120,72,0.3)', cursor:'pointer', fontWeight:700, fontSize:13, fontFamily:'inherit', background:'rgba(20,120,72,0.08)', color:'var(--td-accent-text)' }}>
                       {task.status==='done' ? '✓  Archive' : '✓  Close'}
                     </button>
                     )
@@ -4342,7 +4352,7 @@ export default function App({ vaultAdapter, onOpenSettings }) {
             <main className="td-task-document" style={{ minWidth:0, overflowY:'auto', padding:'24px 32px' }}>
               <section className="td-task-description">
                 <div style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline', gap:12, marginBottom:14 }}>
-                  <h3 style={{ margin:0, fontSize:14, color:'#1d2421' }}>Task description</h3>
+                  <h3 style={{ margin:0, fontSize:14, color:'var(--td-text)' }}>Task description</h3>
                   <button type="button" className="td-task-properties-trigger" title={task.filename} onClick={()=>openTaskNote(task.id)} disabled={!vaultAdapter.openFile}>Open Markdown note</button>
                 </div>
                 <MarkdownBody emptyText="No task description body yet.">{taskDescriptionText(task.raw)}</MarkdownBody>
@@ -4350,18 +4360,18 @@ export default function App({ vaultAdapter, onOpenSettings }) {
 
               <section className="td-task-activity">
                 <div style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline', gap:12, marginBottom:12 }}>
-                  <h3 style={{ margin:0, fontSize:14, color:'#1d2421' }}>Activity</h3>
-                  <span style={{ fontSize:10, color:'#5a615b', fontWeight:800 }}>{task.logs.length} note{task.logs.length === 1 ? '' : 's'}</span>
+                  <h3 style={{ margin:0, fontSize:14, color:'var(--td-text)' }}>Activity</h3>
+                  <span style={{ fontSize:10, color:'var(--td-muted)', fontWeight:800 }}>{task.logs.length} note{task.logs.length === 1 ? '' : 's'}</span>
                 </div>
                 <div className="td-task-note-composer" style={{ display:'flex', gap:8, marginBottom:18, alignItems:'stretch' }}>
                   <MentionTextarea value={note} onChange={e=>setNote(e.target.value)} onKeyDown={e=>{ if(e.key==='Enter'&&!e.shiftKey){ e.preventDefault(); addNote(); }}}
                     placeholder="Add a note... @ to link a person/project, Enter to save, Shift+Enter for a new line"
                     rows={3}
                     style={{ flex:1, minHeight:76, fieldSizing:'content', padding:'10px 14px', borderRadius:6, resize:'vertical', background:'var(--background-primary)', border:'1px solid var(--background-modifier-border)', color:'var(--text-normal)', fontSize:13, lineHeight:1.5, outline:'none', fontFamily:'inherit' }}/>
-                  <button onClick={addNote} disabled={!note.trim()} style={{ padding:'10px 20px', borderRadius:6, border:'none', cursor:'pointer', fontWeight:600, fontSize:13, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff', opacity:note.trim()?1:0.35 }}>Add</button>
+                  <button className="td-primary" onClick={addNote} disabled={!note.trim()} style={{ padding:'10px 20px', borderRadius:6, border:'none', cursor:'pointer', fontWeight:600, fontSize:13, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff', opacity:note.trim()?1:0.35 }}>Add</button>
                 </div>
                 {!task.logs.length && (
-                  <div className="td-task-empty-log" style={{ color:'#5a615b', padding:'24px 0', fontSize:13 }}>
+                  <div className="td-task-empty-log" style={{ color:'var(--td-muted)', padding:'24px 0', fontSize:13 }}>
                     Notes added here write directly to this Markdown task.
                   </div>
                 )}
@@ -4398,8 +4408,8 @@ function PeoplePanel({ selected, draft, setDraft, onSave, summary, refs, hasPeop
 
   if (!hasPeopleFolder) {
     return (
-      <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', color:'#5a615b', fontSize:13 }}>
-        <button onClick={onConfigure} style={{ padding:'10px 18px', borderRadius:10, border:'none', cursor:'pointer', fontWeight:700, fontSize:13, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff' }}>Configure People folder</button>
+      <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', color:'var(--td-muted)', fontSize:13 }}>
+        <button className="td-primary" onClick={onConfigure} style={{ padding:'10px 18px', borderRadius:10, border:'none', cursor:'pointer', fontWeight:700, fontSize:13, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff' }}>Configure People folder</button>
       </div>
     );
   }
@@ -4407,13 +4417,13 @@ function PeoplePanel({ selected, draft, setDraft, onSave, summary, refs, hasPeop
   if (!selected) {
     return (
       <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', padding:30 }}>
-        <div style={{ width:'min(520px,100%)', borderRadius:18, border:'1px solid rgba(255,255,255,0.60)', background:'rgba(255,255,255,0.55)', padding:24, textAlign:'center' }}>
+        <div style={{ width:'min(520px,100%)', borderRadius:18, border:'1px solid var(--td-border)', background:'var(--td-subtle)', padding:24, textAlign:'center' }}>
           <div style={{ fontSize:10, color:BRAND_LABEL, fontWeight:800, letterSpacing:'0.14em', textTransform:'uppercase', marginBottom:10 }}>People</div>
-          <h2 style={{ margin:'0 0 12px', fontSize:24, color:'#1d2421' }}>Select a person</h2>
-          <div style={{ color:'rgba(90,97,91,0.78)', fontSize:13, lineHeight:1.6, marginBottom:18 }}>
+          <h2 style={{ margin:'0 0 12px', fontSize:24, color:'var(--td-text)' }}>Select a person</h2>
+          <div style={{ color:'var(--td-muted)', fontSize:13, lineHeight:1.6, marginBottom:18 }}>
             Pick someone from the sidebar or create a new person note to start tracking meetings, waiting-for items, and context.
           </div>
-          <button onClick={onNewPerson} style={{ padding:'10px 18px', borderRadius:10, border:'none', cursor:'pointer', fontWeight:800, fontSize:13, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff' }}>+ New Person</button>
+          <button className="td-primary" onClick={onNewPerson} style={{ padding:'10px 18px', borderRadius:10, border:'none', cursor:'pointer', fontWeight:800, fontSize:13, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff' }}>+ New Person</button>
         </div>
       </div>
     );
@@ -4436,10 +4446,10 @@ function PeoplePanel({ selected, draft, setDraft, onSave, summary, refs, hasPeop
       subtitle={metadataLine}
       action={(
         <div style={{ display:'flex', gap:8, alignItems:'center', flexWrap:'wrap', justifyContent:'flex-end' }}>
-          <button onClick={openMetadata} style={{ padding:'9px 14px', borderRadius:999, border:'1px solid rgba(255,255,255,0.62)', background:'rgba(255,255,255,0.55)', color:BRAND_TEXT, cursor:'pointer', fontWeight:800, fontSize:12, fontFamily:'inherit' }}>
+          <button onClick={openMetadata} style={{ padding:'9px 14px', borderRadius:999, border:'1px solid var(--td-border)', background:'var(--td-subtle)', color:BRAND_TEXT, cursor:'pointer', fontWeight:800, fontSize:12, fontFamily:'inherit' }}>
             Edit metadata
           </button>
-          <button onClick={onSave} style={{ padding:'9px 18px', borderRadius:999, border:'none', cursor:'pointer', fontWeight:800, fontSize:12, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff', boxShadow:BRAND_SHADOW }}>
+          <button className="td-primary" onClick={onSave} style={{ padding:'9px 18px', borderRadius:999, border:'none', cursor:'pointer', fontWeight:800, fontSize:12, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff', boxShadow:BRAND_SHADOW }}>
             Save
           </button>
         </div>
@@ -4452,7 +4462,7 @@ function PeoplePanel({ selected, draft, setDraft, onSave, summary, refs, hasPeop
             subtitle={metadataLine}
             chips={detailChips}
             action={(
-              <button onClick={onOpenMeetings} style={{ padding:'8px 14px', borderRadius:999, border:'1px solid rgba(255,255,255,0.62)', background:'rgba(255,255,255,0.55)', color:'#5a615b', fontSize:11, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>
+              <button onClick={onOpenMeetings} style={{ padding:'8px 14px', borderRadius:999, border:'1px solid var(--td-border)', background:'var(--td-subtle)', color:'var(--td-muted)', fontSize:11, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>
                 New meeting...
               </button>
             )}
@@ -4494,8 +4504,8 @@ function OrganizationPanel({ selected, draft, setDraft, onSave, summary, hasOrga
 
   if (!hasOrganizationsFolder) {
     return (
-      <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', color:'#5a615b', fontSize:13 }}>
-        <button onClick={onConfigure} style={{ padding:'10px 18px', borderRadius:10, border:'none', cursor:'pointer', fontWeight:700, fontSize:13, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff' }}>Configure Organizations folder</button>
+      <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', color:'var(--td-muted)', fontSize:13 }}>
+        <button className="td-primary" onClick={onConfigure} style={{ padding:'10px 18px', borderRadius:10, border:'none', cursor:'pointer', fontWeight:700, fontSize:13, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff' }}>Configure Organizations folder</button>
       </div>
     );
   }
@@ -4503,13 +4513,13 @@ function OrganizationPanel({ selected, draft, setDraft, onSave, summary, hasOrga
   if (!selected) {
     return (
       <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', padding:30 }}>
-        <div style={{ width:'min(520px,100%)', borderRadius:18, border:'1px solid rgba(255,255,255,0.60)', background:'rgba(255,255,255,0.55)', padding:24, textAlign:'center' }}>
+        <div style={{ width:'min(520px,100%)', borderRadius:18, border:'1px solid var(--td-border)', background:'var(--td-subtle)', padding:24, textAlign:'center' }}>
           <div style={{ fontSize:10, color:BRAND_LABEL, fontWeight:800, letterSpacing:'0.14em', textTransform:'uppercase', marginBottom:10 }}>Organizations</div>
-          <h2 style={{ margin:'0 0 12px', fontSize:24, color:'#1d2421' }}>Select an organization</h2>
-          <div style={{ color:'rgba(90,97,91,0.78)', fontSize:13, lineHeight:1.6, marginBottom:18 }}>
+          <h2 style={{ margin:'0 0 12px', fontSize:24, color:'var(--td-text)' }}>Select an organization</h2>
+          <div style={{ color:'var(--td-muted)', fontSize:13, lineHeight:1.6, marginBottom:18 }}>
             Pick an organization from the sidebar or create a new note to start tracking relationships and context.
           </div>
-          <button onClick={onNewOrganization} style={{ padding:'10px 18px', borderRadius:10, border:'none', cursor:'pointer', fontWeight:800, fontSize:13, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff' }}>+ New Organization</button>
+          <button className="td-primary" onClick={onNewOrganization} style={{ padding:'10px 18px', borderRadius:10, border:'none', cursor:'pointer', fontWeight:800, fontSize:13, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff' }}>+ New Organization</button>
         </div>
       </div>
     );
@@ -4532,10 +4542,10 @@ function OrganizationPanel({ selected, draft, setDraft, onSave, summary, hasOrga
       subtitle={metadataLine}
       action={(
         <div style={{ display:'flex', gap:8, alignItems:'center', flexWrap:'wrap', justifyContent:'flex-end' }}>
-          <button onClick={openMetadata} style={{ padding:'9px 14px', borderRadius:999, border:'1px solid rgba(255,255,255,0.62)', background:'rgba(255,255,255,0.55)', color:BRAND_TEXT, cursor:'pointer', fontWeight:800, fontSize:12, fontFamily:'inherit' }}>
+          <button onClick={openMetadata} style={{ padding:'9px 14px', borderRadius:999, border:'1px solid var(--td-border)', background:'var(--td-subtle)', color:BRAND_TEXT, cursor:'pointer', fontWeight:800, fontSize:12, fontFamily:'inherit' }}>
             Edit metadata
           </button>
-          <button onClick={onSave} style={{ padding:'9px 18px', borderRadius:999, border:'none', cursor:'pointer', fontWeight:800, fontSize:12, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff', boxShadow:BRAND_SHADOW }}>
+          <button className="td-primary" onClick={onSave} style={{ padding:'9px 18px', borderRadius:999, border:'none', cursor:'pointer', fontWeight:800, fontSize:12, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff', boxShadow:BRAND_SHADOW }}>
             Save
           </button>
         </div>
@@ -4549,7 +4559,7 @@ function OrganizationPanel({ selected, draft, setDraft, onSave, summary, hasOrga
             subtitle={metadataLine}
             chips={detailChips}
             action={(
-              <button onClick={onNewOrganization} style={{ padding:'8px 14px', borderRadius:999, border:'1px solid rgba(255,255,255,0.62)', background:'rgba(255,255,255,0.55)', color:'#5a615b', fontSize:11, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>
+              <button onClick={onNewOrganization} style={{ padding:'8px 14px', borderRadius:999, border:'1px solid var(--td-border)', background:'var(--td-subtle)', color:'var(--td-muted)', fontSize:11, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>
                 New organization...
               </button>
             )}
@@ -4578,12 +4588,12 @@ function TasksFolderRecoveryPanel({ issue, onConfigure }) {
   return (
     <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', padding:30 }}>
       <div style={{ width:'min(560px,100%)', borderRadius:10, border:'1px solid rgba(225,91,79,0.22)', background:'rgba(225,91,79,0.06)', padding:24 }}>
-        <div style={{ fontSize:10, color:'#c2533f', fontWeight:800, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:10 }}>Tasks folder needs attention</div>
-        <h2 style={{ margin:'0 0 10px', fontSize:22, color:'#1d2421' }}>Reconnect your Tasks folder</h2>
-        <p style={{ margin:'0 0 16px', color:'#5a615b', fontSize:13, lineHeight:1.6 }}>
+        <div style={{ fontSize:10, color:'var(--td-danger)', fontWeight:800, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:10 }}>Tasks folder needs attention</div>
+        <h2 style={{ margin:'0 0 10px', fontSize:22, color:'var(--td-text)' }}>Reconnect your Tasks folder</h2>
+        <p style={{ margin:'0 0 16px', color:'var(--td-muted)', fontSize:13, lineHeight:1.6 }}>
           {issue?.name ? `"${issue.name}" is not available at its saved location.` : 'The Tasks folder is not connected on this device.'} Pick the folder again and TaskDash will rescan it.
         </p>
-        <button onClick={onConfigure} style={{ padding:'10px 18px', borderRadius:10, border:'none', cursor:'pointer', fontWeight:800, fontSize:13, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff' }}>Configure folders</button>
+        <button className="td-primary" onClick={onConfigure} style={{ padding:'10px 18px', borderRadius:10, border:'none', cursor:'pointer', fontWeight:800, fontSize:13, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff' }}>Configure folders</button>
       </div>
     </div>
   );
@@ -4594,8 +4604,8 @@ function TaskCalendarOccurrence({ occurrence, compact = false, onSelectTask, onM
   const tone = occurrence.recurrent
     ? { color:'#3f6fd0', bg:'rgba(91,141,239,0.11)', border:'rgba(91,141,239,0.28)' }
     : occurrence.isOverdue
-      ? { color:'#c2533f', bg:'rgba(225,91,79,0.10)', border:'rgba(225,91,79,0.24)' }
-      : { color:'#13733f', bg:'rgba(20,120,72,0.10)', border:'rgba(20,120,72,0.22)' };
+      ? { color:'var(--td-danger)', bg:'rgba(225,91,79,0.10)', border:'rgba(225,91,79,0.24)' }
+      : { color:'var(--td-accent-text)', bg:'rgba(20,120,72,0.10)', border:'rgba(20,120,72,0.22)' };
   const selectTask = () => onSelectTask(occurrence.taskId);
   const moveTask = event => {
     const nextDate = event.target.value;
@@ -4660,7 +4670,7 @@ function TaskCalendarPanel({ dates, occurrencesByDate, selectedDate, weekLabel, 
             <div style={{ fontSize:10, color:dateStr === today ? BRAND_TEXT : TEXT_SECONDARY, fontWeight:750, textTransform:'uppercase', letterSpacing:'0.04em' }}>{date.toLocaleDateString('en-US', { weekday:'short' })}</div>
             <div style={{ fontSize:14, color:'var(--text-normal)', fontWeight:700, marginTop:3, whiteSpace:'nowrap' }}>{date.toLocaleDateString('en-US', { month:'short', day:'numeric' })}</div>
           </div>
-          <span style={{ minWidth:20, height:20, padding:'0 5px', borderRadius:999, display:'grid', placeItems:'center', fontSize:10.5, fontWeight:850, color:occurrences.length ? BRAND_TEXT : TEXT_MUTED, background:occurrences.length ? BRAND_SURFACE : 'rgba(255,255,255,0.55)', border:`1px solid ${occurrences.length ? BRAND_BORDER : 'rgba(255,255,255,0.62)'}`, fontVariantNumeric:'tabular-nums' }}>{occurrences.length}</span>
+          <span style={{ minWidth:20, height:20, padding:'0 5px', borderRadius:999, display:'grid', placeItems:'center', fontSize:10.5, fontWeight:850, color:occurrences.length ? BRAND_TEXT : TEXT_MUTED, background:occurrences.length ? BRAND_SURFACE : 'var(--td-subtle)', border:`1px solid ${occurrences.length ? BRAND_BORDER : 'var(--td-subtle)'}`, fontVariantNumeric:'tabular-nums' }}>{occurrences.length}</span>
         </div>
       </button>
     );
@@ -4668,13 +4678,13 @@ function TaskCalendarPanel({ dates, occurrencesByDate, selectedDate, weekLabel, 
 
   return (
     <div style={{ flex:1, display:'flex', flexDirection:'column', minHeight:0, overflow:'hidden' }}>
-      <div className="td-calendar-header" style={{ padding:'20px 28px 16px', borderBottom:'1px solid rgba(255,255,255,0.60)', flexShrink:0, display:'flex', flexWrap:'wrap', justifyContent:'space-between', gap:18, alignItems:'flex-start' }}>
+      <div className="td-calendar-header td-view-header" style={{ padding:'20px 28px 16px', borderBottom:'1px solid var(--td-border)', flexShrink:0, display:'flex', flexWrap:'wrap', justifyContent:'space-between', gap:18, alignItems:'flex-start' }}>
         <div style={{ minWidth:0 }}>
-          <h2 style={{ margin:0, fontSize:23, lineHeight:1.1, color:'#1d2421', letterSpacing:0 }}>{weekLabel}</h2>
+          <h2 style={{ margin:0, fontSize:23, lineHeight:1.1, color:'var(--td-text)', letterSpacing:0 }}>{weekLabel}</h2>
         </div>
         <div className="td-calendar-actions" style={{ display:'flex', gap:8, flexWrap:'wrap', justifyContent:'flex-end' }}>
-          <button onClick={()=>onNewTask?.(selectedDate)} style={{ minHeight:38, padding:'8px 12px', borderRadius:9, border:'none', background:BRAND_GRADIENT, color:'#fff', boxShadow:BRAND_SHADOW, cursor:'pointer', fontFamily:'inherit', fontSize:12, fontWeight:800 }}>+ New task</button>
-          {[['Total',total,'var(--text-normal)','var(--background-secondary)','var(--background-modifier-border)'],['Overdue',overdueCount,'#c2533f','rgba(225,91,79,0.08)','rgba(225,91,79,0.18)'],['On track',onTrackCount,'#13733f','rgba(20,120,72,0.10)','rgba(20,120,72,0.20)']].map(([label,value,color,bg,border]) => (
+          <button className="td-primary" onClick={()=>onNewTask?.(selectedDate)} style={{ minHeight:38, padding:'8px 12px', borderRadius:9, border:'none', background:BRAND_GRADIENT, color:'#fff', boxShadow:BRAND_SHADOW, cursor:'pointer', fontFamily:'inherit', fontSize:12, fontWeight:800 }}>+ New task</button>
+          {[['Total',total,'var(--text-normal)','var(--background-secondary)','var(--background-modifier-border)'],['Overdue',overdueCount,'var(--td-danger)','rgba(225,91,79,0.08)','rgba(225,91,79,0.18)'],['On track',onTrackCount,'var(--td-accent-text)','rgba(20,120,72,0.10)','rgba(20,120,72,0.20)']].map(([label,value,color,bg,border]) => (
             <div className="td-calendar-stat" key={label} style={{ minWidth:82, padding:'8px 10px', borderRadius:6, background:bg, border:`1px solid ${border}` }}>
               <div style={{ fontSize:9, color, fontWeight:850, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:3 }}>{label}</div>
               <div style={{ fontSize:21, color, fontWeight:850, lineHeight:1, fontVariantNumeric:'tabular-nums' }}>{value}</div>
@@ -4728,8 +4738,8 @@ function MeetingPanel({ meetingOpen, meetingTitle, meetingNotes, meetingLinks, s
 
   if (!hasMeetingsFolder) {
     return (
-      <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', color:'#5a615b', fontSize:13 }}>
-        <button onClick={onConfigure} style={{ padding:'10px 18px', borderRadius:10, border:'none', cursor:'pointer', fontWeight:700, fontSize:13, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff' }}>Configure Meetings folder</button>
+      <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', color:'var(--td-muted)', fontSize:13 }}>
+        <button className="td-primary" onClick={onConfigure} style={{ padding:'10px 18px', borderRadius:10, border:'none', cursor:'pointer', fontWeight:700, fontSize:13, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff' }}>Configure Meetings folder</button>
       </div>
     );
   }
@@ -4754,7 +4764,7 @@ function MeetingPanel({ meetingOpen, meetingTitle, meetingNotes, meetingLinks, s
           title={savedMeeting.title}
           subtitle={savedMeeting.date || savedMeeting.filename}
           action={(
-            <button onClick={onStart} style={{ padding:'9px 18px', borderRadius:999, border:'none', cursor:'pointer', fontWeight:800, fontSize:12, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff', boxShadow:BRAND_SHADOW }}>
+            <button className="td-primary" onClick={onStart} style={{ padding:'9px 18px', borderRadius:999, border:'none', cursor:'pointer', fontWeight:800, fontSize:12, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff', boxShadow:BRAND_SHADOW }}>
               + Start Meeting
             </button>
           )}
@@ -4776,7 +4786,7 @@ function MeetingPanel({ meetingOpen, meetingTitle, meetingNotes, meetingLinks, s
                     <div style={{ fontSize:11, color:TEXT_PRIMARY, fontWeight:800, marginBottom:6 }}>{group.label}</div>
                     <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
                       {group.values.map(value => (
-                        <span key={`${group.label}-${value}`} style={{ padding:'5px 9px', borderRadius:999, background:'rgba(255,255,255,0.55)', border:'1px solid rgba(255,255,255,0.62)', color:'#5a615b', fontSize:10, fontWeight:700 }}>
+                        <span key={`${group.label}-${value}`} style={{ padding:'5px 9px', borderRadius:999, background:'var(--td-subtle)', border:'1px solid var(--td-border)', color:'var(--td-muted)', fontSize:10, fontWeight:700 }}>
                           {value}
                         </span>
                       ))}
@@ -4788,7 +4798,7 @@ function MeetingPanel({ meetingOpen, meetingTitle, meetingNotes, meetingLinks, s
           )}
           <DetailMarkdownCard label="Notes">
             {meetingView.notes.length ? (
-              <ul style={{ margin:0, paddingLeft:18, display:'grid', gap:10, color:'#222a25', lineHeight:1.6 }}>
+              <ul style={{ margin:0, paddingLeft:18, display:'grid', gap:10, color:'var(--td-text)', lineHeight:1.6 }}>
                 {meetingView.notes.map((item, index) => (
                   <li key={`${savedMeeting.id}-note-${index}`} style={{ paddingLeft:4 }}>
                     <MarkdownBody compact>{item}</MarkdownBody>
@@ -4805,10 +4815,10 @@ function MeetingPanel({ meetingOpen, meetingTitle, meetingNotes, meetingLinks, s
 
     return (
       <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', padding:30 }}>
-        <div style={{ width:'min(520px,100%)', borderRadius:10, border:'1px solid rgba(255,255,255,0.60)', background:'rgba(255,255,255,0.50)', padding:24, textAlign:'center' }}>
-          <div style={{ fontSize:10, color:'#13733f', fontWeight:800, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:10 }}>Meetings</div>
-          <h2 style={{ margin:'0 0 16px', fontSize:22, color:'#1d2421' }}>Meeting notes</h2>
-          <button onClick={onStart} style={{ padding:'10px 18px', borderRadius:10, border:'none', cursor:'pointer', fontWeight:800, fontSize:13, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff' }}>+ Start Meeting</button>
+        <div style={{ width:'min(520px,100%)', borderRadius:10, border:'1px solid var(--td-border)', background:'var(--td-subtle)', padding:24, textAlign:'center' }}>
+          <div style={{ fontSize:10, color:'var(--td-accent-text)', fontWeight:800, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:10 }}>Meetings</div>
+          <h2 style={{ margin:'0 0 16px', fontSize:22, color:'var(--td-text)' }}>Meeting notes</h2>
+          <button className="td-primary" onClick={onStart} style={{ padding:'10px 18px', borderRadius:10, border:'none', cursor:'pointer', fontWeight:800, fontSize:13, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff' }}>+ Start Meeting</button>
         </div>
       </div>
     );
@@ -4828,7 +4838,7 @@ function MeetingPanel({ meetingOpen, meetingTitle, meetingNotes, meetingLinks, s
       title={activeTitle}
       subtitle={`Started ${activeStarted} · ${filename}`}
       action={(
-        <button onClick={onStop} style={{ padding:'9px 18px', borderRadius:999, border:'1px solid rgba(225,91,79,0.3)', cursor:'pointer', fontWeight:800, fontSize:12, fontFamily:'inherit', background:'rgba(225,91,79,0.1)', color:'#c2533f' }}>
+        <button onClick={onStop} style={{ padding:'9px 18px', borderRadius:999, border:'1px solid rgba(225,91,79,0.3)', cursor:'pointer', fontWeight:800, fontSize:12, fontFamily:'inherit', background:'rgba(225,91,79,0.1)', color:'var(--td-danger)' }}>
           Save & Stop
         </button>
       )}
@@ -4839,7 +4849,7 @@ function MeetingPanel({ meetingOpen, meetingTitle, meetingNotes, meetingLinks, s
         title={(
           <input value={meetingTitle} onChange={e => setMeetingTitle(e.target.value)}
             placeholder="Meeting title..."
-            style={{ width:'min(520px, 100%)', padding:'4px 0', background:'transparent', border:'none', borderBottom:'2px solid rgba(255,255,255,0.68)', color:TEXT_PRIMARY, fontSize:20, fontWeight:800, outline:'none', fontFamily:'inherit' }}/>
+            style={{ width:'min(520px, 100%)', padding:'4px 0', background:'transparent', border:'none', borderBottom:'2px solid var(--td-subtle)', color:TEXT_PRIMARY, fontSize:20, fontWeight:800, outline:'none', fontFamily:'inherit' }}/>
         )}
         subtitle={`Live note · ${fmt(elapsed)} elapsed`}
         action={<div style={{ fontSize:22, fontWeight:850, fontVariantNumeric:'tabular-nums', color:BRAND_TEXT }}>{fmt(elapsed)}</div>}
@@ -4875,7 +4885,7 @@ function MeetingPanel({ meetingOpen, meetingTitle, meetingNotes, meetingLinks, s
 
 function HealthPanel({ diagnostics, dirs, backups, lastSync, needsRefresh, onForceSync, syncBusy, onConfigure, onRestoreBackup }) {
   const [selectedBackup, setSelectedBackup] = useState(null);
-  const issueColor = issue => issue.level === 'error' ? '#c2533f' : issue.level === 'warning' ? '#a9791f' : '#5b57b0';
+  const issueColor = issue => issue.level === 'error' ? 'var(--td-danger)' : issue.level === 'warning' ? 'var(--td-warning)' : '#5b57b0';
   const connectedFolders = Object.entries(dirs || {});
   const scanRows = Object.entries(diagnostics.folderStats || {})
     .flatMap(([key, value]) => {
@@ -4895,87 +4905,87 @@ function HealthPanel({ diagnostics, dirs, backups, lastSync, needsRefresh, onFor
   };
   return (
     <div style={{ flex:1, display:'flex', flexDirection:'column', overflow:'hidden' }}>
-      <div style={{ padding:'22px 30px 16px', borderBottom:'1px solid rgba(255,255,255,0.60)', flexShrink:0, display:'flex', justifyContent:'space-between', alignItems:'center', gap:18 }}>
+      <div className="td-view-header" style={{ padding:'22px 30px 16px', borderBottom:'1px solid var(--td-border)', flexShrink:0, display:'flex', justifyContent:'space-between', alignItems:'center', gap:18 }}>
         <div>
           <div style={{ fontSize:10, color:BRAND_LABEL, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:8 }}>Vault Health</div>
-          <h2 style={{ margin:0, fontSize:19, fontWeight:700, color:'#1d2421' }}>Sync and file checks</h2>
-          <div style={{ fontSize:12, color:'#5a615b', marginTop:5 }}>Automatic sync runs only while this app is open and folder permission is active.</div>
+          <h2 style={{ margin:0, fontSize:19, fontWeight:700, color:'var(--td-text)' }}>Sync and file checks</h2>
+          <div style={{ fontSize:12, color:'var(--td-muted)', marginTop:5 }}>Automatic sync runs only while this app is open and folder permission is active.</div>
         </div>
         <div style={{ display:'flex', gap:8 }}>
-          <button onClick={onConfigure} style={{ padding:'9px 13px', borderRadius:10, border:'1px solid rgba(255,255,255,0.62)', cursor:'pointer', fontWeight:800, fontSize:12, fontFamily:'inherit', background:'rgba(255,255,255,0.55)', color:'#5a615b' }}>Folders</button>
-          <button onClick={onForceSync} disabled={syncBusy} style={{ padding:'9px 16px', borderRadius:10, border:'none', cursor:syncBusy?'wait':'pointer', fontWeight:800, fontSize:13, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff' }}>{syncBusy ? 'Syncing...' : 'Force Sync'}</button>
+          <button onClick={onConfigure} style={{ padding:'9px 13px', borderRadius:10, border:'1px solid var(--td-border)', cursor:'pointer', fontWeight:800, fontSize:12, fontFamily:'inherit', background:'var(--td-subtle)', color:'var(--td-muted)' }}>Folders</button>
+          <button className="td-primary" onClick={onForceSync} disabled={syncBusy} style={{ padding:'9px 16px', borderRadius:10, border:'none', cursor:syncBusy?'wait':'pointer', fontWeight:800, fontSize:13, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff' }}>{syncBusy ? 'Syncing...' : 'Force Sync'}</button>
         </div>
       </div>
       <div style={{ flex:1, overflowY:'auto', padding:'20px 30px' }}>
         <section style={{ borderRadius:8, border:`1px solid ${needsRefresh ? 'rgba(208,150,52,0.24)' : 'rgba(20,120,72,0.18)'}`, background:needsRefresh?'rgba(208,150,52,0.055)':'rgba(20,120,72,0.045)', padding:'14px', marginBottom:14, display:'flex', justifyContent:'space-between', gap:18, alignItems:'flex-start', flexWrap:'wrap' }}>
           <div>
-            <h3 style={{ margin:'0 0 6px', fontSize:14, color:'#1d2421' }}>Sync Status</h3>
-            <div style={{ fontSize:12, color:needsRefresh?'#a9791f':'#13733f', fontWeight:800 }}>{needsRefresh ? 'Refresh recommended' : 'Current'}</div>
-            <div style={{ fontSize:11, color:'#5a615b', marginTop:4 }}>Last full sync: {syncText}</div>
+            <h3 style={{ margin:'0 0 6px', fontSize:14, color:'var(--td-text)' }}>Sync Status</h3>
+            <div style={{ fontSize:12, color:needsRefresh?'var(--td-warning)':'var(--td-accent-text)', fontWeight:800 }}>{needsRefresh ? 'Refresh recommended' : 'Current'}</div>
+            <div style={{ fontSize:11, color:'var(--td-muted)', marginTop:4 }}>Last full sync: {syncText}</div>
           </div>
           <div style={{ display:'flex', gap:7, flexWrap:'wrap', justifyContent:'flex-end' }}>
             {connectedFolders.length ? connectedFolders.map(([key, handle]) => (
-              <span key={key} style={{ fontSize:11, color:'#222a25', padding:'5px 8px', borderRadius:14, background:'rgba(255,255,255,0.55)', border:'1px solid rgba(255,255,255,0.60)' }}>
+              <span key={key} style={{ fontSize:11, color:'var(--td-text)', padding:'5px 8px', borderRadius:14, background:'var(--td-subtle)', border:'1px solid var(--td-border)' }}>
                 {key}: {handle.name}
               </span>
             )) : (
-              <span style={{ fontSize:12, color:'#5a615b' }}>No folders connected</span>
+              <span style={{ fontSize:12, color:'var(--td-muted)' }}>No folders connected</span>
             )}
           </div>
         </section>
         <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(150px,1fr))', gap:10, marginBottom:16 }}>
           {Object.entries(diagnostics.counts).map(([key, value]) => (
-            <div key={key} style={{ borderRadius:8, border:'1px solid rgba(255,255,255,0.60)', background:'rgba(255,255,255,0.50)', padding:'12px' }}>
-              <div style={{ fontSize:10, color:'#5a615b', textTransform:'uppercase', fontWeight:800 }}>{key.replace(/([A-Z])/g, ' $1')}</div>
-              <div style={{ fontSize:24, fontWeight:850, color:'#1d2421', marginTop:4 }}>{value}</div>
+            <div key={key} style={{ borderRadius:8, border:'1px solid var(--td-border)', background:'var(--td-subtle)', padding:'12px' }}>
+              <div style={{ fontSize:10, color:'var(--td-muted)', textTransform:'uppercase', fontWeight:800 }}>{key.replace(/([A-Z])/g, ' $1')}</div>
+              <div style={{ fontSize:24, fontWeight:850, color:'var(--td-text)', marginTop:4 }}>{value}</div>
             </div>
           ))}
         </div>
         {!!scanRows.length && (
-          <section style={{ borderRadius:8, border:'1px solid rgba(255,255,255,0.60)', background:'rgba(255,255,255,0.50)', padding:'14px', marginBottom:14 }}>
-            <h3 style={{ margin:'0 0 10px', fontSize:14, color:'#1d2421' }}>Last Scan Counts</h3>
+          <section style={{ borderRadius:8, border:'1px solid var(--td-border)', background:'var(--td-subtle)', padding:'14px', marginBottom:14 }}>
+            <h3 style={{ margin:'0 0 10px', fontSize:14, color:'var(--td-text)' }}>Last Scan Counts</h3>
             <div style={{ display:'flex', gap:7, flexWrap:'wrap' }}>
               {scanRows.map(([key, value]) => (
-                <span key={key} style={{ fontSize:11, color:'#222a25', padding:'5px 8px', borderRadius:14, background:'rgba(255,255,255,0.55)', border:'1px solid rgba(255,255,255,0.60)' }}>
+                <span key={key} style={{ fontSize:11, color:'var(--td-text)', padding:'5px 8px', borderRadius:14, background:'var(--td-subtle)', border:'1px solid var(--td-border)' }}>
                   {key}: {value}
                 </span>
               ))}
             </div>
           </section>
         )}
-        <section style={{ borderRadius:8, border:'1px solid rgba(255,255,255,0.60)', background:'rgba(255,255,255,0.50)', padding:'14px', marginBottom:14 }}>
-          <h3 style={{ margin:'0 0 10px', fontSize:14, color:'#1d2421' }}>Issues</h3>
-          {!diagnostics.issues.length && <div style={{ color:'#13733f', fontSize:13 }}>No obvious issues found.</div>}
+        <section style={{ borderRadius:8, border:'1px solid var(--td-border)', background:'var(--td-subtle)', padding:'14px', marginBottom:14 }}>
+          <h3 style={{ margin:'0 0 10px', fontSize:14, color:'var(--td-text)' }}>Issues</h3>
+          {!diagnostics.issues.length && <div style={{ color:'var(--td-accent-text)', fontSize:13 }}>No obvious issues found.</div>}
           {diagnostics.issues.map((issue, i) => {
             const folderIssue = /folder|connected/i.test(issue.text);
             return (
-              <div key={i} style={{ padding:'10px 11px', marginBottom:7, borderRadius:8, background:'rgba(255,255,255,0.50)', border:`1px solid ${issueColor(issue)}33`, display:'flex', justifyContent:'space-between', gap:12, alignItems:'flex-start' }}>
+              <div key={i} style={{ padding:'10px 11px', marginBottom:7, borderRadius:8, background:'var(--td-subtle)', border:`1px solid ${issueColor(issue)}33`, display:'flex', justifyContent:'space-between', gap:12, alignItems:'flex-start' }}>
                 <div style={{ minWidth:0 }}>
                   <div style={{ fontSize:12, color:issueColor(issue), fontWeight:850, textTransform:'uppercase' }}>{issue.level}</div>
-                  <div style={{ fontSize:13, color:'#222a25', marginTop:4 }}>{issue.text}</div>
-                  {issue.detail && <div style={{ fontSize:11, color:'#5a615b', marginTop:4, overflowWrap:'anywhere' }}>{issue.detail}</div>}
+                  <div style={{ fontSize:13, color:'var(--td-text)', marginTop:4 }}>{issue.text}</div>
+                  {issue.detail && <div style={{ fontSize:11, color:'var(--td-muted)', marginTop:4, overflowWrap:'anywhere' }}>{issue.detail}</div>}
                 </div>
-                <button onClick={folderIssue ? onConfigure : onForceSync} style={{ padding:'6px 9px', borderRadius:8, border:'1px solid rgba(255,255,255,0.62)', background:'rgba(255,255,255,0.55)', color:folderIssue?BRAND_TEXT:'#5a615b', cursor:'pointer', fontWeight:800, fontSize:11, fontFamily:'inherit', flexShrink:0 }}>
+                <button onClick={folderIssue ? onConfigure : onForceSync} style={{ padding:'6px 9px', borderRadius:8, border:'1px solid var(--td-border)', background:'var(--td-subtle)', color:folderIssue?BRAND_TEXT:'var(--td-muted)', cursor:'pointer', fontWeight:800, fontSize:11, fontFamily:'inherit', flexShrink:0 }}>
                   {folderIssue ? 'Fix' : 'Recheck'}
                 </button>
               </div>
             );
           })}
         </section>
-        <section style={{ borderRadius:8, border:'1px solid rgba(255,255,255,0.60)', background:'rgba(255,255,255,0.50)', padding:'14px' }}>
-          <h3 style={{ margin:'0 0 10px', fontSize:14, color:'#1d2421' }}>Recent Local Backups</h3>
-          {!backups.length && <div style={{ color:'#5a615b', fontSize:13 }}>No backups captured yet. The next text write keeps the previous version locally in this browser.</div>}
+        <section style={{ borderRadius:8, border:'1px solid var(--td-border)', background:'var(--td-subtle)', padding:'14px' }}>
+          <h3 style={{ margin:'0 0 10px', fontSize:14, color:'var(--td-text)' }}>Recent Local Backups</h3>
+          {!backups.length && <div style={{ color:'var(--td-muted)', fontSize:13 }}>No backups captured yet. The next text write keeps the previous version locally in this browser.</div>}
           {backups.slice(0, 8).map((backup, i) => (
-            <div key={`${backup.at}-${i}`} style={{ padding:'10px 11px', marginBottom:7, borderRadius:8, background:'rgba(255,255,255,0.50)', border:'1px solid rgba(255,255,255,0.58)' }}>
+            <div key={`${backup.at}-${i}`} style={{ padding:'10px 11px', marginBottom:7, borderRadius:8, background:'var(--td-subtle)', border:'1px solid var(--td-border)' }}>
               <div style={{ display:'flex', justifyContent:'space-between', gap:12, alignItems:'flex-start' }}>
                 <div style={{ minWidth:0 }}>
-                  <div style={{ fontSize:12, color:'#222a25', fontWeight:800 }}>{backup.filename}</div>
-                  <div style={{ fontSize:10, color:'#5a615b', marginTop:3 }}>{new Date(backup.at).toLocaleString()} · {backup.size || backup.content?.length || 0} chars</div>
-                  {backup.preview && <div style={{ fontSize:11, color:'#5a615b', marginTop:5, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{backup.preview}</div>}
+                  <div style={{ fontSize:12, color:'var(--td-text)', fontWeight:800 }}>{backup.filename}</div>
+                  <div style={{ fontSize:10, color:'var(--td-muted)', marginTop:3 }}>{new Date(backup.at).toLocaleString()} · {backup.size || backup.content?.length || 0} chars</div>
+                  {backup.preview && <div style={{ fontSize:11, color:'var(--td-muted)', marginTop:5, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{backup.preview}</div>}
                 </div>
                 <div style={{ display:'flex', gap:6, flexShrink:0 }}>
-                  <button onClick={()=>setSelectedBackup(backup)} style={{ padding:'6px 9px', borderRadius:8, border:'1px solid rgba(255,255,255,0.62)', background:'rgba(255,255,255,0.55)', color:BRAND_TEXT, cursor:'pointer', fontWeight:800, fontSize:11, fontFamily:'inherit' }}>Inspect</button>
-                  <button onClick={()=>onRestoreBackup?.(backup)} style={{ padding:'6px 9px', borderRadius:8, border:'1px solid rgba(20,120,72,0.2)', background:'rgba(20,120,72,0.08)', color:'#13733f', cursor:'pointer', fontWeight:800, fontSize:11, fontFamily:'inherit' }}>Restore</button>
+                  <button onClick={()=>setSelectedBackup(backup)} style={{ padding:'6px 9px', borderRadius:8, border:'1px solid var(--td-border)', background:'var(--td-subtle)', color:BRAND_TEXT, cursor:'pointer', fontWeight:800, fontSize:11, fontFamily:'inherit' }}>Inspect</button>
+                  <button onClick={()=>onRestoreBackup?.(backup)} style={{ padding:'6px 9px', borderRadius:8, border:'1px solid rgba(20,120,72,0.2)', background:'rgba(20,120,72,0.08)', color:'var(--td-accent-text)', cursor:'pointer', fontWeight:800, fontSize:11, fontFamily:'inherit' }}>Restore</button>
                 </div>
               </div>
             </div>
@@ -4984,19 +4994,19 @@ function HealthPanel({ diagnostics, dirs, backups, lastSync, needsRefresh, onFor
       </div>
       {selectedBackup && (
         <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.62)', zIndex:1000, display:'flex', alignItems:'center', justifyContent:'center', padding:24 }}>
-          <div style={{ width:'min(900px, 96vw)', maxHeight:'86vh', display:'flex', flexDirection:'column', borderRadius:10, border:'1px solid rgba(255,255,255,0.74)', background:'#f7faf8', boxShadow:'0 18px 70px rgba(0,0,0,0.5)', overflow:'hidden' }}>
-            <div style={{ padding:'14px 16px', borderBottom:'1px solid rgba(255,255,255,0.62)', display:'flex', justifyContent:'space-between', alignItems:'center', gap:14 }}>
+          <div style={{ width:'min(900px, 96vw)', maxHeight:'86vh', display:'flex', flexDirection:'column', borderRadius:10, border:'1px solid var(--td-border)', background:'#f7faf8', boxShadow:'0 18px 70px rgba(0,0,0,0.5)', overflow:'hidden' }}>
+            <div style={{ padding:'14px 16px', borderBottom:'1px solid var(--td-border)', display:'flex', justifyContent:'space-between', alignItems:'center', gap:14 }}>
               <div style={{ minWidth:0 }}>
-                <div style={{ fontSize:13, color:'#1d2421', fontWeight:850 }}>{selectedBackup.filename}</div>
-                <div style={{ fontSize:11, color:'#5a615b', marginTop:3 }}>{new Date(selectedBackup.at).toLocaleString()}</div>
+                <div style={{ fontSize:13, color:'var(--td-text)', fontWeight:850 }}>{selectedBackup.filename}</div>
+                <div style={{ fontSize:11, color:'var(--td-muted)', marginTop:3 }}>{new Date(selectedBackup.at).toLocaleString()}</div>
               </div>
               <div style={{ display:'flex', gap:8 }}>
-                <button onClick={()=>copyBackup(selectedBackup)} style={{ padding:'8px 11px', borderRadius:8, border:'1px solid rgba(255,255,255,0.62)', background:'rgba(255,255,255,0.55)', color:'#5a615b', cursor:'pointer', fontWeight:800, fontSize:12, fontFamily:'inherit' }}>Copy</button>
-                <button onClick={()=>onRestoreBackup?.(selectedBackup)} style={{ padding:'8px 11px', borderRadius:8, border:'1px solid rgba(20,120,72,0.2)', background:'rgba(20,120,72,0.08)', color:'#13733f', cursor:'pointer', fontWeight:800, fontSize:12, fontFamily:'inherit' }}>Restore</button>
-                <button onClick={()=>setSelectedBackup(null)} style={{ padding:'8px 11px', borderRadius:8, border:'1px solid rgba(255,255,255,0.62)', background:'rgba(255,255,255,0.55)', color:'#c2533f', cursor:'pointer', fontWeight:800, fontSize:12, fontFamily:'inherit' }}>Close</button>
+                <button onClick={()=>copyBackup(selectedBackup)} style={{ padding:'8px 11px', borderRadius:8, border:'1px solid var(--td-border)', background:'var(--td-subtle)', color:'var(--td-muted)', cursor:'pointer', fontWeight:800, fontSize:12, fontFamily:'inherit' }}>Copy</button>
+                <button onClick={()=>onRestoreBackup?.(selectedBackup)} style={{ padding:'8px 11px', borderRadius:8, border:'1px solid rgba(20,120,72,0.2)', background:'rgba(20,120,72,0.08)', color:'var(--td-accent-text)', cursor:'pointer', fontWeight:800, fontSize:12, fontFamily:'inherit' }}>Restore</button>
+                <button onClick={()=>setSelectedBackup(null)} style={{ padding:'8px 11px', borderRadius:8, border:'1px solid var(--td-border)', background:'var(--td-subtle)', color:'var(--td-danger)', cursor:'pointer', fontWeight:800, fontSize:12, fontFamily:'inherit' }}>Close</button>
               </div>
             </div>
-            <pre style={{ margin:0, padding:16, overflow:'auto', color:'#5a615b', background:'rgba(255,255,255,0.50)', fontSize:12, lineHeight:1.55, whiteSpace:'pre-wrap', overflowWrap:'anywhere', fontFamily:"'JetBrains Mono', ui-monospace, SFMono-Regular, Consolas, monospace" }}>{selectedBackup.content}</pre>
+            <pre style={{ margin:0, padding:16, overflow:'auto', color:'var(--td-muted)', background:'var(--td-subtle)', fontSize:12, lineHeight:1.55, whiteSpace:'pre-wrap', overflowWrap:'anywhere', fontFamily:"'JetBrains Mono', ui-monospace, SFMono-Regular, Consolas, monospace" }}>{selectedBackup.content}</pre>
           </div>
         </div>
       )}
@@ -5022,8 +5032,8 @@ function HoursPanel({ selectedDate, selectedNote, notes, month, onSelectDate, on
 
   if (!hasDailyFolder) {
     return (
-      <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', color:'#5a615b', fontSize:13 }}>
-        <button onClick={onConfigure} style={{ padding:'10px 18px', borderRadius:10, border:'none', cursor:'pointer', fontWeight:800, fontSize:13, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff' }}>Configure Daily Notes folder</button>
+      <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', color:'var(--td-muted)', fontSize:13 }}>
+        <button className="td-primary" onClick={onConfigure} style={{ padding:'10px 18px', borderRadius:10, border:'none', cursor:'pointer', fontWeight:800, fontSize:13, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff' }}>Configure Daily Notes folder</button>
       </div>
     );
   }
@@ -5032,13 +5042,12 @@ function HoursPanel({ selectedDate, selectedNote, notes, month, onSelectDate, on
     <div style={{ flex:1, minHeight:0, overflowY:'auto', padding:'18px 24px 20px' }}>
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:18, marginBottom:14, flexWrap:'wrap' }}>
         <div>
-          <div style={{ fontSize:10, color:BRAND_LABEL, fontWeight:800, textTransform:'uppercase', letterSpacing:'0.14em', marginBottom:6 }}>Hours</div>
-          <h2 style={{ margin:0, fontSize:30, color:'#1d2421', letterSpacing:0 }}>Time clock</h2>
+          <h2 style={{ margin:0, fontSize:30, color:'var(--td-text)', letterSpacing:0 }}>Time clock</h2>
           <div style={{ fontSize:13, color:TEXT_SECONDARY, marginTop:6 }}>
             Pick a day on the calendar, then punch or edit that day&apos;s time clock.
           </div>
         </div>
-        <button onClick={onConfigure} style={{ padding:'9px 14px', borderRadius:999, border:'none', background:BRAND_GRADIENT, color:'#fff', fontSize:11, fontWeight:800, cursor:'pointer', fontFamily:'inherit', boxShadow:BRAND_SHADOW }}>
+        <button className="td-primary" onClick={onConfigure} style={{ padding:'9px 14px', borderRadius:999, border:'none', background:BRAND_GRADIENT, color:'#fff', fontSize:11, fontWeight:800, cursor:'pointer', fontFamily:'inherit', boxShadow:BRAND_SHADOW }}>
           Daily notes folder
         </button>
       </div>
@@ -5048,13 +5057,13 @@ function HoursPanel({ selectedDate, selectedNote, notes, month, onSelectDate, on
           <div style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline', gap:12, marginBottom:12 }}>
             <div>
               <div style={{ fontSize:11, color:BRAND_LABEL, fontWeight:800, textTransform:'uppercase', letterSpacing:'0.14em', marginBottom:5 }}>Punch selected day</div>
-              <div style={{ fontSize:14, color:'#1d2421', fontWeight:700 }}>{selectedDate}</div>
+              <div style={{ fontSize:14, color:'var(--td-text)', fontWeight:700 }}>{selectedDate}</div>
             </div>
             <div style={{ fontSize:22, fontWeight:850, color:selectedTone.text, fontVariantNumeric:'tabular-nums' }}>{formatHoursMinutes(draftStats.totalMinutes)}</div>
           </div>
           <div style={{ display:'grid', gridTemplateColumns:'repeat(2,minmax(0,1fr))', gap:8, marginBottom:10 }}>
             {WORK_EVENT_ORDER.map(event => (
-              <button
+              <button className="td-primary"
                 key={event}
                 onClick={()=>onTimeClockEvent(event, selectedDate)}
                 style={{ padding:'11px 12px', borderRadius:12, border:'none', background:BRAND_GRADIENT, color:'#fff', fontSize:12, fontWeight:800, cursor:'pointer', fontFamily:'inherit', textAlign:'center', boxShadow:BRAND_SHADOW }}
@@ -5063,15 +5072,15 @@ function HoursPanel({ selectedDate, selectedNote, notes, month, onSelectDate, on
               </button>
             ))}
           </div>
-          <div style={{ fontSize:11, color:'rgba(90,97,91,0.66)', marginBottom:8 }}>Quick actions stamp the current time into the selected daily note.</div>
+          <div style={{ fontSize:11, color:'var(--td-muted)', marginBottom:8 }}>Quick actions stamp the current time into the selected daily note.</div>
           <div style={{ display:'grid', gap:7 }}>
             {timeRowsDraft.length ? timeRowsDraft.map((row, index) => (
-              <div key={`${row.event}-${row.time}-${index}`} style={{ display:'flex', justifyContent:'space-between', gap:12, padding:'8px 10px', borderRadius:12, background:'rgba(255,255,255,0.55)', border:'1px solid rgba(255,255,255,0.60)' }}>
-                <span style={{ fontSize:12, color:'#1d2421', fontWeight:700 }}>{row.event}</span>
-                <span style={{ fontSize:12, color:'rgba(90,97,91,0.78)', fontVariantNumeric:'tabular-nums' }}>{row.time}</span>
+              <div key={`${row.event}-${row.time}-${index}`} style={{ display:'flex', justifyContent:'space-between', gap:12, padding:'8px 10px', borderRadius:12, background:'var(--td-subtle)', border:'1px solid var(--td-border)' }}>
+                <span style={{ fontSize:12, color:'var(--td-text)', fontWeight:700 }}>{row.event}</span>
+                <span style={{ fontSize:12, color:'var(--td-muted)', fontVariantNumeric:'tabular-nums' }}>{row.time}</span>
               </div>
             )) : (
-              <div style={{ padding:'10px 12px', borderRadius:12, background:'rgba(255,255,255,0.55)', border:'1px solid rgba(255,255,255,0.60)', color:'rgba(90,97,91,0.68)', fontSize:12 }}>
+              <div style={{ padding:'10px 12px', borderRadius:12, background:'var(--td-subtle)', border:'1px solid var(--td-border)', color:'var(--td-muted)', fontSize:12 }}>
                 No punches logged for this date yet.
               </div>
             )}
@@ -5082,39 +5091,39 @@ function HoursPanel({ selectedDate, selectedNote, notes, month, onSelectDate, on
           <div style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline', gap:12, marginBottom:10 }}>
             <div>
               <div style={{ fontSize:11, color:BRAND_LABEL, fontWeight:800, textTransform:'uppercase', letterSpacing:'0.14em', marginBottom:5 }}>Selected day</div>
-              <div style={{ fontSize:14, color:'#1d2421', fontWeight:700 }}>{selectedDate}</div>
+              <div style={{ fontSize:14, color:'var(--td-text)', fontWeight:700 }}>{selectedDate}</div>
             </div>
-            <div style={{ fontSize:12, color:'rgba(90,97,91,0.78)' }}>{draftStats.label}</div>
+            <div style={{ fontSize:12, color:'var(--td-muted)' }}>{draftStats.label}</div>
           </div>
           <div style={{ display:'grid', gridTemplateColumns:'repeat(2,minmax(0,1fr))', gap:10, marginBottom:10 }}>
-            <div style={{ padding:'12px', borderRadius:14, background:'rgba(255,255,255,0.55)', border:'1px solid rgba(255,255,255,0.60)' }}>
+            <div style={{ padding:'12px', borderRadius:14, background:'var(--td-subtle)', border:'1px solid var(--td-border)' }}>
               <div style={{ fontSize:9, color:BRAND_LABEL, fontWeight:800, textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:5 }}>Worked</div>
               <div style={{ fontSize:22, fontWeight:850, color:selectedTone.text, fontVariantNumeric:'tabular-nums' }}>{formatHoursMinutes(draftStats.totalMinutes)}</div>
             </div>
-            <div style={{ padding:'12px', borderRadius:14, background:'rgba(255,255,255,0.55)', border:'1px solid rgba(255,255,255,0.60)' }}>
+            <div style={{ padding:'12px', borderRadius:14, background:'var(--td-subtle)', border:'1px solid var(--td-border)' }}>
               <div style={{ fontSize:9, color:BRAND_LABEL, fontWeight:800, textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:5 }}>Breaks</div>
-              <div style={{ fontSize:22, fontWeight:850, color:'#1d2421', fontVariantNumeric:'tabular-nums' }}>{formatMinutes(draftStats.breakMinutes)}</div>
+              <div style={{ fontSize:22, fontWeight:850, color:'var(--td-text)', fontVariantNumeric:'tabular-nums' }}>{formatMinutes(draftStats.breakMinutes)}</div>
             </div>
           </div>
           <div style={{ display:'grid', gap:7 }}>
             {timeRowsDraft.length ? timeRowsDraft.map((row, index) => (
-              <div key={`${selectedDate}-${row.event}-${index}`} style={{ display:'flex', justifyContent:'space-between', gap:12, padding:'8px 10px', borderRadius:12, background:'rgba(255,255,255,0.55)', border:'1px solid rgba(255,255,255,0.60)' }}>
-                <span style={{ fontSize:12, color:'#1d2421', fontWeight:700 }}>{row.event}</span>
+              <div key={`${selectedDate}-${row.event}-${index}`} style={{ display:'flex', justifyContent:'space-between', gap:12, padding:'8px 10px', borderRadius:12, background:'var(--td-subtle)', border:'1px solid var(--td-border)' }}>
+                <span style={{ fontSize:12, color:'var(--td-text)', fontWeight:700 }}>{row.event}</span>
                 <input type="time" value={row.time || ''} onChange={e=>setDraftRowTime(index, e.target.value)} disabled={draftStats.creditedDay}
-                  style={{ width:86, padding:'4px 6px', borderRadius:8, background:'rgba(255,255,255,0.55)', border:'1px solid rgba(255,255,255,0.62)', color:'#222a25', fontSize:12, fontFamily:'inherit', outline:'none', opacity:draftStats.creditedDay?0.45:1 }} />
+                  style={{ width:86, padding:'4px 6px', borderRadius:8, background:'var(--td-subtle)', border:'1px solid var(--td-border)', color:'var(--td-text)', fontSize:12, fontFamily:'inherit', outline:'none', opacity:draftStats.creditedDay?0.45:1 }} />
               </div>
             )) : (
-              <div style={{ padding:'10px 12px', borderRadius:12, background:'rgba(255,255,255,0.55)', border:'1px solid rgba(255,255,255,0.60)', color:'rgba(90,97,91,0.68)', fontSize:12 }}>
+              <div style={{ padding:'10px 12px', borderRadius:12, background:'var(--td-subtle)', border:'1px solid var(--td-border)', color:'var(--td-muted)', fontSize:12 }}>
                 This date has no saved clock events yet. Use the fields below to add or edit times manually.
               </div>
             )}
           </div>
           <div style={{ display:'flex', gap:8, alignItems:'center', flexWrap:'wrap', marginTop:10 }}>
-            <button onClick={()=>onSaveRows(selectedDate, timeRowsDraft)} disabled={!canSaveSelected}
+            <button className="td-primary" onClick={()=>onSaveRows(selectedDate, timeRowsDraft)} disabled={!canSaveSelected}
               style={{ padding:'9px 13px', borderRadius:10, border:'none', cursor:canSaveSelected?'pointer':'not-allowed', fontWeight:800, fontSize:12, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff', boxShadow:BRAND_SHADOW, opacity:canSaveSelected?1:0.4 }}>
               Save hours
             </button>
-            <span style={{ fontSize:11, color:'rgba(90,97,91,0.72)' }}>Saves edits for {selectedDate}</span>
+            <span style={{ fontSize:11, color:'var(--td-muted)' }}>Saves edits for {selectedDate}</span>
           </div>
         </section>
 
@@ -5146,7 +5155,7 @@ function HoursPanel({ selectedDate, selectedNote, notes, month, onSelectDate, on
 function TimeHeatmap({ rows, start, end, title = 'Work heatmap', detail, minHeight = 0 }) {
   const maxMinutes = Math.max(HEATMAP_SLOT_MINUTES, ...rows.flatMap(row => row.average));
   const cellColor = minutes => {
-    if (!minutes) return 'rgba(255,255,255,0.38)';
+    if (!minutes) return 'var(--td-subtle)';
     const pct = Math.min(1, minutes / maxMinutes);
     const alpha = 0.10 + pct * 0.48;
     return `rgba(19,115,63,${alpha.toFixed(2)})`;
@@ -5161,11 +5170,11 @@ function TimeHeatmap({ rows, start, end, title = 'Work heatmap', detail, minHeig
         </div>
         <div style={{ display:'flex', gap:8, alignItems:'center', fontSize:10, color:TEXT_SECONDARY, fontWeight:800 }}>
           <span>0m</span>
-          <span style={{ width:68, height:8, borderRadius:999, background:'linear-gradient(90deg,rgba(255,255,255,0.38),rgba(19,115,63,0.58))', border:'1px solid rgba(255,255,255,0.60)' }} />
+          <span style={{ width:68, height:8, borderRadius:999, background:'linear-gradient(90deg,var(--td-subtle),rgba(19,115,63,0.58))', border:'1px solid var(--td-border)' }} />
           <span>30m</span>
         </div>
       </div>
-      <div style={{ flex:1, minHeight:0, overflow:'hidden', borderRadius:14, background:'rgba(255,255,255,0.42)', border:'1px solid rgba(255,255,255,0.60)', padding:'10px 10px 12px' }}>
+      <div style={{ flex:1, minHeight:0, overflow:'hidden', borderRadius:14, background:'var(--td-subtle)', border:'1px solid var(--td-border)', padding:'10px 10px 12px' }}>
         <div style={{ height:'100%', display:'grid', gridTemplateColumns:'48px repeat(48,minmax(6px,1fr))', gridTemplateRows:'18px repeat(7,minmax(20px,1fr))', gap:3, alignItems:'stretch' }}>
           <div />
           {HEATMAP_SLOTS.map(minutes => (
@@ -5184,7 +5193,7 @@ function TimeHeatmap({ rows, start, end, title = 'Work heatmap', detail, minHeig
                   <div
                     key={`${row.label}-${slot}`}
                     title={`${row.label} ${formatSlotLabel(slot)}-${formatSlotLabel(slot + HEATMAP_SLOT_MINUTES)} · avg ${minutes}m across ${row.days} day${row.days === 1 ? '' : 's'}`}
-                    style={{ borderRadius:4, background:cellColor(minutes), border:'1px solid rgba(255,255,255,0.42)' }}
+                    style={{ borderRadius:4, background:cellColor(minutes), border:'1px solid var(--td-border)' }}
                   />
                 );
               })}
@@ -5240,18 +5249,18 @@ function TimeDashboardPanel({ notes, hasDailyFolder, onConfigure }) {
   const goalText = `${formatHoursMinutes(TARGET_WORK_MINUTES - TARGET_WORK_TOLERANCE)}-${formatHoursMinutes(TARGET_WORK_MINUTES + TARGET_WORK_TOLERANCE)}`;
   const countLabel = (count, singular, plural = `${singular}s`) => `${count} ${count === 1 ? singular : plural}`;
   const kpiCards = [
-    { label:'Total days tracked', value:String(stats.summary.totalDays), detail:countLabel(stats.summary.totalDays, 'counted day'), color:'#13733f' },
-    { label:'Total hours', value:formatHoursMinutes(stats.summary.totalMinutes), detail:range.label, color:'#13733f' },
+    { label:'Total days tracked', value:String(stats.summary.totalDays), detail:countLabel(stats.summary.totalDays, 'counted day'), color:'var(--td-accent-text)' },
+    { label:'Total hours', value:formatHoursMinutes(stats.summary.totalMinutes), detail:range.label, color:'var(--td-accent-text)' },
     { label:'Average hours', value:formatHoursMinutes(stats.summary.averageMinutes), detail:'per tracked day', color:workBandTone(stats.summary.averageMinutes).text },
-    { label:'Average week', value:formatHoursMinutes(averageWeekMinutes), detail:`${countLabel(activeWeeks.length, 'active week')}`, color:'#13733f' },
-    { label:'Days under goal', value:String(stats.summary.underGoal), detail:`below ${goalText}`, color:'#a9791f' },
-    { label:'Days over goal', value:String(stats.summary.overGoal), detail:`above ${goalText}`, color:'#c2533f' },
-    { label:'Highest average day', value:highestWeekday?.label || '--', detail:highestWeekday ? `${formatHoursMinutes(highestWeekday.averageMinutes)} avg` : 'no tracked days', color:'#13733f' },
-    { label:'Lowest average day', value:lowestWeekday?.label || '--', detail:lowestWeekday ? `${formatHoursMinutes(lowestWeekday.averageMinutes)} avg` : 'no tracked days', color:'#a9791f' },
-    { label:'Weekends worked', value:String(weekendsWorked), detail:'Sat or Sun tracked', color:'#13733f' },
-    { label:'Goal-hit days', value:String(stats.summary.goalMet), detail:`within ${formatMinutes(TARGET_WORK_TOLERANCE)} of target`, color:'#13733f' },
-    { label:'Longest streak', value:String(streak.longest), detail:countLabel(streak.longest, 'tracked day'), color:'#13733f' },
-    { label:'Most recent tracked', value:mostRecent ? mostRecent.date.slice(5).replace('-', '/') : '--', detail:mostRecent ? formatHoursMinutes(mostRecent.totalMinutes) : 'no tracked days', color:'#13733f' },
+    { label:'Average week', value:formatHoursMinutes(averageWeekMinutes), detail:`${countLabel(activeWeeks.length, 'active week')}`, color:'var(--td-accent-text)' },
+    { label:'Days under goal', value:String(stats.summary.underGoal), detail:`below ${goalText}`, color:'var(--td-warning)' },
+    { label:'Days over goal', value:String(stats.summary.overGoal), detail:`above ${goalText}`, color:'var(--td-danger)' },
+    { label:'Highest average day', value:highestWeekday?.label || '--', detail:highestWeekday ? `${formatHoursMinutes(highestWeekday.averageMinutes)} avg` : 'no tracked days', color:'var(--td-accent-text)' },
+    { label:'Lowest average day', value:lowestWeekday?.label || '--', detail:lowestWeekday ? `${formatHoursMinutes(lowestWeekday.averageMinutes)} avg` : 'no tracked days', color:'var(--td-warning)' },
+    { label:'Weekends worked', value:String(weekendsWorked), detail:'Sat or Sun tracked', color:'var(--td-accent-text)' },
+    { label:'Goal-hit days', value:String(stats.summary.goalMet), detail:`within ${formatMinutes(TARGET_WORK_TOLERANCE)} of target`, color:'var(--td-accent-text)' },
+    { label:'Longest streak', value:String(streak.longest), detail:countLabel(streak.longest, 'tracked day'), color:'var(--td-accent-text)' },
+    { label:'Most recent tracked', value:mostRecent ? mostRecent.date.slice(5).replace('-', '/') : '--', detail:mostRecent ? formatHoursMinutes(mostRecent.totalMinutes) : 'no tracked days', color:'var(--td-accent-text)' },
   ];
   const setPreset = key => {
     setPeriod(key);
@@ -5269,8 +5278,8 @@ function TimeDashboardPanel({ notes, hasDailyFolder, onConfigure }) {
 
   if (!hasDailyFolder) {
     return (
-      <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', color:'#5a615b', fontSize:13 }}>
-        <button onClick={onConfigure} style={{ padding:'10px 18px', borderRadius:10, border:'none', cursor:'pointer', fontWeight:800, fontSize:13, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff' }}>Configure Daily Notes folder</button>
+      <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', color:'var(--td-muted)', fontSize:13 }}>
+        <button className="td-primary" onClick={onConfigure} style={{ padding:'10px 18px', borderRadius:10, border:'none', cursor:'pointer', fontWeight:800, fontSize:13, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff' }}>Configure Daily Notes folder</button>
       </div>
     );
   }
@@ -5280,10 +5289,10 @@ function TimeDashboardPanel({ notes, hasDailyFolder, onConfigure }) {
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:14, marginBottom:10, flexWrap:'wrap', flexShrink:0 }}>
         <div>
           <div style={{ fontSize:10, color:BRAND_LABEL, fontWeight:800, textTransform:'uppercase', letterSpacing:'0.14em', marginBottom:6 }}>Time dashboard · {range.label.toLowerCase()}</div>
-          <h2 style={{ margin:0, fontSize:26, color:'#1d2421', letterSpacing:0 }}>Time</h2>
+          <h2 style={{ margin:0, fontSize:26, color:'var(--td-text)', letterSpacing:0 }}>Time</h2>
         </div>
         <div style={{ display:'flex', gap:8, alignItems:'center', flexWrap:'wrap', justifyContent:'flex-end' }}>
-          <div style={{ display:'inline-flex', gap:6, padding:4, borderRadius:999, background:'rgba(255,255,255,0.55)', border:'1px solid rgba(255,255,255,0.62)' }}>
+          <div style={{ display:'inline-flex', gap:6, padding:4, borderRadius:999, background:'var(--td-subtle)', border:'1px solid var(--td-border)' }}>
             {[
               ['week', 'Week'],
               ['month', 'Month'],
@@ -5298,23 +5307,23 @@ function TimeDashboardPanel({ notes, hasDailyFolder, onConfigure }) {
               </button>
             ))}
           </div>
-          <div style={{ display:'flex', gap:6, alignItems:'center', padding:4, borderRadius:12, background:'rgba(255,255,255,0.55)', border:'1px solid rgba(255,255,255,0.62)' }}>
+          <div style={{ display:'flex', gap:6, alignItems:'center', padding:4, borderRadius:12, background:'var(--td-subtle)', border:'1px solid var(--td-border)' }}>
             <input
               type="date"
               value={customStart}
               min={firstDate}
               max={lastDate}
               onChange={e=>{ setCustomStart(e.target.value); setPeriod('custom'); }}
-              style={{ colorScheme:'light', width:126, padding:'6px 8px', borderRadius:9, border:'1px solid rgba(255,255,255,0.62)', background:'rgba(255,255,255,0.55)', color:'#1d2421', fontSize:11, fontWeight:750, fontFamily:'inherit', outline:'none' }}
+              style={{ colorScheme:'light', width:126, padding:'6px 8px', borderRadius:9, border:'1px solid var(--td-border)', background:'var(--td-subtle)', color:'var(--td-text)', fontSize:11, fontWeight:750, fontFamily:'inherit', outline:'none' }}
             />
-            <span style={{ color:'rgba(90,97,91,0.48)', fontSize:11, fontWeight:800 }}>to</span>
+            <span style={{ color:'var(--td-muted)', fontSize:11, fontWeight:800 }}>to</span>
             <input
               type="date"
               value={customEnd}
               min={firstDate}
               max={lastDate}
               onChange={e=>{ setCustomEnd(e.target.value); setPeriod('custom'); }}
-              style={{ colorScheme:'light', width:126, padding:'6px 8px', borderRadius:9, border:'1px solid rgba(255,255,255,0.62)', background:'rgba(255,255,255,0.55)', color:'#1d2421', fontSize:11, fontWeight:750, fontFamily:'inherit', outline:'none' }}
+              style={{ colorScheme:'light', width:126, padding:'6px 8px', borderRadius:9, border:'1px solid var(--td-border)', background:'var(--td-subtle)', color:'var(--td-text)', fontSize:11, fontWeight:750, fontFamily:'inherit', outline:'none' }}
             />
           </div>
         </div>
@@ -5325,7 +5334,7 @@ function TimeDashboardPanel({ notes, hasDailyFolder, onConfigure }) {
           <section key={card.label} className="glass-thin" style={{ borderRadius:14, padding:'12px 14px', minWidth:0, minHeight:0, display:'flex', flexDirection:'column', justifyContent:'center', overflow:'hidden' }}>
             <div style={{ fontSize:10, color:BRAND_LABEL, fontWeight:800, textTransform:'uppercase', letterSpacing:'0.12em', marginBottom:8, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{card.label}</div>
             <div style={{ fontSize:String(card.value).length > 8 ? 25 : 30, fontWeight:850, color:card.color, lineHeight:1.02, fontVariantNumeric:'tabular-nums', overflowWrap:'anywhere' }}>{card.value}</div>
-            <div style={{ fontSize:11, color:'rgba(90,97,91,0.78)', marginTop:7, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{card.detail}</div>
+            <div style={{ fontSize:11, color:'var(--td-muted)', marginTop:7, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{card.detail}</div>
           </section>
         ))}
       </div>
@@ -5374,8 +5383,8 @@ function MissionControlPanel({ today, overdue, recurrent, onNewTask, dailyNote, 
       <div style={{ fontSize:9, color:BRAND_LABEL, fontWeight:850, letterSpacing:'0.13em', textTransform:'uppercase', marginBottom:5 }}>{label}</div>
       {children || (
         <>
-          <div style={{ fontSize:26, fontWeight:850, color:'#1d2421', lineHeight:1, fontVariantNumeric:'tabular-nums' }}>{value}</div>
-          <div style={{ fontSize:10, color:'rgba(90,97,91,0.72)', marginTop:6, lineHeight:1.35 }}>{detail}</div>
+          <div style={{ fontSize:26, fontWeight:850, color:'var(--td-text)', lineHeight:1, fontVariantNumeric:'tabular-nums' }}>{value}</div>
+          <div style={{ fontSize:10, color:'var(--td-muted)', marginTop:6, lineHeight:1.35 }}>{detail}</div>
         </>
       )}
     </section>
@@ -5384,9 +5393,9 @@ function MissionControlPanel({ today, overdue, recurrent, onNewTask, dailyNote, 
   const MiniMetricGrid = ({ items }) => (
     <div style={{ display:'grid', gridTemplateColumns:'repeat(2,minmax(0,1fr))', gap:6 }}>
       {items.map(([label, value]) => (
-        <div key={label} style={{ minWidth:0, display:'flex', justifyContent:'space-between', gap:8, alignItems:'center', padding:'7px 8px', borderRadius:9, background:'rgba(255,255,255,0.55)', border:'1px solid rgba(255,255,255,0.60)' }}>
+        <div key={label} style={{ minWidth:0, display:'flex', justifyContent:'space-between', gap:8, alignItems:'center', padding:'7px 8px', borderRadius:9, background:'var(--td-subtle)', border:'1px solid var(--td-border)' }}>
           <span style={{ minWidth:0, fontSize:9.5, color:TEXT_SECONDARY, fontWeight:650, lineHeight:1.2 }}>{label}</span>
-          <span style={{ fontSize:13, color:'#1d2421', fontWeight:850, fontVariantNumeric:'tabular-nums' }}>{value}</span>
+          <span style={{ fontSize:13, color:'var(--td-text)', fontWeight:850, fontVariantNumeric:'tabular-nums' }}>{value}</span>
         </div>
       ))}
     </div>
@@ -5397,9 +5406,9 @@ function MissionControlPanel({ today, overdue, recurrent, onNewTask, dailyNote, 
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:12, marginBottom:12 }}>
         <div>
           <div style={{ fontSize:11, color:tone, fontWeight:850, textTransform:'uppercase', letterSpacing:'0.14em', marginBottom:5 }}>{title}</div>
-          <div style={{ fontSize:13, color:'rgba(90,97,91,0.78)' }}>{subtitle}</div>
+          <div style={{ fontSize:13, color:'var(--td-muted)' }}>{subtitle}</div>
         </div>
-        <span style={{ padding:'5px 9px', borderRadius:999, fontSize:11, fontWeight:850, color:tone, background:'rgba(255,255,255,0.55)', border:'1px solid rgba(255,255,255,0.62)', fontVariantNumeric:'tabular-nums' }}>{tasks.length}</span>
+        <span style={{ padding:'5px 9px', borderRadius:999, fontSize:11, fontWeight:850, color:tone, background:'var(--td-subtle)', border:'1px solid var(--td-border)', fontVariantNumeric:'tabular-nums' }}>{tasks.length}</span>
       </div>
       <div style={{ flex:1, minHeight:0, overflowY:'auto', display:'grid', gap:8, alignContent:'start' }}>
         {tasks.length ? tasks.map(task => (
@@ -5411,18 +5420,18 @@ function MissionControlPanel({ today, overdue, recurrent, onNewTask, dailyNote, 
               textAlign:'left',
               padding:'10px 12px',
               borderRadius:14,
-              border:'1px solid rgba(255,255,255,0.60)',
-              background:'rgba(255,255,255,0.55)',
-              color:'#5a615b',
+              border:'1px solid var(--td-border)',
+              background:'var(--td-subtle)',
+              color:'var(--td-muted)',
               cursor:'pointer',
               fontFamily:'inherit',
             }}
           >
-            <div style={{ fontSize:12.5, fontWeight:650, lineHeight:1.38, color:'#1d2421', overflowWrap:'anywhere' }}>{task.title}</div>
-            {showDates && <div style={{ fontSize:10.5, color:'rgba(90,97,91,0.70)', marginTop:4 }}>{taskDateDetail(task)}</div>}
+            <div style={{ fontSize:12.5, fontWeight:650, lineHeight:1.38, color:'var(--td-text)', overflowWrap:'anywhere' }}>{task.title}</div>
+            {showDates && <div style={{ fontSize:10.5, color:'var(--td-muted)', marginTop:4 }}>{taskDateDetail(task)}</div>}
           </button>
         )) : (
-          <div style={{ height:'100%', display:'flex', alignItems:'center', justifyContent:'center', textAlign:'center', color:'rgba(90,97,91,0.66)', fontSize:13, padding:'24px 12px' }}>
+          <div style={{ height:'100%', display:'flex', alignItems:'center', justifyContent:'center', textAlign:'center', color:'var(--td-muted)', fontSize:13, padding:'24px 12px' }}>
             {empty}
           </div>
         )}
@@ -5432,15 +5441,15 @@ function MissionControlPanel({ today, overdue, recurrent, onNewTask, dailyNote, 
 
   return (
     <div style={{ flex:1, display:'flex', flexDirection:'column', overflow:'hidden' }}>
-      <div className="td-mission-header" style={{ padding:'12px 18px 13px', borderBottom:'1px solid rgba(255,255,255,0.60)', flexShrink:0 }}>
+      <div className="td-mission-header td-view-header" style={{ padding:'12px 18px 13px', borderBottom:'1px solid var(--td-border)', flexShrink:0 }}>
         <div className="td-mission-heading" style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline', gap:12, marginBottom:10 }}>
           <div style={{ minWidth:0 }}>
-            <h2 style={{ margin:0, fontSize:24, fontWeight:850, letterSpacing:0, color:'#1d2421' }}>{greeting}.</h2>
+            <h2 style={{ margin:0, fontSize:24, fontWeight:850, letterSpacing:0, color:'var(--td-text)' }}>{greeting}.</h2>
             <div className="td-mission-date">{longDate(new Date())}</div>
           </div>
           <div style={{ display:'flex', gap:7, alignItems:'center' }}>
-            <button onClick={()=>setShowMissionMetrics(value => !value)} aria-expanded={showMissionMetrics} style={{ padding:'8px 10px', borderRadius:9, border:'1px solid rgba(255,255,255,0.62)', background:'rgba(255,255,255,0.55)', color:'#5a615b', cursor:'pointer', fontFamily:'inherit', fontSize:11, fontWeight:800 }}>{showMissionMetrics ? 'Hide metrics' : 'Review metrics'}</button>
-            <button onClick={onNewTask} style={{ padding:'8px 12px', borderRadius:9, border:'none', background:BRAND_GRADIENT, color:'#fff', boxShadow:BRAND_SHADOW, cursor:'pointer', fontFamily:'inherit', fontSize:12, fontWeight:800 }}>+ New task</button>
+            <button onClick={()=>setShowMissionMetrics(value => !value)} aria-expanded={showMissionMetrics} style={{ padding:'8px 10px', borderRadius:9, border:'1px solid var(--td-border)', background:'var(--td-subtle)', color:'var(--td-muted)', cursor:'pointer', fontFamily:'inherit', fontSize:11, fontWeight:800 }}>{showMissionMetrics ? 'Hide metrics' : 'Review metrics'}</button>
+            <button className="td-primary" onClick={onNewTask} style={{ padding:'8px 12px', borderRadius:9, border:'none', background:BRAND_GRADIENT, color:'#fff', boxShadow:BRAND_SHADOW, cursor:'pointer', fontFamily:'inherit', fontSize:12, fontWeight:800 }}>+ New task</button>
           </div>
         </div>
 
@@ -5473,16 +5482,16 @@ function MissionControlPanel({ today, overdue, recurrent, onNewTask, dailyNote, 
           <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:14, marginBottom:12 }}>
             <div>
               <div style={{ fontSize:11, color:BRAND_LABEL, fontWeight:800, textTransform:'uppercase', letterSpacing:'0.14em', marginBottom:5 }}>Daily note</div>
-              <div style={{ fontSize:14, color:'#1d2421', fontWeight:700 }}>{dailyNote ? dailyNote.filename : hasDailyFolder ? 'Creating today daily note...' : 'Daily notes folder not configured'}</div>
+              <div style={{ fontSize:14, color:'var(--td-text)', fontWeight:700 }}>{dailyNote ? dailyNote.filename : hasDailyFolder ? 'Creating today daily note...' : 'Daily notes folder not configured'}</div>
             </div>
             <div style={{ display:'flex', gap:8, flexWrap:'wrap', justifyContent:'flex-end' }}>
-              <span style={{ padding:'5px 9px', borderRadius:999, fontSize:10, fontWeight:800, color:'#1d2421', background:'rgba(255,255,255,0.58)', border:'1px solid rgba(255,255,255,0.62)' }}>
+              <span style={{ padding:'5px 9px', borderRadius:999, fontSize:10, fontWeight:800, color:'var(--td-text)', background:'var(--td-subtle)', border:'1px solid var(--td-border)' }}>
                 {today.length} today
               </span>
-              <span style={{ padding:'5px 9px', borderRadius:999, fontSize:10, fontWeight:800, color:'#a9791f', background:'rgba(208,150,52,0.08)', border:'1px solid rgba(208,150,52,0.14)' }}>
+              <span style={{ padding:'5px 9px', borderRadius:999, fontSize:10, fontWeight:800, color:'var(--td-warning)', background:'rgba(208,150,52,0.08)', border:'1px solid rgba(208,150,52,0.14)' }}>
                 {tomorrowTasks.length} tomorrow
               </span>
-              <span style={{ padding:'5px 9px', borderRadius:999, fontSize:10, fontWeight:800, color:'#c2533f', background:'rgba(225,91,79,0.08)', border:'1px solid rgba(225,91,79,0.14)' }}>
+              <span style={{ padding:'5px 9px', borderRadius:999, fontSize:10, fontWeight:800, color:'var(--td-danger)', background:'rgba(225,91,79,0.08)', border:'1px solid rgba(225,91,79,0.14)' }}>
                 {overdue.length} overdue
               </span>
             </div>
@@ -5492,13 +5501,13 @@ function MissionControlPanel({ today, overdue, recurrent, onNewTask, dailyNote, 
             <div className="td-daily-empty-state">
               <div className="td-daily-empty-icon" aria-hidden="true">+</div>
               <div>
-                <div style={{ fontSize:14, color:'#1d2421', fontWeight:800 }}>Daily Notes are not connected</div>
-                <div style={{ marginTop:5, color:'#5a615b', fontSize:12, lineHeight:1.5 }}>Connect a folder to capture notes, reflections, and brain dumps here.</div>
+                <div style={{ fontSize:14, color:'var(--td-text)', fontWeight:800 }}>Daily Notes are not connected</div>
+                <div style={{ marginTop:5, color:'var(--td-muted)', fontSize:12, lineHeight:1.5 }}>Connect a folder to capture notes, reflections, and brain dumps here.</div>
               </div>
-              <button onClick={onConfigure} style={{ marginTop:12, padding:'8px 12px', borderRadius:9, border:'1px solid rgba(20,120,72,0.22)', background:'rgba(20,120,72,0.10)', color:'#13733f', cursor:'pointer', fontFamily:'inherit', fontSize:12, fontWeight:800 }}>Configure Daily Notes</button>
+              <button onClick={onConfigure} style={{ marginTop:12, padding:'8px 12px', borderRadius:9, border:'1px solid rgba(20,120,72,0.22)', background:'rgba(20,120,72,0.10)', color:'var(--td-accent-text)', cursor:'pointer', fontFamily:'inherit', fontSize:12, fontWeight:800 }}>Configure Daily Notes</button>
             </div>
           ) : <>
-          <div style={{ display:'inline-flex', gap:6, padding:4, borderRadius:12, background:'rgba(255,255,255,0.55)', border:'1px solid rgba(255,255,255,0.62)', alignSelf:'flex-start', marginBottom:14 }}>
+          <div style={{ display:'inline-flex', gap:6, padding:4, borderRadius:12, background:'var(--td-subtle)', border:'1px solid var(--td-border)', alignSelf:'flex-start', marginBottom:14 }}>
             {noteSections.map(section => (
               <button
                 key={section.key}
@@ -5521,13 +5530,13 @@ function MissionControlPanel({ today, overdue, recurrent, onNewTask, dailyNote, 
             ))}
           </div>
 
-          <div style={{ flex:1, minHeight:0, borderRadius:16, border:'1px solid rgba(255,255,255,0.62)', background:'rgba(255,255,255,0.55)', padding:'14px 14px 12px', display:'flex', flexDirection:'column' }}>
+          <div style={{ flex:1, minHeight:0, borderRadius:16, border:'1px solid var(--td-border)', background:'var(--td-subtle)', padding:'14px 14px 12px', display:'flex', flexDirection:'column' }}>
             <div className="td-daily-recent" style={{ flex:'0 0 auto', minHeight:120, paddingRight:4 }}>
-              <div style={{ fontSize:10, color:'rgba(90,97,91,0.64)', fontWeight:800, textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:10 }}>
+              <div style={{ fontSize:10, color:'var(--td-muted)', fontWeight:800, textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:10 }}>
                 Recent {activeNote.label.toLowerCase()}
               </div>
               {activeItems.length ? (
-                <ul style={{ margin:0, paddingLeft:18, display:'grid', gap:8, color:'#222a25' }}>
+                <ul style={{ margin:0, paddingLeft:18, display:'grid', gap:8, color:'var(--td-text)' }}>
                   {activeItems.map((item, index) => (
                     <li key={`${activeNote.key}-${index}`} style={{ paddingLeft:4 }}>
                       <MarkdownBody compact>{item}</MarkdownBody>
@@ -5535,13 +5544,13 @@ function MissionControlPanel({ today, overdue, recurrent, onNewTask, dailyNote, 
                   ))}
                 </ul>
               ) : (
-                <div style={{ color:'rgba(90,97,91,0.66)', fontSize:12 }}>
+                <div style={{ color:'var(--td-muted)', fontSize:12 }}>
                   {hasDailyFolder ? `No ${activeNote.label.toLowerCase()} bullet points yet.` : 'Set the Daily Notes folder to start capturing here.'}
                 </div>
               )}
             </div>
 
-            <div className="td-daily-composer" style={{ marginTop:12, paddingTop:12, borderTop:'1px solid rgba(255,255,255,0.62)' }}>
+            <div className="td-daily-composer" style={{ marginTop:12, paddingTop:12, borderTop:'1px solid var(--td-border)' }}>
               <MentionTextarea
                 value={dailyInputs[activeNote.key] || ''}
                 onChange={e=>setDailyInputs(prev => ({ ...prev, [activeNote.key]: e.target.value }))}
@@ -5556,8 +5565,8 @@ function MissionControlPanel({ today, overdue, recurrent, onNewTask, dailyNote, 
                   borderRadius:14,
                   resize:'vertical',
                   background:GLASS_INNER,
-                  border:'1px solid rgba(255,255,255,0.62)',
-                  color:'#222a25',
+                  border:'1px solid var(--td-border)',
+                  color:'var(--td-text)',
                   fontSize:13,
                   lineHeight:1.55,
                   outline:'none',
@@ -5566,8 +5575,8 @@ function MissionControlPanel({ today, overdue, recurrent, onNewTask, dailyNote, 
                 }}
               />
               <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:12, marginTop:10 }}>
-                <div style={{ fontSize:11, color:'rgba(90,97,91,0.62)' }}>{activeNote.helper}</div>
-                <button
+                <div style={{ fontSize:11, color:'var(--td-muted)' }}>{activeNote.helper}</div>
+                <button className="td-primary"
                   onClick={()=>onAddDailyEntry(activeNote.key)}
                   disabled={!hasDailyFolder || !dailyInputs[activeNote.key]?.trim()}
                   style={{
@@ -5597,14 +5606,14 @@ function MissionControlPanel({ today, overdue, recurrent, onNewTask, dailyNote, 
             title="Overdue tasks"
             subtitle="Items that need recovery first."
             tasks={overdue}
-            tone="#c2533f"
+            tone="var(--td-danger)"
             empty="No overdue tasks right now."
           />
           <TaskQueuePanel
             title="Today tasks"
             subtitle="Tasks due today."
             tasks={today}
-            tone="#a9791f"
+            tone="var(--td-warning)"
             empty="No today tasks are queued."
             showDates={false}
           />
@@ -5624,15 +5633,15 @@ function WorkCalendar({ month, selectedDate, notes, onMonthChange, onSelectDate,
   return (
     <section className="glass-thin" style={{ borderRadius:18, padding:'14px', minHeight:0, height:'100%', boxSizing:'border-box' }}>
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:11 }}>
-        <button onClick={()=>onMonthChange(prevMonth(month))} disabled={!hasDailyFolder} style={{ width:34, height:34, borderRadius:10, border:'none', background:BRAND_GRADIENT, color:'#fff', cursor:hasDailyFolder?'pointer':'not-allowed', fontWeight:900, boxShadow:BRAND_SHADOW, opacity:hasDailyFolder?1:0.4 }}>‹</button>
+        <button className="td-primary" onClick={()=>onMonthChange(prevMonth(month))} disabled={!hasDailyFolder} style={{ width:34, height:34, borderRadius:10, border:'none', background:BRAND_GRADIENT, color:'#fff', cursor:hasDailyFolder?'pointer':'not-allowed', fontWeight:900, boxShadow:BRAND_SHADOW, opacity:hasDailyFolder?1:0.4 }}>‹</button>
         <div style={{ textAlign:'center' }}>
           <div style={{ fontSize:11, color:BRAND_LABEL, fontWeight:800, letterSpacing:'0.14em', textTransform:'uppercase', marginBottom:5 }}>Calendar</div>
-          <h3 style={{ margin:0, fontSize:18, color:'#1d2421' }}>{monthLabel(month)}</h3>
+          <h3 style={{ margin:0, fontSize:18, color:'var(--td-text)' }}>{monthLabel(month)}</h3>
         </div>
-        <button onClick={()=>onMonthChange(nextMonth(month))} disabled={!hasDailyFolder} style={{ width:34, height:34, borderRadius:10, border:'none', background:BRAND_GRADIENT, color:'#fff', cursor:hasDailyFolder?'pointer':'not-allowed', fontWeight:900, boxShadow:BRAND_SHADOW, opacity:hasDailyFolder?1:0.4 }}>›</button>
+        <button className="td-primary" onClick={()=>onMonthChange(nextMonth(month))} disabled={!hasDailyFolder} style={{ width:34, height:34, borderRadius:10, border:'none', background:BRAND_GRADIENT, color:'#fff', cursor:hasDailyFolder?'pointer':'not-allowed', fontWeight:900, boxShadow:BRAND_SHADOW, opacity:hasDailyFolder?1:0.4 }}>›</button>
       </div>
       <div style={{ display:'grid', gridTemplateColumns:'repeat(7,1fr)', gap:6, marginBottom:6 }}>
-        {['M','T','W','T','F','S','S'].map((d, i) => <div key={`${d}-${i}`} style={{ fontSize:9, color:'rgba(90,97,91,0.68)', textAlign:'center', fontWeight:800 }}>{d}</div>)}
+        {['M','T','W','T','F','S','S'].map((d, i) => <div key={`${d}-${i}`} style={{ fontSize:9, color:'var(--td-muted)', textAlign:'center', fontWeight:800 }}>{d}</div>)}
       </div>
       <div style={{ display:'grid', gridTemplateColumns:'repeat(7,1fr)', gap:6 }}>
         {cells.map((dateStr, i) => {
@@ -5641,34 +5650,34 @@ function WorkCalendar({ month, selectedDate, notes, onMonthChange, onSelectDate,
           const status = notes[dateStr]?.workStatus;
           const selected = selectedDate === dateStr;
           const tone = workBandTone(stats.totalMinutes);
-          const accent = status === 'holiday' ? '#3f6fd0' : status === 'bank-holiday' ? '#a9791f' : status === 'sick-leave' ? '#c2533f' : tone.fill;
+          const accent = status === 'holiday' ? '#3f6fd0' : status === 'bank-holiday' ? 'var(--td-warning)' : status === 'sick-leave' ? 'var(--td-danger)' : tone.fill;
           return (
             <button key={dateStr} onClick={()=>onSelectDate(dateStr)} disabled={!hasDailyFolder}
               title={`${dateStr} · ${formatMinutes(stats.totalMinutes)} · ${stats.label}`}
-              style={{ minHeight:42, borderRadius:12, border:`1px solid ${selected ? BRAND_BORDER_STRONG : 'rgba(255,255,255,0.60)'}`, background:selected?'rgba(20,120,72,0.14)':'rgba(255,255,255,0.50)', color:'#222a25', cursor:hasDailyFolder?'pointer':'not-allowed', fontFamily:'inherit', padding:'4px 2px', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:3, boxShadow:selected ? '0 0 24px rgba(20,120,72,0.12)' : 'none' }}>
+              style={{ minHeight:42, borderRadius:12, border:`1px solid ${selected ? BRAND_BORDER_STRONG : 'var(--td-subtle)'}`, background:selected?'rgba(20,120,72,0.14)':'var(--td-subtle)', color:'var(--td-text)', cursor:hasDailyFolder?'pointer':'not-allowed', fontFamily:'inherit', padding:'4px 2px', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:3, boxShadow:selected ? '0 0 24px rgba(20,120,72,0.12)' : 'none' }}>
               <span style={{ fontSize:12, fontWeight:800 }}>{Number(dateStr.slice(-2))}</span>
               <span style={{ width:6, height:6, borderRadius:6, background:accent, opacity:status || stats.totalMinutes ? 1 : 0.35 }} />
             </button>
           );
         })}
       </div>
-      <div style={{ display:'flex', gap:8, flexWrap:'wrap', marginTop:12, color:'rgba(90,97,91,0.68)', fontSize:10 }}>
+      <div style={{ display:'flex', gap:8, flexWrap:'wrap', marginTop:12, color:'var(--td-muted)', fontSize:10 }}>
         <span>Green in band</span>
         <span>Yellow below</span>
         <span>Red above</span>
         <span>Blue holiday</span>
         <span>Yellow bank holiday</span>
       </div>
-      <div style={{ display:'flex', gap:8, alignItems:'center', flexWrap:'wrap', marginTop:12, paddingTop:12, borderTop:'1px solid rgba(255,255,255,0.60)' }}>
+      <div style={{ display:'flex', gap:8, alignItems:'center', flexWrap:'wrap', marginTop:12, paddingTop:12, borderTop:'1px solid var(--td-border)' }}>
         <select value={selectedNote?.workStatus || 'workday'} onChange={e=>onStatusChange(selectedDate, e.target.value)} disabled={!hasDailyFolder}
-          style={{ minWidth:122, minHeight:40, padding:'10px 13px', borderRadius:10, background:'rgba(255,255,255,0.60)', border:'1px solid rgba(20,120,72,0.24)', color:'#222a25', fontSize:13, fontWeight:650, fontFamily:'inherit', outline:'none', opacity:hasDailyFolder?1:0.45 }}>
+          style={{ minWidth:122, minHeight:40, padding:'10px 13px', borderRadius:10, background:'var(--td-subtle)', border:'1px solid rgba(20,120,72,0.24)', color:'var(--td-text)', fontSize:13, fontWeight:650, fontFamily:'inherit', outline:'none', opacity:hasDailyFolder?1:0.45 }}>
           {Object.entries(WORK_STATUS_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
         </select>
-        <button onClick={()=>onSaveRows(selectedDate, draftRows)} disabled={!canSave}
+        <button className="td-primary" onClick={()=>onSaveRows(selectedDate, draftRows)} disabled={!canSave}
           style={{ padding:'9px 13px', borderRadius:10, border:'none', cursor:canSave?'pointer':'not-allowed', fontWeight:800, fontSize:12, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff', boxShadow:BRAND_SHADOW, opacity:canSave?1:0.4 }}>
           Save hours
         </button>
-        <div style={{ fontSize:11, color:'#5a615b' }}>{selectedStats.creditedDay ? 'Leave days credit 435 minutes automatically.' : 'Breaks subtract from the day total.'}</div>
+        <div style={{ fontSize:11, color:'var(--td-muted)' }}>{selectedStats.creditedDay ? 'Leave days credit 435 minutes automatically.' : 'Breaks subtract from the day total.'}</div>
       </div>
     </section>
   );
@@ -5710,8 +5719,8 @@ function ProjectPanel({ selected, draft, setDraft, onSave, summary, refs, onNewP
 
   if (!hasProjectsFolder) {
     return (
-      <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', color:'#5a615b', fontSize:13 }}>
-        <button onClick={onConfigure} style={{ padding:'10px 18px', borderRadius:10, border:'none', cursor:'pointer', fontWeight:700, fontSize:13, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff' }}>Configure Projects folder</button>
+      <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', color:'var(--td-muted)', fontSize:13 }}>
+        <button className="td-primary" onClick={onConfigure} style={{ padding:'10px 18px', borderRadius:10, border:'none', cursor:'pointer', fontWeight:700, fontSize:13, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff' }}>Configure Projects folder</button>
       </div>
     );
   }
@@ -5719,13 +5728,13 @@ function ProjectPanel({ selected, draft, setDraft, onSave, summary, refs, onNewP
   if (!selected) {
     return (
       <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', padding:30 }}>
-        <div style={{ width:'min(520px,100%)', borderRadius:18, border:'1px solid rgba(255,255,255,0.60)', background:'rgba(255,255,255,0.55)', padding:24, textAlign:'center' }}>
+        <div style={{ width:'min(520px,100%)', borderRadius:18, border:'1px solid var(--td-border)', background:'var(--td-subtle)', padding:24, textAlign:'center' }}>
           <div style={{ fontSize:10, color:BRAND_LABEL, fontWeight:800, letterSpacing:'0.14em', textTransform:'uppercase', marginBottom:10 }}>Projects</div>
           <h2 style={{ margin:'0 0 12px', fontSize:24, color:TEXT_PRIMARY }}>Select a project</h2>
-          <div style={{ color:'rgba(90,97,91,0.78)', fontSize:13, lineHeight:1.6, marginBottom:18 }}>
+          <div style={{ color:'var(--td-muted)', fontSize:13, lineHeight:1.6, marginBottom:18 }}>
             Pick a project from the sidebar or create a new project note to start tracking scope, status, and context.
           </div>
-          <button onClick={onNewProject} style={{ padding:'10px 18px', borderRadius:10, border:'none', cursor:'pointer', fontWeight:800, fontSize:13, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff' }}>+ New Project</button>
+          <button className="td-primary" onClick={onNewProject} style={{ padding:'10px 18px', borderRadius:10, border:'none', cursor:'pointer', fontWeight:800, fontSize:13, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff' }}>+ New Project</button>
         </div>
       </div>
     );
@@ -5748,10 +5757,10 @@ function ProjectPanel({ selected, draft, setDraft, onSave, summary, refs, onNewP
       subtitle={metadataLine}
       action={(
         <div style={{ display:'flex', gap:8, alignItems:'center', flexWrap:'wrap', justifyContent:'flex-end' }}>
-          <button onClick={openMetadata} style={{ padding:'9px 14px', borderRadius:999, border:'1px solid rgba(255,255,255,0.62)', background:'rgba(255,255,255,0.55)', color:BRAND_TEXT, cursor:'pointer', fontWeight:800, fontSize:12, fontFamily:'inherit' }}>
+          <button onClick={openMetadata} style={{ padding:'9px 14px', borderRadius:999, border:'1px solid var(--td-border)', background:'var(--td-subtle)', color:BRAND_TEXT, cursor:'pointer', fontWeight:800, fontSize:12, fontFamily:'inherit' }}>
             Edit metadata
           </button>
-          <button onClick={onSave} style={{ padding:'9px 18px', borderRadius:999, border:'none', cursor:'pointer', fontWeight:800, fontSize:12, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff', boxShadow:BRAND_SHADOW }}>
+          <button className="td-primary" onClick={onSave} style={{ padding:'9px 18px', borderRadius:999, border:'none', cursor:'pointer', fontWeight:800, fontSize:12, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff', boxShadow:BRAND_SHADOW }}>
             Save
           </button>
         </div>
@@ -5765,7 +5774,7 @@ function ProjectPanel({ selected, draft, setDraft, onSave, summary, refs, onNewP
             subtitle={metadataLine}
             chips={detailChips}
             action={(
-              <button onClick={onNewProject} style={{ padding:'8px 14px', borderRadius:999, border:'1px solid rgba(255,255,255,0.62)', background:'rgba(255,255,255,0.55)', color:'#5a615b', fontSize:11, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>
+              <button onClick={onNewProject} style={{ padding:'8px 14px', borderRadius:999, border:'1px solid var(--td-border)', background:'var(--td-subtle)', color:'var(--td-muted)', fontSize:11, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>
                 New project...
               </button>
             )}
@@ -5809,8 +5818,8 @@ function PropertyPanel({ properties, selected, selectedId, draft, setDraft, refs
 
   if (!hasPropertiesFolder) {
     return (
-      <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', color:'#5a615b', fontSize:13 }}>
-        <button onClick={onConfigure} style={{ padding:'10px 18px', borderRadius:10, border:'none', cursor:'pointer', fontWeight:700, fontSize:13, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff' }}>Configure Properties folder</button>
+      <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', color:'var(--td-muted)', fontSize:13 }}>
+        <button className="td-primary" onClick={onConfigure} style={{ padding:'10px 18px', borderRadius:10, border:'none', cursor:'pointer', fontWeight:700, fontSize:13, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff' }}>Configure Properties folder</button>
       </div>
     );
   }
@@ -5818,13 +5827,13 @@ function PropertyPanel({ properties, selected, selectedId, draft, setDraft, refs
   if (!selected) {
     return (
       <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', padding:30 }}>
-        <div style={{ width:'min(520px,100%)', borderRadius:18, border:'1px solid rgba(255,255,255,0.60)', background:'rgba(255,255,255,0.55)', padding:24, textAlign:'center' }}>
+        <div style={{ width:'min(520px,100%)', borderRadius:18, border:'1px solid var(--td-border)', background:'var(--td-subtle)', padding:24, textAlign:'center' }}>
           <div style={{ fontSize:10, color:BRAND_LABEL, fontWeight:800, letterSpacing:'0.14em', textTransform:'uppercase', marginBottom:10 }}>Properties</div>
           <h2 style={{ margin:'0 0 12px', fontSize:24, color:TEXT_PRIMARY }}>Select a property</h2>
-          <div style={{ color:'rgba(90,97,91,0.78)', fontSize:13, lineHeight:1.6, marginBottom:18 }}>
+          <div style={{ color:'var(--td-muted)', fontSize:13, lineHeight:1.6, marginBottom:18 }}>
             Pick a property from the sidebar or create a new property note to start tracking context, covers, and comments.
           </div>
-          <button onClick={onNewProperty} style={{ padding:'10px 18px', borderRadius:10, border:'none', cursor:'pointer', fontWeight:800, fontSize:13, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff' }}>+ New Property</button>
+          <button className="td-primary" onClick={onNewProperty} style={{ padding:'10px 18px', borderRadius:10, border:'none', cursor:'pointer', fontWeight:800, fontSize:13, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff' }}>+ New Property</button>
         </div>
       </div>
     );
@@ -5839,7 +5848,7 @@ function PropertyPanel({ properties, selected, selectedId, draft, setDraft, refs
     { label:'Cover', value:cover ? 'set' : 'none', tone:cover ? BRAND_TEXT : TEXT_SECONDARY },
   ];
   const coverNode = (
-    <div style={{ width:64, height:48, borderRadius:12, overflow:'hidden', flexShrink:0, background:cover ? GLASS_INNER : 'rgba(20,120,72,0.10)', border:'1px solid rgba(255,255,255,0.62)', display:'flex', alignItems:'center', justifyContent:'center' }}>
+    <div style={{ width:64, height:48, borderRadius:12, overflow:'hidden', flexShrink:0, background:cover ? GLASS_INNER : 'rgba(20,120,72,0.10)', border:'1px solid var(--td-border)', display:'flex', alignItems:'center', justifyContent:'center' }}>
       {cover
         ? <img src={cover} alt="" style={{ width:'100%', height:'100%', objectFit:'cover' }}/>
         : <span style={{ color:BRAND_TEXT, fontSize:16, fontWeight:900 }}>{initials(selected.title)}</span>}
@@ -5853,16 +5862,16 @@ function PropertyPanel({ properties, selected, selectedId, draft, setDraft, refs
       subtitle={metadataLine}
       action={(
         <div style={{ display:'flex', gap:8, alignItems:'center', flexWrap:'wrap', justifyContent:'flex-end' }}>
-          <button onClick={openMetadata} style={{ padding:'9px 14px', borderRadius:999, border:'1px solid rgba(255,255,255,0.62)', background:'rgba(255,255,255,0.55)', color:BRAND_TEXT, cursor:'pointer', fontWeight:800, fontSize:12, fontFamily:'inherit' }}>
+          <button onClick={openMetadata} style={{ padding:'9px 14px', borderRadius:999, border:'1px solid var(--td-border)', background:'var(--td-subtle)', color:BRAND_TEXT, cursor:'pointer', fontWeight:800, fontSize:12, fontFamily:'inherit' }}>
             Edit metadata
           </button>
-          <button onClick={onSave} style={{ padding:'9px 18px', borderRadius:999, border:'none', cursor:'pointer', fontWeight:800, fontSize:12, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff', boxShadow:BRAND_SHADOW }}>
+          <button className="td-primary" onClick={onSave} style={{ padding:'9px 18px', borderRadius:999, border:'none', cursor:'pointer', fontWeight:800, fontSize:12, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff', boxShadow:BRAND_SHADOW }}>
             Save
           </button>
         </div>
       )}
     >
-      {loadError && <div style={{ marginBottom:10, padding:'10px 11px', borderRadius:10, background:'rgba(208,150,52,0.12)', border:'1px solid rgba(208,150,52,0.28)', color:'#a9791f', fontSize:13, fontWeight:750, lineHeight:1.45, whiteSpace:'pre-wrap', flexShrink:0 }}>{loadError}</div>}
+      {loadError && <div style={{ marginBottom:10, padding:'10px 11px', borderRadius:10, background:'rgba(208,150,52,0.12)', border:'1px solid rgba(208,150,52,0.28)', color:'var(--td-warning)', fontSize:13, fontWeight:750, lineHeight:1.45, whiteSpace:'pre-wrap', flexShrink:0 }}>{loadError}</div>}
       <>
           <DetailIdentityCard
             avatarNode={coverNode}
@@ -5871,13 +5880,13 @@ function PropertyPanel({ properties, selected, selectedId, draft, setDraft, refs
             chips={detailChips}
             action={(
               <div style={{ display:'flex', gap:8, alignItems:'center', flexWrap:'wrap', justifyContent:'flex-end' }}>
-                <button onClick={onNewProperty} style={{ padding:'8px 14px', borderRadius:999, border:'1px solid rgba(255,255,255,0.62)', background:'rgba(255,255,255,0.55)', color:'#5a615b', fontSize:11, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>
+                <button onClick={onNewProperty} style={{ padding:'8px 14px', borderRadius:999, border:'1px solid var(--td-border)', background:'var(--td-subtle)', color:'var(--td-muted)', fontSize:11, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>
                   New property...
                 </button>
-                <button onClick={()=>hasAttachmentsFolder ? coverInputRef.current?.click() : onConfigure()} style={{ padding:'8px 14px', borderRadius:999, border:'1px solid rgba(255,255,255,0.62)', background:'rgba(255,255,255,0.55)', color:'#5a615b', fontSize:11, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>
+                <button onClick={()=>hasAttachmentsFolder ? coverInputRef.current?.click() : onConfigure()} style={{ padding:'8px 14px', borderRadius:999, border:'1px solid var(--td-border)', background:'var(--td-subtle)', color:'var(--td-muted)', fontSize:11, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>
                   {hasAttachmentsFolder ? 'Upload cover' : 'Configure covers'}
                 </button>
-                <button onClick={onConfigure} style={{ padding:'8px 14px', borderRadius:999, border:'1px solid rgba(255,255,255,0.62)', background:'rgba(255,255,255,0.55)', color:'#5a615b', fontSize:11, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>
+                <button onClick={onConfigure} style={{ padding:'8px 14px', borderRadius:999, border:'1px solid var(--td-border)', background:'var(--td-subtle)', color:'var(--td-muted)', fontSize:11, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>
                   Folders
                 </button>
                 <input ref={coverInputRef} type="file" accept="image/*" style={{ display:'none' }} onChange={e=>{ const file = e.target.files?.[0]; if (file) onUploadCover(selected.id, file); e.target.value = ''; }}/>
@@ -5889,17 +5898,17 @@ function PropertyPanel({ properties, selected, selectedId, draft, setDraft, refs
             <div style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline', gap:12, marginBottom:10, flexShrink:0 }}>
               <div>
                 <div style={{ fontSize:10, color:BRAND_LABEL, fontWeight:800, textTransform:'uppercase', letterSpacing:'0.14em', marginBottom:5 }}>Comments</div>
-                <div style={{ fontSize:12, color:'rgba(90,97,91,0.72)' }}>{selected.filename}</div>
+                <div style={{ fontSize:12, color:'var(--td-muted)' }}>{selected.filename}</div>
               </div>
             </div>
             <div style={{ display:'flex', gap:8, marginBottom:12, flexShrink:0 }}>
               <MentionTextarea value={comment} onChange={e=>setComment(e.target.value)} placeholder="Add a property comment... @ to link a person/project" rows={3}
                 onKeyDown={e=>{ if(e.key==='Enter'&&!e.shiftKey){ e.preventDefault(); onAddComment(); }}}
-                style={{ flex:1, minHeight:76, fieldSizing:'content', padding:'11px 12px', borderRadius:10, resize:'vertical', background:GLASS_INNER, border:'1px solid rgba(255,255,255,0.68)', color:TEXT_PRIMARY, fontSize:13, lineHeight:1.45, outline:'none', fontFamily:'inherit' }}/>
-              <button onClick={onAddComment} disabled={!comment.trim()} style={{ alignSelf:'stretch', padding:'0 18px', borderRadius:10, border:'none', cursor:comment.trim()?'pointer':'not-allowed', fontWeight:800, fontSize:13, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff', opacity:comment.trim()?1:0.35, boxShadow:comment.trim()?BRAND_SHADOW:'none' }}>Add</button>
+                style={{ flex:1, minHeight:76, fieldSizing:'content', padding:'11px 12px', borderRadius:10, resize:'vertical', background:GLASS_INNER, border:'1px solid var(--td-border)', color:TEXT_PRIMARY, fontSize:13, lineHeight:1.45, outline:'none', fontFamily:'inherit' }}/>
+              <button className="td-primary" onClick={onAddComment} disabled={!comment.trim()} style={{ alignSelf:'stretch', padding:'0 18px', borderRadius:10, border:'none', cursor:comment.trim()?'pointer':'not-allowed', fontWeight:800, fontSize:13, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff', opacity:comment.trim()?1:0.35, boxShadow:comment.trim()?BRAND_SHADOW:'none' }}>Add</button>
             </div>
             <div style={{ flex:1, minHeight:0, overflowY:'auto', paddingRight:2 }}>
-              {!selected.comments.length && <div style={{ color:'#5a615b', textAlign:'center', padding:'32px 0', fontSize:14, fontWeight:700 }}>No property comments yet</div>}
+              {!selected.comments.length && <div style={{ color:'var(--td-muted)', textAlign:'center', padding:'32px 0', fontSize:14, fontWeight:700 }}>No property comments yet</div>}
               {selected.comments.map((l, i) => (
                 <CommentCard key={`${l.date}-${i}-${l.text}`} log={l} index={i} onSave={onEditComment} onDelete={onDeleteComment} />
               ))}
@@ -5942,14 +5951,13 @@ function NewProjectPanel({ onCancel, onCreate, refs }) {
 
   return (
     <div style={{ flex:1, display:'flex', flexDirection:'column', overflow:'hidden' }}>
-      <div style={{ padding:'22px 30px 16px', borderBottom:'1px solid rgba(255,255,255,0.60)', flexShrink:0, display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:24 }}>
+      <div className="td-view-header" style={{ padding:'22px 30px 16px', borderBottom:'1px solid var(--td-border)', flexShrink:0, display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:24 }}>
         <div>
-          <div style={{ fontSize:10, color:BRAND_LABEL, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:8 }}>+ New Project</div>
-          <h2 style={{ margin:0, fontSize:19, fontWeight:700, color:'#1d2421' }}>Create a project note</h2>
+          <h2 style={{ margin:0, fontSize:19, fontWeight:700, color:'var(--td-text)' }}>Create a project note</h2>
         </div>
         <div style={{ display:'flex', gap:8 }}>
-          <button onClick={onCancel} style={{ padding:'9px 16px', borderRadius:10, border:'1px solid rgba(255,255,255,0.68)', cursor:'pointer', fontWeight:700, fontSize:13, fontFamily:'inherit', background:'transparent', color:'#5a615b' }}>Cancel</button>
-          <button onClick={submit} disabled={busy || !form.title.trim()} style={{ padding:'9px 22px', borderRadius:10, border:'none', cursor:'pointer', fontWeight:700, fontSize:13, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff', opacity:(busy||!form.title.trim())?0.4:1 }}>
+          <button onClick={onCancel} style={{ padding:'9px 16px', borderRadius:10, border:'1px solid var(--td-border)', cursor:'pointer', fontWeight:700, fontSize:13, fontFamily:'inherit', background:'transparent', color:'var(--td-muted)' }}>Cancel</button>
+          <button className="td-primary" onClick={submit} disabled={busy || !form.title.trim()} style={{ padding:'9px 22px', borderRadius:10, border:'none', cursor:'pointer', fontWeight:700, fontSize:13, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff', opacity:(busy||!form.title.trim())?0.4:1 }}>
             {busy ? 'Creating...' : 'Create Project'}
           </button>
         </div>
@@ -5959,7 +5967,7 @@ function NewProjectPanel({ onCancel, onCreate, refs }) {
         <form onSubmit={submit} style={{ maxWidth:720 }}>
           <Field label="Project name">
             <input autoFocus value={form.title} onChange={e=>set('title', e.target.value)} placeholder="e.g. Union Module 4" style={{ ...inputBase, fontSize:16, fontWeight:600, padding:'10px 14px' }}/>
-            <div style={{ fontSize:10, color:'#5a615b', marginTop:4 }}>Project note will be <code style={{ color:'#5a615b' }}>{form.title.trim() ? projectCoverPath(form.title) : '<project-name>/Cover_<project-name>.md'}</code></div>
+            <div style={{ fontSize:10, color:'var(--td-muted)', marginTop:4 }}>Project note will be <code style={{ color:'var(--td-muted)' }}>{form.title.trim() ? projectCoverPath(form.title) : '<project-name>/Cover_<project-name>.md'}</code></div>
           </Field>
           <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:11 }}>
             <Field label="Status">
@@ -6017,14 +6025,13 @@ function NewPropertyPanel({ onCancel, onCreate, refs, hasAttachmentsFolder, onCo
 
   return (
     <div style={{ flex:1, display:'flex', flexDirection:'column', overflow:'hidden' }}>
-      <div style={{ padding:'22px 30px 16px', borderBottom:'1px solid rgba(255,255,255,0.60)', flexShrink:0, display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:24 }}>
+      <div className="td-view-header" style={{ padding:'22px 30px 16px', borderBottom:'1px solid var(--td-border)', flexShrink:0, display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:24 }}>
         <div>
-          <div style={{ fontSize:10, color:BRAND_LABEL, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:8 }}>+ New Property</div>
-          <h2 style={{ margin:0, fontSize:19, fontWeight:700, color:'#1d2421' }}>Create a property note</h2>
+          <h2 style={{ margin:0, fontSize:19, fontWeight:700, color:'var(--td-text)' }}>Create a property note</h2>
         </div>
         <div style={{ display:'flex', gap:8 }}>
-          <button onClick={onCancel} style={{ padding:'9px 16px', borderRadius:10, border:'1px solid rgba(255,255,255,0.68)', cursor:'pointer', fontWeight:700, fontSize:13, fontFamily:'inherit', background:'transparent', color:'#5a615b' }}>Cancel</button>
-          <button onClick={submit} disabled={busy || !form.title.trim()} style={{ padding:'9px 22px', borderRadius:10, border:'none', cursor:'pointer', fontWeight:700, fontSize:13, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff', opacity:(busy||!form.title.trim())?0.4:1, boxShadow:BRAND_SHADOW }}>
+          <button onClick={onCancel} style={{ padding:'9px 16px', borderRadius:10, border:'1px solid var(--td-border)', cursor:'pointer', fontWeight:700, fontSize:13, fontFamily:'inherit', background:'transparent', color:'var(--td-muted)' }}>Cancel</button>
+          <button className="td-primary" onClick={submit} disabled={busy || !form.title.trim()} style={{ padding:'9px 22px', borderRadius:10, border:'none', cursor:'pointer', fontWeight:700, fontSize:13, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff', opacity:(busy||!form.title.trim())?0.4:1, boxShadow:BRAND_SHADOW }}>
             {busy ? 'Creating...' : 'Create Property'}
           </button>
         </div>
@@ -6034,7 +6041,7 @@ function NewPropertyPanel({ onCancel, onCreate, refs, hasAttachmentsFolder, onCo
         <form onSubmit={submit} style={{ maxWidth:720 }}>
           <Field label="Property name">
             <input autoFocus value={form.title} onChange={e=>set('title', e.target.value)} placeholder="e.g. 20 Kildare Street" style={{ ...inputBase, fontSize:16, fontWeight:600, padding:'10px 14px' }}/>
-            <div style={{ fontSize:10, color:'#5a615b', marginTop:4 }}>Filename will be <code style={{ color:'#5a615b' }}>{slug}.md</code></div>
+            <div style={{ fontSize:10, color:'var(--td-muted)', marginTop:4 }}>Filename will be <code style={{ color:'var(--td-muted)' }}>{slug}.md</code></div>
           </Field>
 
           <Field label={`Client${refs.clients.length?` · ${refs.clients.length} available`:''}`}>
@@ -6055,7 +6062,7 @@ function NewPropertyPanel({ onCancel, onCreate, refs, hasAttachmentsFolder, onCo
           <Field label="Cover image">
             {hasAttachmentsFolder ? (
               <label style={{ ...inputBase, display:'flex', alignItems:'center', justifyContent:'space-between', gap:10, cursor:'pointer' }}>
-                <span style={{ color:form.coverFile?'#222a25':'#5a615b', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                <span style={{ color:form.coverFile?'var(--td-text)':'var(--td-muted)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
                   {form.coverFile ? form.coverFile.name : 'Choose an image...'}
                 </span>
                 <span style={{ color:BRAND_TEXT, fontWeight:800, fontSize:11, flexShrink:0 }}>Browse</span>
@@ -6102,14 +6109,13 @@ function NewPersonPanel({ onCancel, onCreate, refs, hasPeopleFolder, onConfigure
 
   return (
     <div style={{ flex:1, display:'flex', flexDirection:'column', overflow:'hidden' }}>
-      <div style={{ padding:'22px 30px 16px', borderBottom:'1px solid rgba(255,255,255,0.60)', flexShrink:0, display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:24 }}>
+      <div className="td-view-header" style={{ padding:'22px 30px 16px', borderBottom:'1px solid var(--td-border)', flexShrink:0, display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:24 }}>
         <div>
-          <div style={{ fontSize:10, color:BRAND_LABEL, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:8 }}>+ New Person</div>
-          <h2 style={{ margin:0, fontSize:19, fontWeight:700, color:'#1d2421' }}>Create a person note</h2>
+          <h2 style={{ margin:0, fontSize:19, fontWeight:700, color:'var(--td-text)' }}>Create a person note</h2>
         </div>
         <div style={{ display:'flex', gap:8 }}>
-          <button onClick={onCancel} style={{ padding:'9px 16px', borderRadius:10, border:'1px solid rgba(255,255,255,0.68)', cursor:'pointer', fontWeight:700, fontSize:13, fontFamily:'inherit', background:'transparent', color:'#5a615b' }}>Cancel</button>
-          <button onClick={hasPeopleFolder ? submit : onConfigure} disabled={busy || (hasPeopleFolder && !form.name.trim())} style={{ padding:'9px 22px', borderRadius:10, border:'none', cursor:'pointer', fontWeight:700, fontSize:13, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff', opacity:(busy || (hasPeopleFolder && !form.name.trim()))?0.4:1 }}>
+          <button onClick={onCancel} style={{ padding:'9px 16px', borderRadius:10, border:'1px solid var(--td-border)', cursor:'pointer', fontWeight:700, fontSize:13, fontFamily:'inherit', background:'transparent', color:'var(--td-muted)' }}>Cancel</button>
+          <button className="td-primary" onClick={hasPeopleFolder ? submit : onConfigure} disabled={busy || (hasPeopleFolder && !form.name.trim())} style={{ padding:'9px 22px', borderRadius:10, border:'none', cursor:'pointer', fontWeight:700, fontSize:13, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff', opacity:(busy || (hasPeopleFolder && !form.name.trim()))?0.4:1 }}>
             {hasPeopleFolder ? (busy ? 'Creating...' : 'Create Person') : 'Configure People Folder'}
           </button>
         </div>
@@ -6119,7 +6125,7 @@ function NewPersonPanel({ onCancel, onCreate, refs, hasPeopleFolder, onConfigure
         <form onSubmit={submit} style={{ maxWidth:720 }}>
           <Field label="Person name">
             <input autoFocus value={form.name} onChange={e=>set('name', e.target.value)} placeholder="e.g. Jane Smith" style={{ ...inputBase, fontSize:16, fontWeight:600, padding:'10px 14px' }}/>
-            <div style={{ fontSize:10, color:'#5a615b', marginTop:4 }}>Filename will be <code style={{ color:'#5a615b' }}>{form.name.trim() ? `${kebabSlug(form.name, 'new-person')}.md` : '<person-name>.md'}</code></div>
+            <div style={{ fontSize:10, color:'var(--td-muted)', marginTop:4 }}>Filename will be <code style={{ color:'var(--td-muted)' }}>{form.name.trim() ? `${kebabSlug(form.name, 'new-person')}.md` : '<person-name>.md'}</code></div>
           </Field>
 
           <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:11 }}>
@@ -6180,14 +6186,13 @@ function NewOrganizationPanel({ onCancel, onCreate, hasOrganizationsFolder, onCo
 
   return (
     <div style={{ flex:1, display:'flex', flexDirection:'column', overflow:'hidden' }}>
-      <div style={{ padding:'22px 30px 16px', borderBottom:'1px solid rgba(255,255,255,0.60)', flexShrink:0, display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:24 }}>
+      <div className="td-view-header" style={{ padding:'22px 30px 16px', borderBottom:'1px solid var(--td-border)', flexShrink:0, display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:24 }}>
         <div>
-          <div style={{ fontSize:10, color:BRAND_LABEL, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:8 }}>+ New Organization</div>
-          <h2 style={{ margin:0, fontSize:19, fontWeight:700, color:'#1d2421' }}>Create an organization note</h2>
+          <h2 style={{ margin:0, fontSize:19, fontWeight:700, color:'var(--td-text)' }}>Create an organization note</h2>
         </div>
         <div style={{ display:'flex', gap:8 }}>
-          <button onClick={onCancel} style={{ padding:'9px 16px', borderRadius:10, border:'1px solid rgba(255,255,255,0.68)', cursor:'pointer', fontWeight:700, fontSize:13, fontFamily:'inherit', background:'transparent', color:'#5a615b' }}>Cancel</button>
-          <button onClick={hasOrganizationsFolder ? submit : onConfigure} disabled={busy || (hasOrganizationsFolder && !form.name.trim())} style={{ padding:'9px 22px', borderRadius:10, border:'none', cursor:'pointer', fontWeight:700, fontSize:13, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff', opacity:(busy || (hasOrganizationsFolder && !form.name.trim()))?0.4:1 }}>
+          <button onClick={onCancel} style={{ padding:'9px 16px', borderRadius:10, border:'1px solid var(--td-border)', cursor:'pointer', fontWeight:700, fontSize:13, fontFamily:'inherit', background:'transparent', color:'var(--td-muted)' }}>Cancel</button>
+          <button className="td-primary" onClick={hasOrganizationsFolder ? submit : onConfigure} disabled={busy || (hasOrganizationsFolder && !form.name.trim())} style={{ padding:'9px 22px', borderRadius:10, border:'none', cursor:'pointer', fontWeight:700, fontSize:13, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff', opacity:(busy || (hasOrganizationsFolder && !form.name.trim()))?0.4:1 }}>
             {hasOrganizationsFolder ? (busy ? 'Creating...' : 'Create Organization') : 'Configure Organizations Folder'}
           </button>
         </div>
@@ -6197,7 +6202,7 @@ function NewOrganizationPanel({ onCancel, onCreate, hasOrganizationsFolder, onCo
         <form onSubmit={submit} style={{ maxWidth:720 }}>
           <Field label="Organization name">
             <input autoFocus value={form.name} onChange={e=>set('name', e.target.value)} placeholder="e.g. Acme Corp" style={{ ...inputBase, fontSize:16, fontWeight:600, padding:'10px 14px' }}/>
-            <div style={{ fontSize:10, color:'#5a615b', marginTop:4 }}>Filename will be <code style={{ color:'#5a615b' }}>{form.name.trim() ? `${kebabSlug(form.name, 'new-organization')}.md` : '<organization-name>.md'}</code></div>
+            <div style={{ fontSize:10, color:'var(--td-muted)', marginTop:4 }}>Filename will be <code style={{ color:'var(--td-muted)' }}>{form.name.trim() ? `${kebabSlug(form.name, 'new-organization')}.md` : '<organization-name>.md'}</code></div>
           </Field>
 
           <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:11 }}>
@@ -6300,14 +6305,13 @@ function NewTaskPanel({ onCancel, onCreate, refs, isNarrow = false, initialDue =
 
   return (
     <div style={{ flex:1, display:'flex', flexDirection:'column', overflow:'hidden' }}>
-      <div className="td-new-task-header" style={{ padding:'18px 30px 14px', borderBottom:'1px solid rgba(255,255,255,0.60)', flexShrink:0, display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:24 }}>
+      <div className="td-new-task-header td-view-header" style={{ padding:'18px 30px 14px', borderBottom:'1px solid var(--td-border)', flexShrink:0, display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:24 }}>
         <div>
-          <div style={{ fontSize:10, color:BRAND_LABEL, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:7 }}>+ New Task</div>
-          <h2 style={{ margin:0, fontSize:19, fontWeight:700, color:'#1d2421' }}>Create a task in your Tasks folder</h2>
+          <h2 style={{ margin:0, fontSize:19, fontWeight:700, color:'var(--td-text)' }}>Create a task in your Tasks folder</h2>
         </div>
         <div style={{ display:'flex', gap:8 }}>
-          <button onClick={onCancel} style={{ padding:'9px 16px', borderRadius:10, border:'1px solid rgba(255,255,255,0.68)', cursor:'pointer', fontWeight:700, fontSize:13, fontFamily:'inherit', background:'transparent', color:'#5a615b' }}>Cancel</button>
-          <button onClick={submit} disabled={busy || !canCreate} style={{ padding:'9px 22px', borderRadius:10, border:'none', cursor:'pointer', fontWeight:700, fontSize:13, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff', opacity:(busy||!canCreate)?0.4:1, boxShadow:BRAND_SHADOW }}>
+          <button onClick={onCancel} style={{ padding:'9px 16px', borderRadius:10, border:'1px solid var(--td-border)', cursor:'pointer', fontWeight:700, fontSize:13, fontFamily:'inherit', background:'transparent', color:'var(--td-muted)' }}>Cancel</button>
+          <button className="td-primary" onClick={submit} disabled={busy || !canCreate} style={{ padding:'9px 22px', borderRadius:10, border:'none', cursor:'pointer', fontWeight:700, fontSize:13, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff', opacity:(busy||!canCreate)?0.4:1, boxShadow:BRAND_SHADOW }}>
             {busy ? 'Creating…' : 'Create Task'}
           </button>
         </div>
@@ -6322,11 +6326,11 @@ function NewTaskPanel({ onCancel, onCreate, refs, isNarrow = false, initialDue =
                 style={{ ...inputBase, fontSize:14, padding:'10px 14px', border:quickPreview?.dueInvalid?'1px solid rgba(225,91,79,0.45)':inputBase.border }}/>
               {quickPreview && (
                 <div style={{ marginTop:7, display:'flex', gap:6, flexWrap:'wrap', alignItems:'center' }}>
-                  {quickPreview.title && <span style={{ fontSize:10, color:'#5a615b', padding:'3px 7px', borderRadius:14, background:'rgba(255,255,255,0.55)', border:'1px solid rgba(255,255,255,0.60)' }}>title: {quickPreview.title}</span>}
-                  {quickPreview.due && <span style={{ fontSize:10, color:'#a9791f', padding:'3px 7px', borderRadius:14, background:'rgba(208,150,52,0.08)', border:'1px solid rgba(208,150,52,0.16)' }}>due: {quickPreview.due}</span>}
+                  {quickPreview.title && <span style={{ fontSize:10, color:'var(--td-muted)', padding:'3px 7px', borderRadius:14, background:'var(--td-subtle)', border:'1px solid var(--td-border)' }}>title: {quickPreview.title}</span>}
+                  {quickPreview.due && <span style={{ fontSize:10, color:'var(--td-warning)', padding:'3px 7px', borderRadius:14, background:'rgba(208,150,52,0.08)', border:'1px solid rgba(208,150,52,0.16)' }}>due: {quickPreview.due}</span>}
                   <span style={{ fontSize:10, color:'#5b57b0', padding:'3px 7px', borderRadius:14, background:'rgba(129,140,248,0.08)', border:'1px solid rgba(129,140,248,0.16)' }}>priority: {quickPreview.priority}</span>
                   {quickPreview.extraTags && <span style={{ fontSize:10, color:BRAND_TEXT, padding:'3px 7px', borderRadius:14, background:BRAND_SURFACE, border:`1px solid ${BRAND_BORDER}` }}>tags: {quickPreview.extraTags}</span>}
-                  {quickPreview.dueInvalid && <span style={{ fontSize:10, color:'#c2533f', padding:'3px 7px', borderRadius:14, background:'rgba(225,91,79,0.08)', border:'1px solid rgba(225,91,79,0.18)' }}>invalid due date: {quickPreview.dueInvalid}</span>}
+                  {quickPreview.dueInvalid && <span style={{ fontSize:10, color:'var(--td-danger)', padding:'3px 7px', borderRadius:14, background:'rgba(225,91,79,0.08)', border:'1px solid rgba(225,91,79,0.18)' }}>invalid due date: {quickPreview.dueInvalid}</span>}
                 </div>
               )}
             </Field>
@@ -6337,7 +6341,7 @@ function NewTaskPanel({ onCancel, onCreate, refs, isNarrow = false, initialDue =
                 <ComboInput value={titleParts.link} onChange={v=>setTitlePart('link', v)} options={titleLinkOptions} placeholder="Optional property/client..." />
               </div>
               <input value={titleParts.name} onChange={e=>setTitlePart('name', e.target.value)} placeholder="Task name..." style={inputBase}/>
-              <div style={{ fontSize:10, color:'#5a615b', marginTop:4 }}>Filename will be <code style={{ color:'#5a615b' }}>{form.title.trim() ? safeFilename(form.title) : '<title>'}.md</code></div>
+              <div style={{ fontSize:10, color:'var(--td-muted)', marginTop:4 }}>Filename will be <code style={{ color:'var(--td-muted)' }}>{form.title.trim() ? safeFilename(form.title) : '<title>'}.md</code></div>
             </Field>
 
             <div className="td-task-form-grid" style={{ display:'grid', gridTemplateColumns:'repeat(2,minmax(0,1fr))', gap:'0 11px' }}>
@@ -6356,7 +6360,7 @@ function NewTaskPanel({ onCancel, onCreate, refs, isNarrow = false, initialDue =
               <Field label="Recurrent">
                 <label style={{ ...inputBase, display:'flex', alignItems:'center', gap:9, cursor:'pointer', minHeight:39 }}>
                   <input type="checkbox" checked={form.recurrent} onChange={e=>set('recurrent', e.target.checked)} style={{ accentColor:BRAND_LABEL }}/>
-                  <span style={{ color:'#5a615b', fontSize:13 }}>Mark as recurrent</span>
+                  <span style={{ color:'var(--td-muted)', fontSize:13 }}>Mark as recurrent</span>
                 </label>
               </Field>
             </div>
@@ -6393,7 +6397,7 @@ function NewTaskPanel({ onCancel, onCreate, refs, isNarrow = false, initialDue =
 
             <Field label="Extra tags (comma-separated)">
               <input value={form.extraTags} onChange={e=>set('extraTags', e.target.value)} placeholder="admin, urgent…" style={inputBase}/>
-              <div style={{ fontSize:10, color:'#5a615b', marginTop:4 }}>The tag <code style={{ color:'#5a615b' }}>task</code> is added automatically.</div>
+              <div style={{ fontSize:10, color:'var(--td-muted)', marginTop:4 }}>The tag <code style={{ color:'var(--td-muted)' }}>task</code> is added automatically.</div>
             </Field>
 
             <Field label="Details / initial log (optional)">

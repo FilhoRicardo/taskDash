@@ -929,33 +929,33 @@
 
 .taskdash-root .shell.td-v2 .td-pane-list input,
 .taskdash-root .shell.td-v2 .td-pane-list select {
-  background: var(--background-primary) !important;
-  border-color: var(--background-modifier-border) !important;
-  color: var(--text-normal) !important;
+  background: var(--td-surface) !important;
+  border-color: var(--td-border) !important;
+  color: var(--td-text) !important;
 }
 
 .taskdash-root .shell.td-v2 .td-library-row {
   border: 1px solid transparent !important;
   border-radius: 5px !important;
   background: transparent !important;
-  color: var(--text-normal) !important;
+  color: var(--td-text) !important;
 }
 
 .taskdash-root .shell.td-v2 .td-library-row:hover {
-  background: var(--background-modifier-hover) !important;
+  background: var(--td-hover) !important;
 }
 
 .taskdash-root .shell.td-v2 .td-library-row[aria-selected="true"] {
-  border-color: color-mix(in srgb, var(--interactive-accent) 22%, transparent) !important;
+  border-color: color-mix(in srgb, var(--td-accent) 22%, transparent) !important;
   background: var(--native-selected) !important;
 }
 
 .taskdash-root .shell.td-v2 .td-library-row > div {
-  color: var(--text-normal) !important;
+  color: var(--td-text) !important;
 }
 
 .taskdash-root .shell.td-v2 .td-library-row > div + div {
-  color: var(--text-muted) !important;
+  color: var(--td-muted) !important;
 }
 
 .taskdash-root .shell.td-v2 .td-vault-mark {
@@ -1003,69 +1003,69 @@
 /* 2.1 shared page language: every primary view inherits the same native
    canvas, divider, typography, control, and focus treatment. */
 .taskdash-root .shell.td-v2 .td-page-host {
-  color: var(--text-normal);
+  color: var(--td-text);
   font-family: var(--font-interface, system-ui);
 }
 
 .taskdash-root .shell.td-v2 .td-page-host > div {
-  background: var(--background-primary) !important;
+  background: var(--td-surface) !important;
 }
 
 .taskdash-root .shell.td-v2 .td-page-host h1,
 .taskdash-root .shell.td-v2 .td-page-host h2,
 .taskdash-root .shell.td-v2 .td-page-host h3 {
-  color: var(--text-normal) !important;
+  color: var(--td-text) !important;
   font-family: var(--font-interface, system-ui);
 }
 
 .taskdash-root .shell.td-v2 .td-page-host input,
 .taskdash-root .shell.td-v2 .td-page-host textarea,
 .taskdash-root .shell.td-v2 .td-page-host select {
-  background: var(--background-primary) !important;
-  border-color: var(--background-modifier-border) !important;
-  color: var(--text-normal) !important;
+  background: var(--td-surface) !important;
+  border-color: var(--td-border) !important;
+  color: var(--td-text) !important;
   box-shadow: none !important;
 }
 
 .taskdash-root .shell.td-v2 .td-page-host .glass-thin {
-  background: var(--background-secondary) !important;
-  border: 1px solid var(--background-modifier-border) !important;
+  background: var(--td-subtle) !important;
+  border: 1px solid var(--td-border) !important;
 }
 
 .taskdash-root .shell.td-v2 .td-detail-page {
-  background: var(--background-primary) !important;
+  background: var(--td-surface) !important;
 }
 
 .taskdash-root .shell.td-v2 .td-detail-header {
   padding-bottom: 12px;
-  border-bottom: 1px solid var(--background-modifier-border);
+  border-bottom: 1px solid var(--td-border);
 }
 
 .taskdash-root .shell.td-v2 .td-detail-actions button,
 .taskdash-root .shell.td-v2 .td-detail-identity-action button,
 .taskdash-root .shell.td-v2 .td-detail-editor button {
-  border: 1px solid var(--background-modifier-border) !important;
+  border: 1px solid var(--td-border) !important;
   border-radius: 5px !important;
-  background: var(--background-secondary) !important;
-  color: var(--text-normal) !important;
+  background: var(--td-subtle) !important;
+  color: var(--td-text) !important;
   box-shadow: none !important;
 }
 
 .taskdash-root .shell.td-v2 .td-detail-actions button:last-child {
-  border-color: var(--interactive-accent) !important;
-  background: var(--interactive-accent) !important;
-  color: var(--text-on-accent) !important;
+  border-color: var(--td-accent) !important;
+  background: var(--td-accent) !important;
+  color: var(--td-on-accent) !important;
 }
 
 .taskdash-root .shell.td-v2 .td-detail-chip,
 .taskdash-root .shell.td-v2 .td-detail-preview {
-  border: 1px solid var(--background-modifier-border);
-  background: var(--background-primary);
-  color: var(--text-normal);
+  border: 1px solid var(--td-border);
+  background: var(--td-surface);
+  color: var(--td-text);
 }
 
 .taskdash-root .shell.td-v2 .td-detail-metric-value {
-  color: var(--text-normal) !important;
+  color: var(--td-text) !important;
 }
 
 .taskdash-root .shell.td-v2 button:focus-visible,
@@ -1073,7 +1073,7 @@
 .taskdash-root .shell.td-v2 textarea:focus-visible,
 .taskdash-root .shell.td-v2 select:focus-visible,
 .taskdash-root .shell.td-v2 [role="button"]:focus-visible {
-  outline: 2px solid var(--interactive-accent) !important;
+  outline: 2px solid var(--td-accent) !important;
   outline-offset: 2px;
 }
 
@@ -1098,16 +1098,16 @@
 .taskdash-root .shell.td-v2 .td-task-properties-trigger {
   min-height: 38px;
   padding: 8px 13px;
-  border: 1px solid var(--background-modifier-border);
+  border: 1px solid var(--td-border);
   border-radius: 8px;
-  background: var(--background-primary);
-  color: var(--text-normal);
+  background: var(--td-surface);
+  color: var(--td-text);
   cursor: pointer;
   font: 700 12px var(--font-interface, system-ui);
 }
 
 .taskdash-root .shell.td-v2 .td-task-properties-trigger:hover {
-  background: var(--background-modifier-hover);
+  background: var(--td-hover);
 }
 
 /* Task workspace polish: keep host theme colors and reserve accent for action. */
@@ -1119,6 +1119,11 @@
   --td-muted: var(--text-muted, #59645d);
   --td-accent: var(--interactive-accent, #13733f);
   --td-on-accent: var(--text-on-accent, #fff);
+  --td-accent-text: var(--text-accent, #13733f);
+  --td-selected: color-mix(in srgb, var(--td-accent) 10%, var(--td-surface));
+  --td-danger: var(--text-error, #b33d31);
+  --td-warning: var(--text-warning, #89651d);
+  --td-hover: var(--background-modifier-hover, #e9eeeb);
 }
 
 .taskdash-root .shell.td-v2 .td-task-detail-header {
@@ -1428,6 +1433,144 @@
 
 }
 
+/* Shared screen language: functional layouts differ; control roles do not. */
+.taskdash-root .shell.td-v2 .rail-btn.on,
+.taskdash-root .shell.td-v2 .rail-btn.on svg {
+  color: var(--td-accent-text) !important;
+}
+
+.taskdash-root .shell.td-v2 .td-page-host h2 {
+  font-size: 24px !important;
+  font-weight: 700 !important;
+  line-height: 1.3 !important;
+  color: var(--td-text) !important;
+  text-wrap: balance;
+}
+
+.taskdash-root .shell.td-v2 .td-page-host h3 {
+  font-size: 15px !important;
+  font-weight: 650 !important;
+  color: var(--td-text) !important;
+}
+
+.taskdash-root .shell.td-v2 .td-page-host button,
+.taskdash-root .td-dialog button {
+  min-height: 36px;
+  border-radius: 6px !important;
+  box-shadow: none !important;
+  font-family: var(--font-interface, system-ui) !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+}
+
+.taskdash-root .shell.td-v2 button.td-primary {
+  background: var(--td-accent) !important;
+  color: var(--td-on-accent) !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
+
+.taskdash-root .shell.td-v2 button.td-primary:hover:not(:disabled),
+.taskdash-root .td-metadata-dialog-save:hover:not(:disabled) {
+  filter: brightness(.92);
+}
+
+.taskdash-root button:disabled {
+  cursor: not-allowed !important;
+}
+
+.taskdash-root .shell.td-v2 .td-page-host input:not([type="checkbox"]),
+.taskdash-root .shell.td-v2 .td-page-host textarea,
+.taskdash-root .shell.td-v2 .td-page-host select,
+.taskdash-root .shell.td-v2 .td-pane-list input {
+  background: var(--td-surface) !important;
+  border-color: var(--td-border) !important;
+  border-radius: 6px !important;
+  color: var(--td-text) !important;
+  font-family: var(--font-interface, system-ui);
+  font-size: 13px !important;
+  box-shadow: none !important;
+  caret-color: var(--td-accent);
+  color-scheme: inherit !important;
+}
+
+.taskdash-root input::placeholder,
+.taskdash-root textarea::placeholder {
+  color: var(--td-muted);
+  opacity: 1;
+}
+
+.taskdash-root .shell.td-v2 .td-page-host label {
+  color: var(--td-muted) !important;
+  font-family: var(--font-interface, system-ui) !important;
+  letter-spacing: normal !important;
+  text-transform: none !important;
+}
+
+.taskdash-root .shell.td-v2 .td-detail-header,
+.taskdash-root .shell.td-v2 .td-view-header {
+  gap: 16px !important;
+  flex-wrap: wrap;
+  border-color: var(--td-border) !important;
+}
+
+.taskdash-root .shell.td-v2 .td-view-header {
+  padding: 24px !important;
+  background: var(--td-surface) !important;
+  backdrop-filter: none;
+}
+
+.taskdash-root .shell.td-v2 .td-detail-page {
+  padding: 24px !important;
+}
+
+.taskdash-root .td-detail-actions,
+.taskdash-root .td-view-header > div:last-child {
+  max-width: 100%;
+  flex-wrap: wrap;
+}
+
+.taskdash-root .shell.td-v2 .td-page-host .glass-thin {
+  background: var(--td-subtle) !important;
+  border-color: var(--td-border) !important;
+  border-radius: 8px !important;
+}
+
+.taskdash-root .td-dialog {
+  background: var(--td-surface);
+  color: var(--td-text);
+  border-color: var(--td-border);
+}
+
+.taskdash-root .td-dialog h2 {
+  color: var(--td-text);
+}
+
+.taskdash-root .td-dialog p {
+  color: var(--td-muted);
+}
+
+.taskdash-root .td-dialog-backdrop {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.taskdash-root ::selection {
+  background: var(--td-selected);
+  color: var(--td-text);
+}
+
+.taskdash-root .shell.td-v2 :focus-visible,
+.taskdash-root .td-dialog :focus-visible {
+  outline: 2px solid var(--td-accent) !important;
+  outline-offset: 2px;
+}
+
+.taskdash-root .shell.td-narrow .td-view-header,
+.taskdash-root .shell.td-narrow .td-detail-page {
+  padding: 16px !important;
+}
+
 /* TaskDash 2.2 workflow pages reuse the native detail-page surfaces. */
 .taskdash-root .td-workflow-layout {
   flex: 1;
@@ -1461,7 +1604,7 @@
 .taskdash-root .td-workflow-progress {
   justify-content: space-between;
   margin-bottom: 12px;
-  color: var(--text-muted);
+  color: var(--td-muted);
   font-size: 11px;
   font-weight: 700;
 }
@@ -1477,7 +1620,7 @@
   padding: 4px 8px;
   border-radius: 999px;
   background: var(--native-selected);
-  color: var(--interactive-accent);
+  color: var(--td-accent);
   font-size: 10px;
   font-weight: 750;
 }
@@ -1485,17 +1628,17 @@
 .taskdash-root .td-workflow-description {
   padding-top: 14px;
   border-top: 1px solid var(--native-border);
-  color: var(--text-normal);
+  color: var(--td-text);
   line-height: 1.65;
 }
 
 .taskdash-root .td-workflow-description .markdown-body {
-  color: var(--text-normal);
+  color: var(--td-text);
 }
 
 .taskdash-root .td-workflow-section-label {
   margin: 0 0 9px;
-  color: var(--text-faint);
+  color: var(--td-muted);
   font-size: 10px;
   font-weight: 750;
   letter-spacing: .08em;
@@ -1519,9 +1662,9 @@
   min-height: 34px;
   padding: 7px 12px;
   border-radius: 5px;
-  border: 1px solid var(--background-modifier-border);
-  background: var(--background-primary);
-  color: var(--text-normal);
+  border: 1px solid var(--td-border);
+  background: var(--td-surface);
+  color: var(--td-text);
   cursor: pointer;
   font-family: inherit;
   font-size: 12px;
@@ -1530,13 +1673,13 @@
 
 .taskdash-root .td-workflow-primary,
 .taskdash-root .td-workflow-date-row button {
-  border-color: var(--interactive-accent);
-  background: var(--interactive-accent);
-  color: var(--text-on-accent);
+  border-color: var(--td-accent);
+  background: var(--td-accent);
+  color: var(--td-on-accent);
 }
 
 .taskdash-root .td-workflow-secondary {
-  color: var(--interactive-accent);
+  color: var(--td-accent);
 }
 
 .taskdash-root .td-workflow-danger {
@@ -1563,13 +1706,13 @@
   gap: 9px;
   padding: 8px 0;
   border-top: 1px solid var(--native-border);
-  color: var(--text-normal);
+  color: var(--td-text);
   font-size: 11px;
 }
 
 .taskdash-root .td-workflow-log span,
 .taskdash-root .td-workflow-empty {
-  color: var(--text-muted);
+  color: var(--td-muted);
 }
 
 .taskdash-root .td-review-batch {

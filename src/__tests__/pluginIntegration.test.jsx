@@ -198,6 +198,31 @@ describe('TaskDash plugin end-to-end', () => {
     };
   });
 
+  it('associates shared creation form labels with distinct controls', async () => {
+    const app = makeFakeApp();
+    app.__folders.add('Tasks');
+    app.__folders.add('People');
+    app.__pluginData = { folders:{ tasks:'Tasks', people:'People' } };
+    const plugin = new TaskDashPlugin(app, { id:'taskdash-2-2', version:'2.2.0' });
+    await plugin.onload();
+    const view = app.__viewFactories[TASKDASH_VIEW_TYPE]({});
+    view.app = app;
+    await view.onOpen();
+    expect(await waitFor(() => !!view.contentEl.querySelector('button[aria-label="People"]'))).toBe(true);
+    view.contentEl.querySelector('button[aria-label="People"]').click();
+    expect(await waitFor(() => [...view.contentEl.querySelectorAll('button')].some(button => button.textContent === '+ New Person'))).toBe(true);
+    [...view.contentEl.querySelectorAll('button')].find(button => button.textContent === '+ New Person').click();
+    expect(await waitFor(() => !!view.contentEl.querySelector('form'))).toBe(true);
+    const labels = [...view.contentEl.querySelectorAll('form label')];
+    for (const text of ['Person name', 'Company / client', 'Role', 'Email', 'Phone', 'Tags (comma-separated)', 'Initial notes']) {
+      const label = labels.find(item => item.textContent === text);
+      expect(label?.htmlFor, `${text}: ${label?.outerHTML}`).toBeTruthy();
+      expect([...view.contentEl.querySelectorAll('input, textarea, select')].some(control => control.id === label.htmlFor)).toBe(true);
+    }
+    expect(new Set(labels.map(label => label.htmlFor)).size).toBe(labels.length);
+    await view.onClose();
+  });
+
   it('keeps a failed timer stop pending across reload and retries the frozen session once', async () => {
     const app = makeFakeApp();
     app.__folders.add('Tasks');
