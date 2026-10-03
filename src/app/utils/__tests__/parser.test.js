@@ -2,6 +2,14 @@ import { describe, expect, it } from 'vitest';
 import { isProjectFileName, parseDailyNote, parseFrontmatter, parseMeeting, parseOrganization, parseProject, parseProperty, parseTask, readDirNames, readMdFiles } from '../parser.js';
 
 describe('parseTask', () => {
+  it('reads CRLF activity entries including multiline text and separators', () => {
+    const raw = '---\r\ntitle: Synthetic\r\n---\r\n### [[2026-10-03]]\r\nLog: First entry\r\nSecond line\r\nLog: Another entry\r\n\r\n---\r\n';
+    expect(parseTask('Synthetic.md', raw).logs).toEqual([
+      { date:'2026-10-03', text:'First entry\nSecond line' },
+      { date:'2026-10-03', text:'Another entry' },
+    ]);
+    expect(parseTask('Synthetic.md', raw).raw).toBe(raw);
+  });
   it('reads CRLF TaskNotes frontmatter the same as LF frontmatter', () => {
     const lf = '---\ntitle: Example\nstatus: done\ndue: 2026-10-02\nRecurrent: true\n---\nBody stays as written.\n';
     const crlf = lf.replace(/\n/g, '\r\n');

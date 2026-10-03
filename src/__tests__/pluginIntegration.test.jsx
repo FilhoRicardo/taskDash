@@ -223,6 +223,47 @@ describe('TaskDash plugin end-to-end', () => {
     await view.onClose();
   });
 
+  it('keeps global open-task calendar totals when changing weeks and warns on weekend due dates', async () => {
+    const app = makeFakeApp();
+    app.__folders.add('Tasks');
+    const fixtures = [
+      ['old','due: 2020-01-01'], ['future','due: 2030-01-05\nRecurrent: true\nrecurrence: FREQ=DAILY'],
+      ['undated',''], ['scheduled','scheduled: 2030-01-05'], ['closed','status: done'], ['BD - idea',''],
+    ];
+    for (const [name, metadata] of fixtures) app.__files.set(`Tasks/${name}.md`, { content:`---\ntitle: ${name}\n${metadata}\n---\nBody\n`, mtime:1 });
+    app.__pluginData = { folders:{ tasks:'Tasks' } };
+    const plugin = new TaskDashPlugin(app, { id:'taskdash-2-2', version:'2.2.0' });
+    await plugin.onload();
+    const view = app.__viewFactories[TASKDASH_VIEW_TYPE]({});
+    view.app = app;
+    await view.onOpen();
+    expect(await waitFor(() => !!view.contentEl.querySelector('button[aria-label="Calendar"]'))).toBe(true);
+    view.contentEl.querySelector('button[aria-label="Calendar"]').click();
+    const totals = () => [...view.contentEl.querySelectorAll('.td-calendar-stat')].map(el=>el.textContent);
+    expect(await waitFor(() => totals().length === 3)).toBe(true);
+    expect(totals()).toEqual(['Total4','Overdue1','On track3']);
+    const initialWeek = view.contentEl.querySelector('.td-calendar-header h2').textContent;
+    view.contentEl.querySelector('button[aria-label="Next week"]').click();
+    expect(await waitFor(() => view.contentEl.querySelector('.td-calendar-header h2').textContent !== initialWeek)).toBe(true);
+    expect(totals()).toEqual(['Total4','Overdue1','On track3']);
+    [...view.contentEl.querySelectorAll('button')].find(button=>button.textContent === '+ New task').click();
+    expect(await waitFor(() => !!view.contentEl.querySelector('form'))).toBe(true);
+    const label = [...view.contentEl.querySelectorAll('form label')].find(el=>el.textContent === 'Due');
+    const input = [...view.contentEl.querySelectorAll('input')].find(el=>el.id === label.htmlFor);
+    const setDate = value => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,value);
+      input.dispatchEvent(new Event('change',{bubbles:true}));
+    };
+    setDate('2030-01-05');
+    expect(await waitFor(() => !!view.contentEl.querySelector('[role="status"].td-weekend-warning'))).toBe(true);
+    expect(view.contentEl.querySelector('.td-weekend-warning').textContent).toContain('Saturday');
+    setDate('2030-01-06');
+    expect(await waitFor(() => view.contentEl.querySelector('.td-weekend-warning')?.textContent.includes('Sunday'))).toBe(true);
+    setDate('2030-01-07');
+    expect(await waitFor(() => !view.contentEl.querySelector('.td-weekend-warning'))).toBe(true);
+    await view.onClose();
+  });
+
   it('keeps a failed timer stop pending across reload and retries the frozen session once', async () => {
     const app = makeFakeApp();
     app.__folders.add('Tasks');
@@ -1054,6 +1095,198 @@ describe('TaskDash plugin end-to-end', () => {
     expect(await waitFor(() => view.contentEl.textContent.includes('Audit follow-up') && view.contentEl.textContent.includes('LIVE'), 1000)).toBe(true);
     expect(view.contentEl.querySelector('.td-metadata-dialog input[placeholder="work, phone"]').value).toBe('unsaved audit');
 
+    await view.onClose();
+  }, 15000);
+  const setControlValue = (element, value) => {
+    Object.getOwnPropertyDescriptor(Object.getPrototypeOf(element), 'value').set.call(element, value);
+    element.dispatchEvent(new Event('input', { bubbles:true }));
+  };
+  const ollamaResponse = content => ({ ok:true, status:200, json:async()=>({ done:true, message:{ content:JSON.stringify(content) } }) });
+
+  it('drafts an editable task from email only on request and saves once through Create Task', async () => {
+    const app = makeFakeApp();
+    app.__folders.add('Tasks');
+    app.__pluginData = { folders:{ tasks:'Tasks' }, emailAssistant:{ enabled:true, taskSkill:'Use the custom task skill.', commentSkill:'Comment skill.' } };
+    const requests = [];
+    globalThis.fetch = vi.fn(async (url, options) => {
+      requests.push({ url, body:JSON.parse(options.body) });
+      return requests.length === 1
+        ? { ok:true, status:200, json:async()=>({ done:true, message:{ content:'{' } }) }
+        : requests.length === 2
+          ? Promise.reject(new Error('offline'))
+        : ollamaResponse({ title:'Review the meter order', description:'Confirm the date with the contractor.' });
+    });
+    const plugin = new TaskDashPlugin(app, { id:'taskdash-2-2', version:'2.2.0' });
+    await plugin.onload();
+    expect(requests).toHaveLength(0);
+    const view = app.__viewFactories[TASKDASH_VIEW_TYPE]({});
+    view.app = app;
+    await view.onOpen();
+    expect(await waitFor(() => !!view.contentEl.querySelector('.taskdash-root'))).toBe(true);
+    expect(requests).toHaveLength(0);
+    expect(await waitFor(() => !!view.contentEl.querySelector('button[aria-label="Calendar"]'))).toBe(true);
+    view.contentEl.querySelector('button[aria-label="Calendar"]').click();
+    expect(await waitFor(() => [...view.contentEl.querySelectorAll('button')].some(button=>button.textContent === '+ New task'))).toBe(true);
+    [...view.contentEl.querySelectorAll('button')].find(button=>button.textContent === '+ New task').click();
+    expect(await waitFor(() => [...view.contentEl.querySelectorAll('button')].some(button=>button.textContent.includes('Draft task from email')))).toBe(true);
+    [...view.contentEl.querySelectorAll('button')].find(button=>button.textContent.includes('Draft task from email')).click();
+    const filesBeforeDraft = [...app.__files.entries()].map(([path, file])=>[path, file.content]);
+    const email = view.contentEl.querySelector('.td-email-draft-panel textarea');
+    setControlValue(email, 'Please confirm the meter installation date.');
+    expect(requests).toHaveLength(0);
+    [...view.contentEl.querySelectorAll('button')].find(button=>button.textContent === 'Generate draft').click();
+    expect(await waitFor(() => !!view.contentEl.querySelector('[role="alert"]'))).toBe(true);
+    expect([...app.__files.entries()].map(([path, file])=>[path, file.content])).toEqual(filesBeforeDraft);
+    expect(requests[0].body.messages.map(message=>message.content).join('\n')).toContain('Use the custom task skill.');
+    plugin.settings.emailAssistant.taskSkill = 'Updated skill for the next request.';
+    [...view.contentEl.querySelectorAll('button')].find(button=>button.textContent === 'Generate draft').click();
+    expect(await waitFor(() => view.contentEl.querySelector('[role="alert"]')?.textContent.includes('Could not reach Ollama'))).toBe(true);
+    expect([...app.__files.entries()].map(([path, file])=>[path, file.content])).toEqual(filesBeforeDraft);
+    expect(requests[1].body.messages.map(message=>message.content).join('\n')).toContain('Updated skill for the next request.');
+    [...view.contentEl.querySelectorAll('button')].find(button=>button.textContent === 'Generate draft').click();
+    expect(await waitFor(() => [...view.contentEl.querySelectorAll('button')].some(button=>button.textContent === 'Use task draft'))).toBe(true);
+    expect(requests).toHaveLength(3);
+    expect(requests[2].body.messages.map(message=>message.content).join('\n')).toContain('Updated skill for the next request.');
+    const title = [...view.contentEl.querySelectorAll('input')].find(input=>input.value === 'Review the meter order');
+    const description = [...view.contentEl.querySelectorAll('textarea')].find(textarea=>textarea.value.includes('Confirm the date'));
+    setControlValue(title, 'Confirm meter delivery date');
+    setControlValue(description, 'Ask the contractor to confirm the delivery date.');
+    [...view.contentEl.querySelectorAll('button')].find(button=>button.textContent === 'Use task draft').click();
+    expect(await waitFor(() => [...view.contentEl.querySelectorAll('input')].some(input=>input.value === 'Confirm meter delivery date'))).toBe(true);
+    expect(view.contentEl.textContent).not.toContain('Other - Confirm meter delivery date');
+    expect([...app.__files.entries()].map(([path, file])=>[path, file.content])).toEqual(filesBeforeDraft);
+    [...view.contentEl.querySelectorAll('button')].find(button=>button.textContent === 'Create Task').click();
+    expect(await waitFor(() => [...app.__files.entries()].some(([path, file])=>path.includes('Confirm meter delivery date') && file.content.includes('Ask the contractor to confirm the delivery date.')))).toBe(true);
+    const createdPath = [...app.__files.keys()].find(path=>path.includes('Confirm meter delivery date'));
+    const created = app.__files.get(createdPath).content;
+    expect(created).toContain('title: Confirm meter delivery date');
+    expect(created).toContain('Ask the contractor to confirm the delivery date.');
+    expect([...app.__files.keys()].filter(path=>path.includes('Confirm meter delivery date'))).toHaveLength(1);
+    await view.onClose();
+  }, 15000);
+
+  it('transfers an edited comment without writing, then preserves CRLF through Add', async () => {
+    const app = makeFakeApp();
+    app.__folders.add('Tasks');
+    app.__files.set('Tasks/editable-task.md', { content:EDITABLE_TASK_MD, mtime:1 });
+    app.__pluginData = { folders:{ tasks:'Tasks' }, emailAssistant:{ enabled:true, taskSkill:'Task skill.', commentSkill:'Comment skill.' } };
+    globalThis.fetch = vi.fn(async () => ollamaResponse({ comment:'Contractor will confirm the date.' }));
+    const plugin = new TaskDashPlugin(app, { id:'taskdash-2-2', version:'2.2.0' });
+    await plugin.onload();
+    const view = app.__viewFactories[TASKDASH_VIEW_TYPE]({});
+    view.app = app;
+    await view.onOpen();
+    expect(await waitFor(() => [...view.contentEl.querySelectorAll('[role="button"]')].some(row=>row.textContent.includes('Edit a native task log')))).toBe(true);
+    [...view.contentEl.querySelectorAll('[role="button"]')].find(row=>row.textContent.includes('Edit a native task log')).click();
+    expect(await waitFor(() => !!view.contentEl.querySelector('.td-task-activity'))).toBe(true);
+    [...view.contentEl.querySelectorAll('button')].find(button=>button.textContent.includes('Draft comment from email')).click();
+    const email = view.contentEl.querySelector('.td-email-draft-panel textarea');
+    setControlValue(email, 'We will confirm the date with the contractor.');
+    [...view.contentEl.querySelectorAll('button')].find(button=>button.textContent === 'Generate draft').click();
+    expect(await waitFor(() => [...view.contentEl.querySelectorAll('button')].some(button=>button.textContent === 'Use comment draft'))).toBe(true);
+    const preview = [...view.contentEl.querySelectorAll('textarea')].find(textarea=>textarea.value === 'Contractor will confirm the date.');
+    setControlValue(preview, 'Contractor update:\r\n\r\nThe installation date is still unconfirmed.');
+    [...view.contentEl.querySelectorAll('button')].find(button=>button.textContent === 'Use comment draft').click();
+    const composer = view.contentEl.querySelector('.td-task-note-composer textarea');
+    expect(await waitFor(() => composer.value.includes('Contractor update:'))).toBe(true);
+    expect(composer.value).toBe('Contractor update:\r\n\r\nThe installation date is still unconfirmed.');
+    expect(app.__files.get('Tasks/editable-task.md').content).toBe(EDITABLE_TASK_MD);
+    const alert = vi.fn();
+    const originalAlert = globalThis.alert;
+    globalThis.alert = alert;
+    app.__failNextProcess('injected comment write failure');
+    const addButton = view.contentEl.querySelector('.td-task-note-composer button');
+    addButton.click();
+    addButton.click();
+    expect(await waitFor(() => alert.mock.calls.length === 1)).toBe(true);
+    expect(composer.value).toBe('Contractor update:\r\n\r\nThe installation date is still unconfirmed.');
+    view.contentEl.querySelector('.td-task-note-composer button').click();
+    expect(await waitFor(() => app.__files.get('Tasks/editable-task.md').content.includes('Contractor update:'))).toBe(true);
+    const updated = app.__files.get('Tasks/editable-task.md').content;
+    expect(updated).toContain('Contractor update:\r\n\r\nThe installation date is still unconfirmed.');
+    expect(updated.split('Contractor update:').length - 1).toBe(1);
+    expect(updated).toContain('### [[2026-06-03]]');
+    expect(updated).toContain('Log: [08:03] Original log text');
+    await view.onClose();
+    globalThis.alert = originalAlert;
+  });
+
+  it('sizes the new-task form to its pane inside a wide desktop shell', async () => {
+    const observers = [];
+    globalThis.ResizeObserver = class {
+      constructor(callback) { this.callback = callback; observers.push(this); }
+      observe(target) {
+        this.target = target;
+        const width = target.classList?.contains('shell') ? 1200 : target.querySelector?.('.td-new-task-form') ? 440 : 1200;
+        this.callback([{ target, contentRect:{ width } }]);
+      }
+      disconnect() {}
+    };
+
+    const app = makeFakeApp();
+    app.__folders.add('Tasks');
+    app.__pluginData = { folders:{ tasks:'Tasks' } };
+    const plugin = new TaskDashPlugin(app, { id:'taskdash-2-2', version:'2.2.0' });
+    await plugin.onload();
+    const view = app.__viewFactories[TASKDASH_VIEW_TYPE]({});
+    view.app = app;
+    await view.onOpen();
+    expect(await waitFor(() => !!view.contentEl.querySelector('.shell .td-pane-list'))).toBe(true);
+    expect(view.contentEl.querySelector('.shell')).toBeTruthy();
+    expect(view.contentEl.querySelector('button[aria-label="Calendar"]')).toBeTruthy();
+
+    view.contentEl.querySelector('button[aria-label="Calendar"]').click();
+    expect(await waitFor(() => [...view.contentEl.querySelectorAll('button')].some(button=>button.textContent === '+ New task'))).toBe(true);
+    [...view.contentEl.querySelectorAll('button')].find(button=>button.textContent === '+ New task').click();
+    expect(await waitFor(() => !!view.contentEl.querySelector('.td-new-task-form'))).toBe(true);
+    const form = view.contentEl.querySelector('.td-new-task-form');
+    expect(form.style.gridTemplateColumns).toContain('minmax(0,1fr)');
+    const detailsToggle = [...view.contentEl.querySelectorAll('button')].find(button=>button.textContent.includes('Add more details'));
+    expect(detailsToggle).toBeTruthy();
+    const details = view.contentEl.querySelector('.td-new-task-secondary-fields');
+    expect(details.style.display).toBe('none');
+    detailsToggle.click();
+    expect(await waitFor(() => details.style.display !== 'none')).toBe(true);
+
+    const panelObserver = observers.find(observer=>!observer.target?.classList?.contains('shell') && observer.target?.querySelector?.('.td-new-task-form'));
+    expect(panelObserver).toBeTruthy();
+    panelObserver.callback([{ target:panelObserver.target, contentRect:{ width:1000 } }]);
+    expect(await waitFor(() => form.style.gridTemplateColumns.includes('minmax(360px,0.9fr)'))).toBe(true);
+    expect(view.contentEl.querySelector('.td-new-task-secondary-toggle')).toBeNull();
+    expect(details.style.display).not.toBe('none');
+    await view.onClose();
+  }, 15000);
+
+  it('cancels a pending local draft without applying a late response or writing', async () => {
+    const app = makeFakeApp();
+    app.__folders.add('Tasks');
+    app.__pluginData = { folders:{ tasks:'Tasks' }, emailAssistant:{ enabled:true, taskSkill:'Task skill.', commentSkill:'Comment skill.' } };
+    let finishRequest;
+    globalThis.fetch = vi.fn(() => new Promise(resolve => {
+      finishRequest = () => resolve(ollamaResponse({ title:'Late task', description:'Late response.' }));
+    }));
+    const plugin = new TaskDashPlugin(app, { id:'taskdash-2-2', version:'2.2.0' });
+    await plugin.onload();
+    const view = app.__viewFactories[TASKDASH_VIEW_TYPE]({});
+    view.app = app;
+    await view.onOpen();
+    expect(await waitFor(() => !!view.contentEl.querySelector('button[aria-label="Calendar"]'))).toBe(true);
+    view.contentEl.querySelector('button[aria-label="Calendar"]').click();
+    expect(await waitFor(() => [...view.contentEl.querySelectorAll('button')].some(button=>button.textContent === '+ New task'))).toBe(true);
+    [...view.contentEl.querySelectorAll('button')].find(button=>button.textContent === '+ New task').click();
+    expect(await waitFor(() => !!view.contentEl.querySelector('.td-email-draft-panel'))).toBe(true);
+    [...view.contentEl.querySelectorAll('button')].find(button=>button.textContent.includes('Draft task from email')).click();
+    const email = view.contentEl.querySelector('.td-email-draft-panel textarea');
+    setControlValue(email, 'Please confirm the invoice date.');
+    [...view.contentEl.querySelectorAll('button')].find(button=>button.textContent === 'Generate draft').click();
+    expect(await waitFor(() => [...view.contentEl.querySelectorAll('button')].some(button=>button.textContent === 'Cancel drafting'))).toBe(true);
+    expect(typeof finishRequest).toBe('function');
+    const filesBeforeCancel = [...app.__files.entries()].map(([path, file])=>[path, file.content]);
+    [...view.contentEl.querySelectorAll('button')].find(button=>button.textContent === 'Cancel drafting').click();
+    finishRequest();
+    await new Promise(resolve=>setTimeout(resolve, 30));
+    expect(view.contentEl.querySelector('input[value="Late task"]')).toBeNull();
+    expect([...app.__files.entries()].map(([path, file])=>[path, file.content])).toEqual(filesBeforeCancel);
     await view.onClose();
   }, 15000);
 });

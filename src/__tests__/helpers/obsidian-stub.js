@@ -46,6 +46,13 @@ const enhance = el => {
     el.innerHTML = '';
   };
   el.addClass = cls => el.classList.add(cls);
+  el.createEl = (tag, { text, cls } = {}) => {
+    const child = document.createElement(tag);
+    if (text) child.textContent = text;
+    if (cls) child.className = cls;
+    el.appendChild(child);
+    return child;
+  };
   el.createDiv = ({ cls } = {}) => {
     const child = document.createElement('div');
     if (cls) child.classList.add(cls);
@@ -74,9 +81,14 @@ export class PluginSettingTab {
 export class Setting {
   constructor(containerEl) {
     this.containerEl = containerEl;
+    this.settingEl = enhance(document.createElement('div'));
+    this.controlEl = enhance(document.createElement('div'));
+    this.descEl = document.createElement('div');
+    this.settingEl.append(this.descEl, this.controlEl);
+    containerEl.append(this.settingEl);
   }
   setName(name) { this.name = name; return this; }
-  setDesc() { return this; }
+  setDesc(value) { this.descEl.textContent = value; return this; }
   setHeading() { return this; }
   addText(build) {
     const setting = this;
@@ -91,9 +103,61 @@ export class Setting {
       },
     };
     build(text);
+    this.controlEl.append(text.inputEl);
     return this;
   }
-  addToggle() { return this; }
+  addToggle(build) {
+    const setting = this;
+    const toggle = {
+      toggleEl: document.createElement('input'),
+      setValue(value) { toggle.toggleEl.checked = value; return toggle; },
+      onChange(callback) {
+        setting.containerEl.__settingCallbacks ??= new Map();
+        setting.containerEl.__settingCallbacks.set(setting.name, callback);
+        toggle.toggleEl.addEventListener('change', () => callback(toggle.toggleEl.checked));
+        return toggle;
+      },
+    };
+    toggle.toggleEl.type = 'checkbox';
+    toggle.toggleEl.setAttribute('aria-label', setting.name);
+    build(toggle);
+    this.controlEl.append(toggle.toggleEl);
+    return this;
+  }
+  addTextArea(build) {
+    const setting = this;
+    const text = {
+      inputEl: document.createElement('textarea'),
+      setPlaceholder(value) { text.inputEl.placeholder = value; return text; },
+      setValue(value) { text.inputEl.value = value; return text; },
+      onChange(callback) {
+        setting.containerEl.__settingCallbacks ??= new Map();
+        setting.containerEl.__settingCallbacks.set(setting.name, callback);
+        text.inputEl.addEventListener('input', () => callback(text.inputEl.value));
+        return text;
+      },
+    };
+    build(text);
+    this.controlEl.append(text.inputEl);
+    return this;
+  }
+  addButton(build) {
+    const setting = this;
+    const button = {
+      buttonEl: document.createElement('button'),
+      setButtonText(value) { button.buttonEl.textContent = value; return button; },
+      setTooltip() { return button; },
+      onClick(callback) {
+        setting.containerEl.__settingButtons ??= new Map();
+        setting.containerEl.__settingButtons.set(setting.name, callback);
+        button.buttonEl.addEventListener('click', callback);
+        return button;
+      },
+    };
+    build(button);
+    this.controlEl.append(button.buttonEl);
+    return this;
+  }
 }
 
 export class FuzzySuggestModal {

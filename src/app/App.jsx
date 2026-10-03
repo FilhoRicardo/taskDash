@@ -4,6 +4,7 @@ import remarkGfm from 'remark-gfm';
 import IconRail from './IconRail.jsx';
 import { useContainerWidth } from './useContainerWidth.js';
 import MentionTextarea, { MentionProvider } from './MentionTextarea.jsx';
+import EmailDraftPanel from './EmailDraftPanel.jsx';
 import { wikilinksToMarkdown, isWikilinkHref, wikilinkTarget } from './utils/mentions.js';
 import { parseTask, parseProperty, parseProject, parseDailyNote, parseMeeting, parsePerson, parseOrganization, readMdFiles, readDirNames, readImageFiles, readProjectCoverFiles, isProjectFileName } from './utils/parser.js';
 import { idbGet, idbSet, lsGet, lsSet, lsDel } from './utils/storage.js';
@@ -459,6 +460,13 @@ function DetailPatternPanel({ eyebrow: _eyebrow, title, subtitle, action, childr
   );
 }
 
+function WeekendWarning({ date }) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date || '')) return null;
+  const day = dateFromStr(date).getDay();
+  if (day !== 0 && day !== 6) return null;
+  return <div className="td-weekend-warning" role="status" style={{ color:'var(--td-warning)', fontSize:12, marginTop:6 }}>Weekend task: {day === 6 ? 'Saturday' : 'Sunday'}. Check that this date is intentional.</div>;
+}
+
 function WorkflowFocusPanel({ mode, task, position, total, reviewed = 0, onKeep, onComplete, onReschedule, onBacklog, onPromote, onAddNote, onOpenTask, onResetReview }) {
   const [noteDraft, setNoteDraft] = useState('');
   const [dateDraft, setDateDraft] = useState(task?.due || '');
@@ -521,6 +529,7 @@ function WorkflowFocusPanel({ mode, task, position, total, reviewed = 0, onKeep,
             <input type="date" value={dateDraft} onChange={event=>setDateDraft(event.target.value)} aria-label={`New due date for ${task.title}`}/>
             <button type="button" onClick={()=>dateDraft && onReschedule(task.id, dateDraft)} disabled={!dateDraft}>Reschedule</button>
           </div>
+          <WeekendWarning date={dateDraft}/>
           <div className="td-workflow-button-row">
             {mode === 'review' && <button type="button" onClick={()=>onKeep(task.id)} className="td-workflow-primary">Keep</button>}
             {mode === 'bd' && <button type="button" onClick={()=>onPromote(task.id)} className="td-workflow-primary">Promote to work</button>}
@@ -1605,7 +1614,7 @@ function ChipMulti({ value, onChange, options, placeholder, id }) {
   );
 }
 
-export default function App({ vaultAdapter, onOpenSettings }) {
+export default function App({ vaultAdapter, onOpenSettings, emailAssistant }) {
   // Narrow-pane layout keys off container width (breakpoint 768px).
   const [shellRef, shellWidth] = useContainerWidth();
   const isNarrow = shellWidth != null && shellWidth < 768;
@@ -1685,6 +1694,10 @@ export default function App({ vaultAdapter, onOpenSettings }) {
   const [tick,          setTick]          = useState(0);
   const [sel,           setSel]           = useState(null);
   const [note,          setNote]          = useState('');
+  const [noteBusy,      setNoteBusy]      = useState(false);
+  const noteWriteRef = useRef(false);
+  const selectedTaskIdRef = useRef(sel);
+  selectedTaskIdRef.current = sel;
   const [threadSubjectDraft, setThreadSubjectDraft] = useState('');
   const [taskMetadata, setTaskMetadata] = useState(taskMetadataDraft());
   const [taskPropertiesOpen, setTaskPropertiesOpen] = useState(false);
@@ -2505,9 +2518,21 @@ export default function App({ vaultAdapter, onOpenSettings }) {
   };
 
   const addNote = async () => {
-    if (!note.trim() || !sel) return;
-    await addTaskNote(sel, note);
-    setNote('');
+    const targetId = sel;
+    const submittedNote = note;
+    const body = submittedNote.trim();
+    if (!body || !targetId || noteWriteRef.current) return;
+    noteWriteRef.current = true;
+    setNoteBusy(true);
+    try {
+      const saved = await addTaskNote(targetId, body);
+      if (saved && selectedTaskIdRef.current === targetId) {
+        setNote(current => current === submittedNote ? '' : current);
+      }
+    } finally {
+      noteWriteRef.current = false;
+      setNoteBusy(false);
+    }
   };
 
   const editTaskComment = async (index, nextBody) => {
@@ -3525,7 +3550,7 @@ export default function App({ vaultAdapter, onOpenSettings }) {
   const taskCalendarWeekLabel = calendarWeekRangeLabel(taskCalendarDates);
   const taskCalendarOccurrences = buildTaskCalendarOccurrences(openTasks, taskCalendarDates, tod());
   const taskCalendarByDate = groupTaskCalendarOccurrences(taskCalendarOccurrences, taskCalendarDates);
-  const taskCalendarOverdueCount = taskCalendarOccurrences.filter(occurrence => occurrence.isOverdue).length;
+  const taskCalendarOverdueCount = missionOverdue.length;
   const vaultTotals = {
     tasks: visibleTaskPool.length,
     tasksOpen: openTasks.length,
@@ -3771,6 +3796,7 @@ export default function App({ vaultAdapter, onOpenSettings }) {
                 </div>
                 <div className="td-review-batch-row">
                   <input type="date" value={batchDate} onChange={event=>setBatchDate(event.target.value)} aria-label="Batch reschedule date"/>
+                  <WeekendWarning date={batchDate}/>
                   <button type="button" onClick={previewBatchReschedule} className="td-workflow-primary" disabled={!batchSelectedIds.length || !batchDate}>Preview</button>
                 </div>
               </div>
@@ -4223,7 +4249,7 @@ export default function App({ vaultAdapter, onOpenSettings }) {
           occurrencesByDate={taskCalendarByDate}
           selectedDate={calendarDate}
           weekLabel={taskCalendarWeekLabel}
-          total={taskCalendarOccurrences.length}
+          total={openTasks.length}
           overdueCount={taskCalendarOverdueCount}
           onSelectDate={setCalendarDate}
           onSelectTask={(id)=>requestNavigation({ taskId:id, view:'tasks' })}
@@ -4236,7 +4262,7 @@ export default function App({ vaultAdapter, onOpenSettings }) {
       ) : newPersonOpen ? (
         <NewPersonPanel onCancel={()=>setNewPersonOpen(false)} onCreate={createPerson} refs={refs} hasPeopleFolder={!!dirs.people} onConfigure={()=>setFolderSetupOpen(true)}/>
       ) : newTaskOpen ? (
-          <NewTaskPanel onCancel={()=>{ setNewTaskOpen(false); setNewTaskInitialDue(''); }} onCreate={createTask} refs={refs} isNarrow={isNarrow} initialDue={newTaskInitialDue}/>
+          <NewTaskPanel onCancel={()=>{ setNewTaskOpen(false); setNewTaskInitialDue(''); }} onCreate={createTask} refs={refs} isNarrow={isNarrow} initialDue={newTaskInitialDue} emailAssistant={emailAssistant} onOpenSettings={onOpenSettings}/>
       ) : view === 'meetings' ? (
         <MeetingPanel
           meetingOpen={meetingOpen}
@@ -4302,6 +4328,8 @@ export default function App({ vaultAdapter, onOpenSettings }) {
                   <label style={{ display:'flex', flexDirection:'column', gap:5, minWidth:182 }}>
                     <span style={{ fontSize:9, color:'var(--td-muted)', fontWeight:800, letterSpacing:'0.08em', textTransform:'uppercase' }}>Due</span>
                     <input type="date" value={task.due || ''} onChange={e=>changeTaskDates(task.id, { due:e.target.value })} style={{ ...inputBase, minHeight:38, padding:'9px 34px 9px 28px', fontSize:13 }}/>
+                    <WeekendWarning date={task.due}/>
+                    {task.scheduled !== task.due && <WeekendWarning date={task.scheduled}/>}
                   </label>
                   <button className="td-primary" onClick={()=>setTaskDatesToToday(task.id)} title="Set active task date fields to today" style={{ minHeight:38, padding:'9px 14px', borderRadius:9, border:'none', cursor:'pointer', fontWeight:800, fontSize:12, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff', boxShadow:BRAND_SHADOW }}>
                     Today
@@ -4363,12 +4391,14 @@ export default function App({ vaultAdapter, onOpenSettings }) {
                   <h3 style={{ margin:0, fontSize:14, color:'var(--td-text)' }}>Activity</h3>
                   <span style={{ fontSize:10, color:'var(--td-muted)', fontWeight:800 }}>{task.logs.length} note{task.logs.length === 1 ? '' : 's'}</span>
                 </div>
+                <EmailDraftPanel key={`email-comment-${task.id}`} emailAssistant={emailAssistant} mode="comment" targetKey={task.id}
+                  onOpenSettings={onOpenSettings} onTransfer={draft=>setNote(draft.comment)}/>
                 <div className="td-task-note-composer" style={{ display:'flex', gap:8, marginBottom:18, alignItems:'stretch' }}>
                   <MentionTextarea value={note} onChange={e=>setNote(e.target.value)} onKeyDown={e=>{ if(e.key==='Enter'&&!e.shiftKey){ e.preventDefault(); addNote(); }}}
                     placeholder="Add a note... @ to link a person/project, Enter to save, Shift+Enter for a new line"
                     rows={3}
                     style={{ flex:1, minHeight:76, fieldSizing:'content', padding:'10px 14px', borderRadius:6, resize:'vertical', background:'var(--background-primary)', border:'1px solid var(--background-modifier-border)', color:'var(--text-normal)', fontSize:13, lineHeight:1.5, outline:'none', fontFamily:'inherit' }}/>
-                  <button className="td-primary" onClick={addNote} disabled={!note.trim()} style={{ padding:'10px 20px', borderRadius:6, border:'none', cursor:'pointer', fontWeight:600, fontSize:13, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff', opacity:note.trim()?1:0.35 }}>Add</button>
+                  <button type="button" className="td-primary" onClick={addNote} disabled={noteBusy || !note.trim()} style={{ padding:'10px 20px', borderRadius:6, border:'none', cursor:'pointer', fontWeight:600, fontSize:13, fontFamily:'inherit', background:BRAND_GRADIENT, color:'#fff', opacity:note.trim()&&!noteBusy?1:0.35 }}>{noteBusy ? 'Adding…' : 'Add'}</button>
                 </div>
                 {!task.logs.length && (
                   <div className="td-task-empty-log" style={{ color:'var(--td-muted)', padding:'24px 0', fontSize:13 }}>
@@ -4626,6 +4656,7 @@ function TaskCalendarOccurrence({ occurrence, compact = false, onSelectTask, onM
         <label className="td-calendar-agenda-move">
           <span>Move due date</span>
           <input type="date" value={occurrence.date || ''} onChange={moveTask} aria-label={`Move ${occurrence.task.title} due date`}/>
+          <WeekendWarning date={occurrence.date}/>
         </label>
       ) : (
         <div className="td-calendar-agenda-move">Recurring date is controlled by its rule</div>
@@ -4672,6 +4703,7 @@ function TaskCalendarPanel({ dates, occurrencesByDate, selectedDate, weekLabel, 
           </div>
           <span style={{ minWidth:20, height:20, padding:'0 5px', borderRadius:999, display:'grid', placeItems:'center', fontSize:10.5, fontWeight:850, color:occurrences.length ? BRAND_TEXT : TEXT_MUTED, background:occurrences.length ? BRAND_SURFACE : 'var(--td-subtle)', border:`1px solid ${occurrences.length ? BRAND_BORDER : 'var(--td-subtle)'}`, fontVariantNumeric:'tabular-nums' }}>{occurrences.length}</span>
         </div>
+        {occurrences.length > 0 && <WeekendWarning date={dateStr}/>}
       </button>
     );
   };
@@ -4681,11 +4713,12 @@ function TaskCalendarPanel({ dates, occurrencesByDate, selectedDate, weekLabel, 
       <div className="td-calendar-header td-view-header" style={{ padding:'20px 28px 16px', borderBottom:'1px solid var(--td-border)', flexShrink:0, display:'flex', flexWrap:'wrap', justifyContent:'space-between', gap:18, alignItems:'flex-start' }}>
         <div style={{ minWidth:0 }}>
           <h2 style={{ margin:0, fontSize:23, lineHeight:1.1, color:'var(--td-text)', letterSpacing:0 }}>{weekLabel}</h2>
+          <div style={{ color:TEXT_MUTED, fontSize:12, marginTop:6 }}>Totals cover all open work tasks, including undated tasks.</div>
         </div>
         <div className="td-calendar-actions" style={{ display:'flex', gap:8, flexWrap:'wrap', justifyContent:'flex-end' }}>
           <button className="td-primary" onClick={()=>onNewTask?.(selectedDate)} style={{ minHeight:38, padding:'8px 12px', borderRadius:9, border:'none', background:BRAND_GRADIENT, color:'#fff', boxShadow:BRAND_SHADOW, cursor:'pointer', fontFamily:'inherit', fontSize:12, fontWeight:800 }}>+ New task</button>
           {[['Total',total,'var(--text-normal)','var(--background-secondary)','var(--background-modifier-border)'],['Overdue',overdueCount,'var(--td-danger)','rgba(225,91,79,0.08)','rgba(225,91,79,0.18)'],['On track',onTrackCount,'var(--td-accent-text)','rgba(20,120,72,0.10)','rgba(20,120,72,0.20)']].map(([label,value,color,bg,border]) => (
-            <div className="td-calendar-stat" key={label} style={{ minWidth:82, padding:'8px 10px', borderRadius:6, background:bg, border:`1px solid ${border}` }}>
+            <div className="td-calendar-stat" key={label} title={label === 'Overdue' ? 'Open work tasks with a due date before today' : label === 'On track' ? 'Open work tasks not overdue, including undated tasks' : 'All open work tasks, counted once each'} style={{ minWidth:82, padding:'8px 10px', borderRadius:6, background:bg, border:`1px solid ${border}` }}>
               <div style={{ fontSize:9, color, fontWeight:850, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:3 }}>{label}</div>
               <div style={{ fontSize:21, color, fontWeight:850, lineHeight:1, fontVariantNumeric:'tabular-nums' }}>{value}</div>
             </div>
@@ -6237,7 +6270,9 @@ function NewOrganizationPanel({ onCancel, onCreate, hasOrganizationsFolder, onCo
 }
 
 // ─── New Task Panel ───────────────────────────────────────
-function NewTaskPanel({ onCancel, onCreate, refs, isNarrow = false, initialDue = '' }) {
+function NewTaskPanel({ onCancel, onCreate, refs, isNarrow = false, initialDue = '', emailAssistant, onOpenSettings }) {
+  const [panelRef, panelWidth] = useContainerWidth();
+  const compactForm = isNarrow || (panelWidth != null && panelWidth < 900);
   const [form, setForm] = useState({
     title:'', priority:'normal', status:'none',
     due:initialDue, contexts:'work',
@@ -6249,6 +6284,7 @@ function NewTaskPanel({ onCancel, onCreate, refs, isNarrow = false, initialDue =
   const [quickText, setQuickText] = useState('');
   const [quickPreview, setQuickPreview] = useState(null);
   const [busy, setBusy] = useState(false);
+  const submitRef = useRef(false);
   const [showMoreDetails, setShowMoreDetails] = useState(false);
   const set = (k, v) => setForm(prev => ({ ...prev, [k]: v }));
   const setTitlePart = (k, v) => setTitleParts(prev => ({ ...prev, [k]: v }));
@@ -6257,7 +6293,7 @@ function NewTaskPanel({ onCancel, onCreate, refs, isNarrow = false, initialDue =
     : titleParts.type === 'Client'
       ? refs.clients
       : [...new Set([...refs.properties, ...refs.clients])].sort();
-  const taskTypeOptions = ['Prop','Client','Admin','Other','Research'].map(value => ({ value, label:value }));
+  const taskTypeOptions = [{ value:'', label:'Custom title' }, ...['Prop','Client','Admin','Other','Research'].map(value => ({ value, label:value }))];
   const priorityOptions = [
     { value:'none', label:'None' },
     { value:'low', label:'Low' },
@@ -6297,15 +6333,20 @@ function NewTaskPanel({ onCancel, onCreate, refs, isNarrow = false, initialDue =
 
   const submit = async (e) => {
     e?.preventDefault?.();
-    if (!canCreate) return;
+    if (!canCreate || submitRef.current) return;
+    submitRef.current = true;
     setBusy(true);
-    await onCreate(form);
-    setBusy(false);
+    try {
+      await onCreate(form);
+    } finally {
+      submitRef.current = false;
+      setBusy(false);
+    }
   };
 
   return (
-    <div style={{ flex:1, display:'flex', flexDirection:'column', overflow:'hidden' }}>
-      <div className="td-new-task-header td-view-header" style={{ padding:'18px 30px 14px', borderBottom:'1px solid var(--td-border)', flexShrink:0, display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:24 }}>
+    <div ref={panelRef} style={{ flex:1, minWidth:0, display:'flex', flexDirection:'column', overflow:'hidden' }}>
+      <div className="td-new-task-header td-view-header" style={{ padding:'18px 30px 14px', borderBottom:'1px solid var(--td-border)', flexShrink:0, display:'flex', flexWrap:'wrap', justifyContent:'space-between', alignItems:'flex-start', gap:24 }}>
         <div>
           <h2 style={{ margin:0, fontSize:19, fontWeight:700, color:'var(--td-text)' }}>Create a task in your Tasks folder</h2>
         </div>
@@ -6317,8 +6358,13 @@ function NewTaskPanel({ onCancel, onCreate, refs, isNarrow = false, initialDue =
         </div>
       </div>
 
-      <div className="td-new-task-body" style={{ flex:1, minHeight:0, overflow:'hidden', padding:'16px 30px 18px' }}>
-        <form className="td-new-task-form" onSubmit={submit} style={{ width:'100%', maxWidth:1180, height:'100%', display:'grid', gridTemplateColumns:'minmax(360px,0.9fr) minmax(430px,1.1fr)', gap:18, alignContent:'start', overflow:'visible' }}>
+      <div className="td-new-task-body" style={{ flex:1, minHeight:0, overflow:'auto', padding:'16px 30px 18px' }}>
+        <form className="td-new-task-form" onSubmit={submit} style={{ width:'100%', maxWidth:1180, height:'100%', display:'grid', gridTemplateColumns:compactForm ? 'minmax(0,1fr)' : 'minmax(360px,0.9fr) minmax(430px,1.1fr)', gap:18, alignContent:'start', overflow:'visible' }}>
+          <EmailDraftPanel emailAssistant={emailAssistant} mode="task" onOpenSettings={onOpenSettings}
+            onTransfer={draft=>{
+              setTitleParts({ type:'', link:'', name:draft.title });
+              setForm(prev=>({ ...prev, title:draft.title, body:draft.description }));
+            }}/>
           <div className="td-new-task-primary" style={{ minWidth:0, overflow:'visible' }}>
             <Field label="Quick capture">
               <input value={quickText} onChange={e=>applyQuickCapture(e.target.value)}
@@ -6353,6 +6399,7 @@ function NewTaskPanel({ onCancel, onCreate, refs, isNarrow = false, initialDue =
               </Field>
               <Field label="Due">
                 <input type="date" value={form.due} onChange={e=>set('due', e.target.value)} style={inputBase}/>
+                <WeekendWarning date={form.due}/>
               </Field>
               <Field label="Time estimate (minutes)">
                 <input type="number" min="0" value={form.timeEstimate} onChange={e=>set('timeEstimate', e.target.value)} placeholder="0" style={inputBase}/>
@@ -6371,13 +6418,13 @@ function NewTaskPanel({ onCancel, onCreate, refs, isNarrow = false, initialDue =
           </div>
 
           <div className="td-new-task-secondary" style={{ minWidth:0, overflow:'visible' }}>
-            {isNarrow && (
-              <button type="button" className="td-new-task-secondary-toggle" onClick={()=>setShowMoreDetails(value => !value)}>
+            {compactForm && (
+              <button type="button" className="td-new-task-secondary-toggle" style={{ display:'flex', width:'100%', justifyContent:'space-between' }} onClick={()=>setShowMoreDetails(value => !value)}>
                 <span>{showMoreDetails ? 'Hide more details' : 'Add more details'}</span>
                 <span aria-hidden="true">{showMoreDetails ? '−' : '+'}</span>
               </button>
             )}
-            <div className={`td-new-task-secondary-fields${isNarrow && !showMoreDetails ? ' is-collapsed' : ''}`}>
+            <div className={`td-new-task-secondary-fields${compactForm && !showMoreDetails ? ' is-collapsed' : ''}`} style={{ display:compactForm && !showMoreDetails ? 'none' : undefined }}>
             <div className="td-task-link-grid" style={{ display:'grid', gridTemplateColumns:'repeat(2,minmax(0,1fr))', gap:'0 11px' }}>
               <Field label={`Client${refs.clients.length?` · ${refs.clients.length} available`:''}`}>
                 <ComboInput value={form.client} onChange={v=>set('client', v)} options={refs.clients} placeholder="Pick or type..." />

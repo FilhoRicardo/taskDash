@@ -64,6 +64,7 @@ const normalizeLogDate = rawDate => {
 };
 
 function parseDatedLogs(txt) {
+  txt = txt.replace(/\r\n/g, '\n');
   const logs = [];
   const hRx = /(^|\n)### (?:\[\[)?(\d{4}-\d{2}-\d{2}|\d{1,2}\/\d{1,2}\/\d{4})(?:\]\])?[ \t]*(?=\n|$)/g;
   const headers = [...txt.matchAll(hRx)].map(m => ({

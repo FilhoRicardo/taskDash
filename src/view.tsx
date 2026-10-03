@@ -6,6 +6,7 @@ import { pickVaultFolder } from './vault/folderPicker';
 import { FOLDER_SETTINGS_META, FolderKey } from './settings';
 import App from './app/App.jsx';
 import { setStorageScope } from './app/utils/storage.js';
+import { createEmailAssistant } from './ai/emailAssistant';
 
 export const TASKDASH_VIEW_TYPE = 'taskdash-2-2-view';
 
@@ -66,7 +67,8 @@ export class TaskDashView extends ItemView {
     this.root = createRoot(mount);
     // StrictMode is intentionally off in the plugin: the app's data loading
     // runs in effects and double-invocation would double every vault scan.
-    this.root.render(<App vaultAdapter={this.adapter} onOpenSettings={() => this.openPluginSettings()} />);
+    this.root.render(<App vaultAdapter={this.adapter} onOpenSettings={() => this.openPluginSettings()}
+      emailAssistant={createEmailAssistant(() => this.plugin.settings.emailAssistant)} />);
   }
 
   private openPluginSettings(): void {

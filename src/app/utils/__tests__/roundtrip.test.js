@@ -30,6 +30,17 @@ Log: kicked off
 `;
 
 describe('markdown round-trip safety', () => {
+  it('appends CRLF activity in the existing dated section without mixing newlines', () => {
+    const today = new Date();
+    const date = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+    const raw = `---\r\ntitle: Synthetic\r\ncustom: keep\r\n---\r\nBody stays.\r\n### [[${date}]]\r\nLog: Original\r\n\r\n---\r\n`;
+    const updated = appendNoteToMd(raw, 'New activity');
+    expect(updated.match(/### \[\[/g)).toHaveLength(1);
+    expect(updated.replace(/\r\n/g, '')).not.toContain('\n');
+    expect(parseTask('Synthetic.md',updated).logs.map(log=>log.text)).toEqual(['Original',expect.stringContaining('New activity')]);
+    expect(updated).toContain('custom: keep\r\n');
+    expect(updated).toContain('Body stays.\r\n');
+  });
   it('updates CRLF frontmatter dates without changing other content or line endings', () => {
     const raw = '---\ntitle: Example\nstatus: done\ndue: 2026-10-02\nRecurrent: true\ncustomField: keep me\n---\nBody stays as written.\n';
     const crlf = raw.replace(/\n/g, '\r\n');

@@ -1,5 +1,5 @@
 import { Plugin, WorkspaceLeaf } from 'obsidian';
-import { DEFAULT_SETTINGS, TaskDashSettings, TaskDashSettingTab } from './settings';
+import { DEFAULT_SETTINGS, normalizeSettings, TaskDashSettings, TaskDashSettingTab } from './settings';
 import { TASKDASH_VIEW_TYPE, TaskDashView } from './view';
 
 interface TimerDetail {
@@ -145,11 +145,7 @@ export default class TaskDashPlugin extends Plugin {
 
   async loadSettings(): Promise<void> {
     const data = (await this.loadData()) as Partial<TaskDashSettings> | null;
-    this.settings = {
-      ...DEFAULT_SETTINGS,
-      ...data,
-      folders: { ...DEFAULT_SETTINGS.folders, ...(data?.folders ?? {}) },
-    };
+    this.settings = normalizeSettings(data);
   }
 
   async saveSettings(): Promise<void> {

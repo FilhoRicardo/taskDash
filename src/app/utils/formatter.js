@@ -82,6 +82,9 @@ function withTrailingSeparator(text) {
 
 // Append note to task .md in chronological date sections.
 export function appendNoteToMd(raw, noteText) {
+  if (raw.includes('\r\n')) {
+    return appendNoteToMd(raw.replace(/\r\n/g, '\n'), noteText.replace(/\r\n/g, '\n')).replace(/\n/g, '\r\n');
+  }
   const dateStr = tod();
   const timeStr = new Date().toLocaleTimeString([], { hour:'2-digit', minute:'2-digit', hour12:false });
   const logLine = `Log: [${timeStr}] ${noteText}`;
