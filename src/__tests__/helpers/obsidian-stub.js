@@ -99,6 +99,7 @@ export class Setting {
       onChange(callback) {
         setting.containerEl.__settingCallbacks ??= new Map();
         setting.containerEl.__settingCallbacks.set(setting.name, callback);
+        text.inputEl.addEventListener('input', () => callback(text.inputEl.value));
         return text;
       },
     };

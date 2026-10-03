@@ -4,6 +4,24 @@ import { normalizeSettings, TaskDashSettingTab } from '../settings';
 import { DEFAULT_TASK_SKILL, DEFAULT_COMMENT_SKILL } from '../ai/emailAssistant';
 
 describe('email skill configuration panel', () => {
+  it('saves the owner identity independently of the full skill text', async () => {
+    const plugin = { settings:normalizeSettings(null), saveSettings:vi.fn(async () => {}) };
+    const tab = new TaskDashSettingTab({} as never, plugin as never);
+    tab.display();
+    const name = tab.containerEl.querySelector<HTMLInputElement>('input[aria-label="Your name"]')!;
+    expect(name).not.toBeNull();
+    name.value = 'Jamie Example';
+    name.dispatchEvent(new Event('input', { bubbles:true }));
+    await Promise.resolve();
+    expect(plugin.settings.emailAssistant.ownerName).toBe('Jamie Example');
+    expect(plugin.settings.emailAssistant.taskSkill).toBe(DEFAULT_TASK_SKILL);
+    expect(plugin.saveSettings).toHaveBeenCalledOnce();
+    name.value = 'é'.repeat(101);
+    name.dispatchEvent(new Event('input', { bubbles:true }));
+    await Promise.resolve();
+    expect(plugin.settings.emailAssistant.ownerName).toBe('Jamie Example');
+    expect(plugin.saveSettings).toHaveBeenCalledOnce();
+  });
   it('persists edited skills and resets each editor independently', async () => {
     const plugin = { settings:normalizeSettings(null), saveSettings:vi.fn(async () => {}) };
     const tab = new TaskDashSettingTab({} as never, plugin as never);

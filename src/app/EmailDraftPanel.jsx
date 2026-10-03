@@ -120,7 +120,9 @@ export default function EmailDraftPanel({
                 placeholder="Paste the email text here…" aria-describedby={`${panelId}-help`}
                 style={{ width:'100%', minHeight:110, resize:'vertical', padding:'9px 11px', borderRadius:6, background:'var(--background-primary)', border:'1px solid var(--background-modifier-border)', color:'var(--text-normal)', fontSize:13, lineHeight:1.5, fontFamily:'inherit' }}/>
               <div id={`${panelId}-help`} style={{ marginTop:5, color:'var(--td-muted)', fontSize:11 }}>
-                The email is sent only to the configured local assistant. Review the draft before copying it into the form.
+                {mode === 'task'
+                  ? 'Local Gemma drafts a title, three-sentence recap and an action only if clear. Set your name in TaskDash settings first. Review before using; nothing is saved automatically.'
+                  : 'Local Gemma drafts a three-sentence thread recap, not an email reply or prescribed action. Review before using; nothing is saved automatically.'}
               </div>
               <div style={{ display:'flex', gap:8, flexWrap:'wrap', alignItems:'center', marginTop:9 }}>
                 <button type="button" onClick={generate} disabled={busy} style={primaryButtonStyle(busy)}>{busy ? 'Drafting…' : 'Generate draft'}</button>

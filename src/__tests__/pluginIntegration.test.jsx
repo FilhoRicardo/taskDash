@@ -1106,7 +1106,7 @@ describe('TaskDash plugin end-to-end', () => {
   it('drafts an editable task from email only on request and saves once through Create Task', async () => {
     const app = makeFakeApp();
     app.__folders.add('Tasks');
-    app.__pluginData = { folders:{ tasks:'Tasks' }, emailAssistant:{ enabled:true, taskSkill:'Use the custom task skill.', commentSkill:'Comment skill.' } };
+    app.__pluginData = { folders:{ tasks:'Tasks' }, emailAssistant:{ enabled:true, ownerName:'Jamie Example', taskSkill:'Use the custom task skill.', commentSkill:'Comment skill.' } };
     const requests = [];
     globalThis.fetch = vi.fn(async (url, options) => {
       requests.push({ url, body:JSON.parse(options.body) });
@@ -1114,7 +1114,7 @@ describe('TaskDash plugin end-to-end', () => {
         ? { ok:true, status:200, json:async()=>({ done:true, message:{ content:'{' } }) }
         : requests.length === 2
           ? Promise.reject(new Error('offline'))
-        : ollamaResponse({ title:'Review the meter order', description:'Confirm the date with the contractor.' });
+        : ollamaResponse({ title:'Review the meter order', summary:['A meter installation is planned.', 'The date is unconfirmed.', 'The contractor has been asked for confirmation.'], action:'Confirm the date with the contractor.' });
     });
     const plugin = new TaskDashPlugin(app, { id:'taskdash-2-2', version:'2.2.0' });
     await plugin.onload();
@@ -1149,6 +1149,7 @@ describe('TaskDash plugin end-to-end', () => {
     expect(requests[2].body.messages.map(message=>message.content).join('\n')).toContain('Updated skill for the next request.');
     const title = [...view.contentEl.querySelectorAll('input')].find(input=>input.value === 'Review the meter order');
     const description = [...view.contentEl.querySelectorAll('textarea')].find(textarea=>textarea.value.includes('Confirm the date'));
+    expect(description.value).toBe('A meter installation is planned. The date is unconfirmed. The contractor has been asked for confirmation.\n\nAction: Confirm the date with the contractor.');
     setControlValue(title, 'Confirm meter delivery date');
     setControlValue(description, 'Ask the contractor to confirm the delivery date.');
     [...view.contentEl.querySelectorAll('button')].find(button=>button.textContent === 'Use task draft').click();
@@ -1170,7 +1171,8 @@ describe('TaskDash plugin end-to-end', () => {
     app.__folders.add('Tasks');
     app.__files.set('Tasks/editable-task.md', { content:EDITABLE_TASK_MD, mtime:1 });
     app.__pluginData = { folders:{ tasks:'Tasks' }, emailAssistant:{ enabled:true, taskSkill:'Task skill.', commentSkill:'Comment skill.' } };
-    globalThis.fetch = vi.fn(async () => ollamaResponse({ comment:'Contractor will confirm the date.' }));
+    const recap = 'The installation is being coordinated. Its date is still unconfirmed. The contractor will confirm the date.';
+    globalThis.fetch = vi.fn(async () => ollamaResponse({ sentences:['The installation is being coordinated.', 'Its date is still unconfirmed.', 'The contractor will confirm the date.'] }));
     const plugin = new TaskDashPlugin(app, { id:'taskdash-2-2', version:'2.2.0' });
     await plugin.onload();
     const view = app.__viewFactories[TASKDASH_VIEW_TYPE]({});
@@ -1184,7 +1186,8 @@ describe('TaskDash plugin end-to-end', () => {
     setControlValue(email, 'We will confirm the date with the contractor.');
     [...view.contentEl.querySelectorAll('button')].find(button=>button.textContent === 'Generate draft').click();
     expect(await waitFor(() => [...view.contentEl.querySelectorAll('button')].some(button=>button.textContent === 'Use comment draft'))).toBe(true);
-    const preview = [...view.contentEl.querySelectorAll('textarea')].find(textarea=>textarea.value === 'Contractor will confirm the date.');
+    const preview = [...view.contentEl.querySelectorAll('textarea')].find(textarea=>textarea.value === recap);
+    expect(preview.value).toBe(recap);
     setControlValue(preview, 'Contractor update:\r\n\r\nThe installation date is still unconfirmed.');
     [...view.contentEl.querySelectorAll('button')].find(button=>button.textContent === 'Use comment draft').click();
     const composer = view.contentEl.querySelector('.td-task-note-composer textarea');
@@ -1260,10 +1263,10 @@ describe('TaskDash plugin end-to-end', () => {
   it('cancels a pending local draft without applying a late response or writing', async () => {
     const app = makeFakeApp();
     app.__folders.add('Tasks');
-    app.__pluginData = { folders:{ tasks:'Tasks' }, emailAssistant:{ enabled:true, taskSkill:'Task skill.', commentSkill:'Comment skill.' } };
+    app.__pluginData = { folders:{ tasks:'Tasks' }, emailAssistant:{ enabled:true, ownerName:'Jamie Example', taskSkill:'Task skill.', commentSkill:'Comment skill.' } };
     let finishRequest;
     globalThis.fetch = vi.fn(() => new Promise(resolve => {
-      finishRequest = () => resolve(ollamaResponse({ title:'Late task', description:'Late response.' }));
+      finishRequest = () => resolve(ollamaResponse({ title:'Late task', summary:['The invoice date is unknown.', 'Confirmation is needed.', 'An update was requested.'], action:'Confirm the invoice date' }));
     }));
     const plugin = new TaskDashPlugin(app, { id:'taskdash-2-2', version:'2.2.0' });
     await plugin.onload();

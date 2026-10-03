@@ -1,7 +1,7 @@
 import { App, PluginSettingTab, Setting } from 'obsidian';
 import type TaskDashPlugin from './main';
 import { FolderSuggest } from './vault/folderPicker';
-import { DEFAULT_COMMENT_SKILL, DEFAULT_TASK_SKILL } from './ai/emailAssistant';
+import { DEFAULT_COMMENT_SKILL, DEFAULT_TASK_SKILL, LEGACY_COMMENT_SKILL, LEGACY_TASK_SKILL } from './ai/emailAssistant';
 
 // Folder keys mirror the app's FOLDER_DEFS keys so the adapter can map 1:1.
 export const FOLDER_KEYS = [
@@ -37,6 +37,7 @@ export interface TaskDashSettings {
   enableStatusBarTimer: boolean;
   emailAssistant: {
     enabled: boolean;
+    ownerName: string;
     taskSkill: string;
     commentSkill: string;
   };
@@ -58,6 +59,7 @@ export const DEFAULT_SETTINGS: TaskDashSettings = {
   enableStatusBarTimer: true,
   emailAssistant: {
     enabled: true,
+    ownerName: '',
     taskSkill: DEFAULT_TASK_SKILL,
     commentSkill: DEFAULT_COMMENT_SKILL,
   },
@@ -83,8 +85,9 @@ export function normalizeSettings(data: unknown): TaskDashSettings {
       typeof source.enableStatusBarTimer === 'boolean' ? source.enableStatusBarTimer : DEFAULT_SETTINGS.enableStatusBarTimer,
     emailAssistant: {
       enabled: typeof savedAssistant.enabled === 'boolean' ? savedAssistant.enabled : DEFAULT_SETTINGS.emailAssistant.enabled,
-      taskSkill: validSkill(savedAssistant.taskSkill) ? savedAssistant.taskSkill : DEFAULT_TASK_SKILL,
-      commentSkill: validSkill(savedAssistant.commentSkill) ? savedAssistant.commentSkill : DEFAULT_COMMENT_SKILL,
+      ownerName: typeof savedAssistant.ownerName === 'string' && new TextEncoder().encode(savedAssistant.ownerName).byteLength <= 200 ? savedAssistant.ownerName.trim() : '',
+      taskSkill: validSkill(savedAssistant.taskSkill) && savedAssistant.taskSkill !== LEGACY_TASK_SKILL ? savedAssistant.taskSkill : DEFAULT_TASK_SKILL,
+      commentSkill: validSkill(savedAssistant.commentSkill) && savedAssistant.commentSkill !== LEGACY_COMMENT_SKILL ? savedAssistant.commentSkill : DEFAULT_COMMENT_SKILL,
     },
   };
 }
@@ -137,7 +140,7 @@ export class TaskDashSettingTab extends PluginSettingTab {
 
     new Setting(containerEl).setName('Local email assistant').setHeading();
     containerEl.createEl('p', {
-      text: 'Drafts run only when requested, using Ollama at http://127.0.0.1:11434 with qwen3:4b. Install and start Ollama locally to use this feature.',
+      text: 'Drafts run only when requested, using Gemma 4 12B through Ollama at http://127.0.0.1:11434. No cloud fallback. Install locally with: ollama pull gemma4:12b. Review every draft before saving.',
     });
     new Setting(containerEl)
       .setName('Enable local email assistant')
@@ -149,6 +152,23 @@ export class TaskDashSettingTab extends PluginSettingTab {
         })
       );
 
+    const ownerSetting = new Setting(containerEl)
+      .setName('Your name')
+      .setDesc('Required for task drafts: use the name identifying you in email headers, so your promises are not confused with someone else’s.');
+    ownerSetting.addText(text => {
+      text.inputEl.setAttribute('aria-label', 'Your name');
+      text.setValue(this.plugin.settings.emailAssistant.ownerName).onChange(async value => {
+        if (new TextEncoder().encode(value).byteLength > 200) {
+          ownerSetting.setDesc('Your name must be 200 UTF-8 bytes or fewer; shorten it to save.');
+          return;
+        }
+        this.plugin.settings.emailAssistant.ownerName = value.trim();
+        await this.plugin.saveSettings();
+      });
+    });
+    containerEl.createEl('p', {
+      text:'The full skills below remain editable references. TaskDash overrides their older bullet formats: comments are three-sentence recaps; tasks add a short title and an action only for a clear pending request or your unfinished promise.',
+    });
     const skillEditor = (key: 'taskSkill' | 'commentSkill', name: string, description: string, defaultValue: string) => {
       const setting = new Setting(containerEl).setName(name).setDesc(description);
       setting.settingEl.style.display = 'block';
@@ -182,7 +202,7 @@ export class TaskDashSettingTab extends PluginSettingTab {
         });
       });
     };
-    skillEditor('taskSkill', 'Task drafting skill', 'Editable task-drafting instructions. Maximum 4000 UTF-8 bytes.', DEFAULT_TASK_SKILL);
-    skillEditor('commentSkill', 'Comment drafting skill', 'Editable comment-drafting instructions. Maximum 4000 UTF-8 bytes.', DEFAULT_COMMENT_SKILL);
+    skillEditor('taskSkill', 'Task drafting skill', 'Full email-to-taskdash reference. Output: title, three-sentence recap and optional action. Maximum 4000 UTF-8 bytes.', DEFAULT_TASK_SKILL);
+    skillEditor('commentSkill', 'Comment drafting skill', 'Full email-context-action reference. Output: three-sentence memory recap, without a prescribed action. Maximum 4000 UTF-8 bytes.', DEFAULT_COMMENT_SKILL);
   }
 }
