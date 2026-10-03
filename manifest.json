@@ -1,6 +1,6 @@
 {
-  "id": "taskdash-2-2",
-  "name": "TaskDash 2.2 Preview",
+  "id": "taskdash",
+  "name": "TaskDash",
   "version": "2.2.0",
   "minAppVersion": "1.5.0",
   "description": "Mission-control dashboard for tasks, projects, people, organizations, properties, meetings, and daily notes stored as plain Markdown.",

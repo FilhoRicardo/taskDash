@@ -21,7 +21,7 @@ export default class TaskDashPlugin extends Plugin {
     // all data loading happens when the TaskDash view opens.
     this.registerView(TASKDASH_VIEW_TYPE, leaf => new TaskDashView(leaf, this));
 
-    this.addRibbonIcon('layout-dashboard', 'Open TaskDash 2.2 Preview', () => {
+    this.addRibbonIcon('layout-dashboard', 'Open TaskDash', () => {
       void this.activateView();
     });
 

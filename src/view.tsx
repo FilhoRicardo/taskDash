@@ -26,7 +26,7 @@ export class TaskDashView extends ItemView {
   }
 
   getDisplayText(): string {
-    return 'TaskDash 2.2';
+    return 'TaskDash';
   }
 
   getIcon(): string {
@@ -38,7 +38,7 @@ export class TaskDashView extends ItemView {
     const openedAt = performance.now();
     window.addEventListener(
       'taskdash-2-2-app-ready',
-      () => console.debug(`[TaskDash 2.2] view open → app mounted: ${Math.round(performance.now() - openedAt)}ms`),
+      () => console.debug(`[TaskDash] view open → app mounted: ${Math.round(performance.now() - openedAt)}ms`),
       { once: true }
     );
 

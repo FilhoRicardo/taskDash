@@ -1,6 +1,6 @@
-# TaskDash 2.2 Preview
+# TaskDash
 
-Packaged Obsidian plugin artifact for TaskDash 2.2.
+Local-first Obsidian dashboard with editable local email-drafting skills.
 
 ## Contents
 
@@ -14,10 +14,10 @@ Packaged Obsidian plugin artifact for TaskDash 2.2.
 Copy the contents of this folder into an Obsidian vault at:
 
 ```text
-.obsidian/plugins/taskdash-2-2/
+.obsidian/plugins/taskdash/
 ```
 
-Then enable **TaskDash 2.2 Preview** in Obsidian’s community plugins settings.
+Then enable **TaskDash** in Obsidian’s community plugins settings. Disable the older **TaskDash 2.2 Preview** before switching; retain a backup of its `data.json` if migrating its folder settings. Do not run both dashboards simultaneously. The numeric manifest version and legacy internal view/storage identifiers remain for compatibility; they are not part of the visible name.
 
 # Development
 
@@ -52,3 +52,5 @@ node --experimental-strip-types scripts/evaluate-local-email.mjs
 ```
 
 This uses no vault data. Automated schema/error/UI tests run with `npm test` without a model installed. See [the feature specification](docs/specs/local-email-assistant.md) for scope and verification boundaries.
+
+The [expanded skill review](docs/review/local-email-skills-2026-10-03.md) found that Qwen3 4B can copy access codes despite prompt instructions. Remove secrets before pasting email text; the local assistant is not a redactor. The optional evaluation now includes a fictional-code check and exits unsuccessfully when this defect is reproduced. Ordinary application tests passing does not mean that model-quality check passed.

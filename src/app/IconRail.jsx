@@ -69,7 +69,7 @@ export default function IconRail({ view, setView, vaultName = 'Vault', onSetting
         boxShadow: '0 8px 18px rgba(15,107,63,0.45), inset 0 1px 0 rgba(255,255,255,0.5)',
       }}>
         <Icon name="sparkle"/>
-        <span className="rail-brand-label">TaskDash 2.2</span>
+        <span className="rail-brand-label">TaskDash</span>
         <span className="tip">{vaultName}</span>
       </button>
       <div className="rail-sep"/>

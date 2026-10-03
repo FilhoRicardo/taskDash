@@ -12,6 +12,13 @@ const manifest = { version: '2.2.0', minAppVersion: '1.5.0' };
 const versions = { '2.2.0': '1.5.0' };
 
 describe('release validation', () => {
+  it('ships under the canonical TaskDash name and plugin id', () => {
+    const shippedManifest = JSON.parse(fs.readFileSync('manifest.json', 'utf8'));
+    const shippedPackage = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+    expect(shippedManifest.name).toBe('TaskDash');
+    expect(shippedManifest.id).toBe('taskdash');
+    expect(shippedPackage.name).toBe('taskdash');
+  });
   it('keeps CI and release gates running lint', () => {
     expect(fs.readFileSync('.github/workflows/ci.yml', 'utf8')).toContain('npm run lint');
     expect(fs.readFileSync('.github/workflows/release.yml', 'utf8')).toContain('npm run lint');

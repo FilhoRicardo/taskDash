@@ -1,5 +1,5 @@
 {
-  "name": "taskdash-2-2",
+  "name": "taskdash",
   "version": "2.2.0",
   "description": "A mission-control dashboard for Obsidian tasks, projects, people, organizations, properties, meetings, and daily notes.",
   "main": "main.js",
